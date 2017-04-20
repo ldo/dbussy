@@ -12,6 +12,8 @@ import atexit
 
 dbus = ct.cdll.LoadLibrary("libdbus-1.so.3")
 
+libc = ct.cdll.LoadLibrary("libc.so.6")
+
 class DBUS :
     "useful definitions adapted from the D-Bus includes. You will need to use the" \
     " constants, but apart from that, see the more Pythonic wrappers defined outside" \
@@ -329,7 +331,7 @@ dbus.dbus_bus_get_unique_name.restype = ct.c_char_p
 dbus.dbus_bus_get_unique_name.argtypes = (ct.c_void_p,)
 dbus.dbus_bus_get_unix_user.restype = ct.c_ulong
 dbus.dbus_bus_get_unix_user.argtypes = (ct.c_void_p, ct.c_char_p, DBUS.ErrorPtr)
-dbus.dbus_bus_get_id.restype = ct.c_char_p
+dbus.dbus_bus_get_id.restype = ct.c_void_p
 dbus.dbus_bus_get_id.argtypes = (ct.c_void_p, DBUS.ErrorPtr)
 dbus.dbus_bus_request_name.restype = ct.c_int
 dbus.dbus_bus_request_name.argtypes = (ct.c_void_p, ct.c_char_p, ct.c_uint, DBUS.ErrorPtr)
@@ -360,6 +362,8 @@ dbus.dbus_error_is_set.argtypes = (DBUS.ErrorPtr,)
 dbus.dbus_set_error.restype = None
 dbus.dbus_set_error.argtypes = (DBUS.ErrorPtr, ct.c_char_p, ct.c_char_p, ct.c_char_p)
   # note I can’t handle varargs
+
+libc.free.argtypes = (ct.c_void_p,)
 
 #+
 # High-level stuff follows
@@ -514,6 +518,38 @@ class Connection :
         my_error.raise_if_set()
     #end bus_register
 
+    @property
+    def bus_unique_name(self) :
+        return \
+            dbus.dbus_bus_get_unique_name(self._dbobj).decode()
+    #end bus_unique_name
+
+    @bus_unique_name.setter
+    def bus_unique_name(self, unique_name) :
+        if not dbus.dbus_bus_set_unique_name(self._dbobj, unique_name.encode()) :
+            raise RuntimeError("D-Bus set-unique-name failed")
+        #end if
+    #end bus_unique_name
+
+    def bus_get_unix_user(self, name, error = None) :
+        error, my_error = _get_error(error)
+        result = dbus.dbus_bus_get_unix_user(self._dbobj, name.encode(), error._dbobj)
+        my_error.raise_if_set()
+        return \
+            result
+    #end bus_get_unix_user
+
+    @property
+    def bus_id(self) :
+        my_error = Error()
+        c_result = dbus.dbus_bus_get_id(self._dbobj, my_error._dbobj)
+        my_error.raise_if_set()
+        result = ct.cast(c_result, ct.c_char_p).decode()
+        libc.free(c_result)
+        return \
+            result
+    #end bus_id
+
     def bus_request_name(self, name, flags, error = None) :
         "flags is a combination of NAME_FLAG_xxx bits. Result will be" \
         " a REQUEST_NAME_REPLY_xxx value or -1 on error."
@@ -532,7 +568,34 @@ class Connection :
             result
     #end bus_release_name
 
-    # more TBD
+    def bus_name_has_owner(self, name, error = None) :
+        error, my_error = _get_error(error)
+        result = dbus.dbus_bus_name_has_owner(self._dbobj, name.encode(), error._dbobj)
+        my_error.raise_if_set()
+        return \
+            result
+    #end if
+
+    def bus_start_service_by_name(self, name, flags = 0, error = None) :
+        error, my_error = _get_error(error)
+        outflags = ct.c_uint()
+        success = dbus.dbus_bus_start_service_by_name(self._dbobj, name.encode(), flags, ct.byref(outflags), error._dbobj)
+        my_error.raise_if_set()
+        return \
+            outflags.value
+    #end bus_start_service_by_name
+
+    def bus_add_match(self, rule, error = None) :
+        error, my_error = _get_error(error)
+        dbus.dbus_bus_add_match(self._dbobj, rule.encode(), error._dbobj)
+        my_error.raise_if_set()
+    #end bus_add_match
+
+    def bus_remove_match(self, rule, error = None) :
+        error, my_error = _get_error(error)
+        dbus.dbus_bus_remove_match(self._dbobj, rule.encode(), error._dbobj)
+        my_error.raise_if_set()
+    #end bus_remove_match
 
 #end Connection
 

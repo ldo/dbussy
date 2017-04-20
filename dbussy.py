@@ -12,8 +12,6 @@ import atexit
 
 dbus = ct.cdll.LoadLibrary("libdbus-1.so.3")
 
-libc = ct.cdll.LoadLibrary("libc.so.6")
-
 class DBUS :
     "useful definitions adapted from the D-Bus includes. You will need to use the" \
     " constants, but apart from that, see the more Pythonic wrappers defined outside" \
@@ -247,11 +245,54 @@ class DBUS :
     START_REPLY_SUCCESS = 1
     START_REPLY_ALREADY_RUNNING = 2
 
-    # from dbus-types.h etc:
+    # from dbus-types.h:
 
     bool_t = ct.c_uint
 
+    # from dbus-memory.h:
+
+    FreeFunction = ct.CFUNCTYPE(None, ct.c_void_p)
+
+    # from dbus-connection.h:
+
     HandlerResult = ct.c_uint
+
+    class Error(ct.Structure) :
+        _fields_ = \
+            [
+                ("name", ct.c_char_p),
+                ("message", ct.c_char_p),
+                ("padding", 2 * ct.c_void_p),
+            ]
+    #end Error
+    ErrorPtr = ct.POINTER(Error)
+
+    WatchFlags = ct.c_uint
+    WATCH_READABLE = 1 << 0
+    WATCH_WRITABLE = 1 << 1
+    WATCH_ERROR = 1 << 2
+    WATCH_HANGUP = 1 << 3
+
+    DispatchStatus = ct.c_uint
+    DISPATCH_DATA_REMAINS = 0 # more data available
+    DISPATCH_COMPLETE = 1 # all available data has been processed
+    DISPATCH_NEED_MEMORY = 2 # not enough memory to continue
+
+    AddWatchFunction = ct.CFUNCTYPE(bool_t, ct.c_void_p, ct.c_void_p)
+    WatchToggledFunction = ct.CFUNCTYPE(None, ct.c_void_p, ct.c_void_p)
+    RemoveWatchFunction = ct.CFUNCTYPE(None, ct.c_void_p, ct.c_void_p)
+
+    AddTimeoutFunction = ct.CFUNCTYPE(bool_t, ct.c_void_p, ct.c_void_p)
+    TimeoutToggledFunction = ct.CFUNCTYPE(None, ct.c_void_p, ct.c_void_p)
+    RemoveTimeoutFunction = ct.CFUNCTYPE(None, ct.c_void_p, ct.c_void_p)
+
+    DispatchStatusFunction = ct.CFUNCTYPE(None, ct.c_void_p, ct.POINTER(DispatchStatus), ct.c_void_p)
+    WakeupMainFunction = ct.CFUNCTYPE(None, ct.c_void_p)
+
+    AllowUnixUserFunction = ct.CFUNCTYPE(bool_t, ct.c_void_p, ct.c_void_p, ct.c_void_p)
+    AllowWindowsUserFunction = ct.CFUNCTYPE(bool_t, ct.c_void_p, ct.c_void_p, ct.c_void_p)
+
+    HandleMessageFunction = ct.CFUNCTYPE(HandlerResult, ct.c_void_p, ct.c_void_p, ct.c_void_p)
 
     ObjectPathUnregisterFunction = ct.CFUNCTYPE(None, ct.c_void_p, ct.c_void_p)
     ObjectPathMessageFunction = ct.CFUNCTYPE(HandlerResult, ct.c_void_p, ct.c_void_p, ct.c_void_p)
@@ -270,52 +311,72 @@ class DBUS :
         ]
     ObjectPathVTablePtr = ct.POINTER(ObjectPathVTable)
 
-    FreeFunction = ct.CFUNCTYPE(None, ct.c_void_p)
-
-    AddWatchFunction = ct.CFUNCTYPE(bool_t, ct.c_void_p, ct.c_void_p)
-    RemoveWatchFunction = ct.CFUNCTYPE(None, ct.c_void_p, ct.c_void_p)
-    WatchToggledFunction = ct.CFUNCTYPE(None, ct.c_void_p, ct.c_void_p)
-
-    class Error(ct.Structure) :
-        _fields_ = \
-            [
-                ("name", ct.c_char_p),
-                ("message", ct.c_char_p),
-                ("padding", 2 * ct.c_void_p),
-            ]
-    #end Error
-    ErrorPtr = ct.POINTER(Error)
-
 #end DBUS
 
 #+
 # Library prototypes
 #-
 
+# from dbus-connection.h
 dbus.dbus_connection_open.restype = ct.c_void_p
 dbus.dbus_connection_open.argtypes = (ct.c_char_p, DBUS.ErrorPtr)
 dbus.dbus_connection_open_private.restype = ct.c_void_p
 dbus.dbus_connection_open_private.argtypes = (ct.c_char_p, DBUS.ErrorPtr)
-dbus.dbus_connection_close.restype = None
-dbus.dbus_connection_close.argtypes = (ct.c_void_p,)
-dbus.dbus_connection_read_write.restype = DBUS.bool_t
-dbus.dbus_connection_read_write.argtypes = (ct.c_void_p, ct.c_int)
-dbus.dbus_connection_read_write_dispatch.restype = DBUS.bool_t
-dbus.dbus_connection_read_write_dispatch.argtypes = (ct.c_void_p, ct.c_int)
 dbus.dbus_connection_ref.restype = ct.c_void_p
 dbus.dbus_connection_ref.argtypes = (ct.c_void_p,)
-dbus.dbus_connection_register_fallback.restype = DBUS.bool_t
-dbus.dbus_connection_register_fallback.argtypes = (ct.c_void_p, ct.c_char_p, DBUS.ObjectPathVTablePtr, ct.c_void_p)
-dbus.dbus_connection_register_object_path.restype = DBUS.bool_t
-dbus.dbus_connection_register_object_path.argtypes = (ct.c_void_p, ct.c_char_p, DBUS.ObjectPathVTablePtr, ct.c_void_p)
+dbus.dbus_connection_unref.restype = None
+dbus.dbus_connection_unref.argtypes = (ct.c_void_p,)
+dbus.dbus_connection_close.restype = None
+dbus.dbus_connection_close.argtypes = (ct.c_void_p,)
+dbus.dbus_connection_get_is_connected.restype = DBUS.bool_t
+dbus.dbus_connection_get_is_connected.argtypes = (ct.c_void_p,)
+dbus.dbus_connection_get_is_authenticated.restype = DBUS.bool_t
+dbus.dbus_connection_get_is_authenticated.argtypes = (ct.c_void_p,)
+dbus.dbus_connection_get_is_anonymous.restype = DBUS.bool_t
+dbus.dbus_connection_get_is_anonymous.argtypes = (ct.c_void_p,)
+dbus.dbus_connection_get_server_id.restype = ct.c_void_p
+dbus.dbus_connection_get_server_id.argtypes = (ct.c_void_p,)
+dbus.dbus_connection_can_send_type.restype = DBUS.bool_t
+dbus.dbus_connection_can_send_type.argtypes = (ct.c_void_p, ct.c_int)
+dbus.dbus_connection_set_exit_on_disconnect.restype = None
+dbus.dbus_connection_set_exit_on_disconnect.argtypes = (ct.c_void_p, DBUS.bool_t)
+dbus.dbus_connection_preallocate_send.restype = ct.c_void_p
+dbus.dbus_connection_preallocate_send.argtypes = (ct.c_void_p,)
+dbus.dbus_connection_free_preallocated_send.restype = None
+dbus.dbus_connection_free_preallocated_send.argtypes = (ct.c_void_p, ct.c_void_p)
+dbus.dbus_connection_send_preallocated.restype = None
+dbus.dbus_connection_send_preallocated.argtypes = (ct.c_void_p, ct.c_void_p, ct.c_void_p, ct.POINTER(ct.c_uint))
 dbus.dbus_connection_send.restype = DBUS.bool_t
 dbus.dbus_connection_send.argtypes = (ct.c_void_p, ct.c_void_p, ct.POINTER(ct.c_uint))
 dbus.dbus_connection_send_with_reply.restype = DBUS.bool_t
 dbus.dbus_connection_send_with_reply.argtypes = (ct.c_void_p, ct.c_void_p, ct.c_void_p, ct.c_int)
+dbus.dbus_connection_send_with_reply_and_block.restype = ct.c_void_p
+dbus.dbus_connection_send_with_reply_and_block.argtypes = (ct.c_void_p, ct.c_void_p, ct.c_void_p, ct.c_int, DBUS.ErrorPtr)
+dbus.dbus_connection_flush.restype = None
+dbus.dbus_connection_flush.argtypes = (ct.c_void_p,)
+dbus.dbus_connection_read_write_dispatch.restype = DBUS.bool_t
+dbus.dbus_connection_read_write_dispatch.argtypes = (ct.c_void_p, ct.c_int)
+dbus.dbus_connection_read_write.restype = DBUS.bool_t
+dbus.dbus_connection_read_write.argtypes = (ct.c_void_p, ct.c_int)
+dbus.dbus_connection_borrow_message.restype = ct.c_void_p
+dbus.dbus_connection_borrow_message.argtypes = (ct.c_void_p,)
+dbus.dbus_connection_return_message.restype = None
+dbus.dbus_connection_return_message.argtypes = (ct.c_void_p, ct.c_void_p)
+dbus.dbus_connection_steal_borrowed_message.restype = None
+dbus.dbus_connection_steal_borrowed_message.argtypes = (ct.c_void_p, ct.c_void_p)
+dbus.dbus_connection_pop_message.restype = ct.c_void_p
+dbus.dbus_connection_pop_message.argtypes = (ct.c_void_p,)
+dbus.dbus_connection_get_dispatch_status.restype = ct.c_uint
+dbus.dbus_connection_get_dispatch_status.argtypes = (ct.c_void_p,)
+dbus.dbus_connection_dispatch.restype = ct.c_uint
+dbus.dbus_connection_dispatch.argtypes = (ct.c_void_p,)
+# more TBD
+dbus.dbus_connection_register_fallback.restype = DBUS.bool_t
+dbus.dbus_connection_register_fallback.argtypes = (ct.c_void_p, ct.c_char_p, DBUS.ObjectPathVTablePtr, ct.c_void_p)
+dbus.dbus_connection_register_object_path.restype = DBUS.bool_t
+dbus.dbus_connection_register_object_path.argtypes = (ct.c_void_p, ct.c_char_p, DBUS.ObjectPathVTablePtr, ct.c_void_p)
 dbus.dbus_connection_set_watch_functions.restype = DBUS.bool_t
 dbus.dbus_connection_set_watch_functions.argtypes = (ct.c_void_p, DBUS.AddWatchFunction, DBUS.RemoveWatchFunction, DBUS.WatchToggledFunction, ct.c_void_p, DBUS.FreeFunction)
-dbus.dbus_connection_unref.restype = None
-dbus.dbus_connection_unref.argtypes = (ct.c_void_p,)
 dbus.dbus_connection_unregister_object_path.restype = DBUS.bool_t
 dbus.dbus_connection_unregister_object_path.argtypes = (ct.c_void_p, ct.c_char_p)
 
@@ -363,7 +424,11 @@ dbus.dbus_set_error.restype = None
 dbus.dbus_set_error.argtypes = (DBUS.ErrorPtr, ct.c_char_p, ct.c_char_p, ct.c_char_p)
   # note I can’t handle varargs
 
-libc.free.argtypes = (ct.c_void_p,)
+# memory functions <https://dbus.freedesktop.org/doc/api/html/group__DBusMemory.html>
+# (shouldn’t need these outside this module)
+
+dbus.dbus_free.restype = None
+dbus.dbus_free.argtypes = (ct.c_void_p,)
 
 #+
 # High-level stuff follows
@@ -496,6 +561,8 @@ class Connection :
         dbus.dbus_connection_close(self._dbobj)
     #end close
 
+    # more TBD
+
     # message bus APIs
     # <https://dbus.freedesktop.org/doc/api/html/group__DBusBus.html>
 
@@ -545,7 +612,7 @@ class Connection :
         c_result = dbus.dbus_bus_get_id(self._dbobj, my_error._dbobj)
         my_error.raise_if_set()
         result = ct.cast(c_result, ct.c_char_p).decode()
-        libc.free(c_result)
+        dbus.dbus_free(c_result)
         return \
             result
     #end bus_id

@@ -1229,7 +1229,7 @@ class PreallocatedSend :
     " get from Connection.preallocate_send method."
     # <https://dbus.freedesktop.org/doc/api/html/group__DBusConnection.html>
 
-    __slots__ = ("_dbobj", "_parent", "_sent") # to forestall typos
+    __slots__ = ("__weakref__", "_dbobj", "_parent", "_sent") # to forestall typos
 
     _instances = WeakValueDictionary()
 
@@ -1277,7 +1277,9 @@ class Message :
     " new methods."
     # <https://dbus.freedesktop.org/doc/api/html/group__DBusMessage.html>
 
-    __slots__ = ("_dbobj") # to forestall typos
+    __slots__ = ("__weakref__", "_dbobj") # to forestall typos
+
+    _instances = WeakValueDictionary()
 
     def __new__(celf, _dbobj) :
         self = celf._instances.get(_dbobj)

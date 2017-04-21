@@ -7,6 +7,7 @@
 
 import ctypes as ct
 from weakref import \
+    ref as weak_ref, \
     WeakValueDictionary
 import atexit
 
@@ -2076,7 +2077,7 @@ class AddressEntries :
     " get from parse."
     # <https://dbus.freedesktop.org/doc/api/html/group__DBusAddress.html>
 
-    __slots__ = ("_dbobj", "_nrelts") # to forestall typos
+    __slots__ = ("__weakref__", "_dbobj", "_nrelts") # to forestall typos
 
     def __init__(self, _dbobj, _nrelts) :
         self._dbobj = _dbobj
@@ -2093,15 +2094,17 @@ class AddressEntries :
     class Entry :
         "a single AddressEntry. Do not instantiate directly; get from AddressEntries[]."
 
-        __slots__ = ("_dbobj", "_index") # to forestall typos
+        __slots__ = ("_dbobj", "_parent", "_index") # to forestall typos
 
-        def __init__(self, _dbobj, _index) :
-            self._dbobj = _dbobj
+        def __init__(self, _parent, _index) :
+            self._dbobj = _parent._dbobj
+            self._parent = weak_ref(_parent)
             self._index = _index
         #end __init__
 
         @property
         def method(self) :
+            assert self._parent() != None, "AddressEntries object has gone"
             result = dbus.dbus_address_entry_get_method(self._dbobj[self._index])
             if result != None :
                 result = result.decode()
@@ -2111,6 +2114,7 @@ class AddressEntries :
         #end method
 
         def get_value(self, key) :
+            assert self._parent() != None, "AddressEntries object has gone"
             c_result = dbus.dbus_address_entry_get_value(self._dbobj[self._index], key.encode())
             if c_result != None :
                 result = c_result.decode()
@@ -2153,7 +2157,7 @@ class AddressEntries :
             raise IndexError("AddressEntries[%d] out of range" % index)
         #end if
         return \
-            type(self).Entry(self._dbobj, index)
+            type(self).Entry(self, index)
     #end __getitem__
 
 #end AddressEntries

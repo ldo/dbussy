@@ -759,7 +759,7 @@ dbus.dbus_free_string_array.restype = None
 dbus.dbus_free_string_array.argtypes = (ct.c_void_p,)
 
 # from dbus-misc.h:
-dbus.dbus_get_local_machine_id.restype = ct.c_char_p
+dbus.dbus_get_local_machine_id.restype = ct.c_void_p
 dbus.dbus_get_local_machine_id.argtypes = ()
 dbus.dbus_get_version.restype = None
 dbus.dbus_get_version.argtypes = (ct.POINTER(ct.c_int), ct.POINTER(ct.c_int), ct.POINTER(ct.c_int))
@@ -772,7 +772,42 @@ dbus.dbus_setenv.argtypes = (ct.c_char_p, ct.c_char_p)
 # High-level stuff follows
 #-
 
-# TODO: dbus-misc
+# Misc: <https://dbus.freedesktop.org/doc/api/html/group__DBusMisc.html>
+
+def get_local_machine_id() :
+    c_result = dbus.dbus_get_local_machine_id()
+    if c_result == None :
+        raise RuntimeError("dbus_get_local_machine_id failed")
+    #end if
+    result = ct.cast(c_result, ct.c_char_p).value.decode()
+    dbus.dbus_free(c_result)
+    return \
+        result
+#end get_local_machine_id
+
+def get_version() :
+    "returns a tuple of integers (major, minor, micro)."
+    major = ct.c_int()
+    minor = ct.c_int()
+    micro = ct.c_int()
+    dbus.dbus_get_version(ct.byref(major), ct.byref(minor), ct.byref(micro))
+    return \
+        (major.value, minor.value, micro.value)
+#end get_version
+
+def setenv(key, value) :
+    key = key.encode()
+    if value != None :
+        value = value.encode()
+    #end if
+    if not dbus.dbus_setenv(key, value) :
+        raise RuntimeError("dbus_setenv failed")
+    #end if
+#end setenv
+
+def unsetenv(key) :
+    setenv(key, None)
+#end unsetenv
 
 class ObjectPathVTable :
 

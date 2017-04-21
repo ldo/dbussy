@@ -893,7 +893,7 @@ class Connection :
     @property
     def server_id(self) :
         c_result = dbus.dbus_connection_get_server_id(self._dbobj)
-        result = ct.cast(c_result, ct.c_char_p).decode()
+        result = ct.cast(c_result, ct.c_char_p).value.decode()
         dbus.dbus_free(c_result)
         return \
             result
@@ -1141,7 +1141,7 @@ class Connection :
         my_error = Error()
         c_result = dbus.dbus_bus_get_id(self._dbobj, my_error._dbobj)
         my_error.raise_if_set()
-        result = ct.cast(c_result, ct.c_char_p).decode()
+        result = ct.cast(c_result, ct.c_char_p).value.decode()
         dbus.dbus_free(c_result)
         return \
             result

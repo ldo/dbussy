@@ -362,7 +362,7 @@ class DBUS :
 # Library prototypes
 #-
 
-# from dbus-connection.h
+# from dbus-connection.h:
 dbus.dbus_connection_open.restype = ct.c_void_p
 dbus.dbus_connection_open.argtypes = (ct.c_char_p, DBUS.ErrorPtr)
 dbus.dbus_connection_open_private.restype = ct.c_void_p
@@ -766,7 +766,19 @@ dbus.dbus_get_version.argtypes = (ct.POINTER(ct.c_int), ct.POINTER(ct.c_int), ct
 dbus.dbus_setenv.restype = DBUS.bool_t
 dbus.dbus_setenv.argtypes = (ct.c_char_p, ct.c_char_p)
 
-# TODO: dbus-address.h
+# TODO from dbus-address.h:
+dbus.dbus_parse_address.restype = DBUS.bool_t
+dbus.dbus_parse_address.argtypes = (ct.c_char_p, ct.c_void_p, ct.POINTER(ct.c_int), DBUS.ErrorPtr)
+dbus.dbus_address_entry_get_value.restype = ct.c_char_p
+dbus.dbus_address_entry_get_value.argtypes = (ct.c_void_p, ct.c_char_p)
+dbus.dbus_address_entry_get_method.restype = ct.c_char_p
+dbus.dbus_address_entry_get_method.argtypes = (ct.c_void_p,)
+dbus.dbus_address_entries_free.restype = None
+dbus.dbus_address_entries_free.argtypes = (ct.c_void_p,)
+dbus.dbus_address_escape_value.restype = ct.c_void_p
+dbus.dbus_address_escape_value.argtypes = (ct.c_char_p,)
+dbus.dbus_address_unescape_value.restype = ct.c_void_p
+dbus.dbus_address_unescape_value.argtypes = (ct.c_char_p, DBUS.ErrorPtr)
 
 #+
 # High-level stuff follows
@@ -886,6 +898,12 @@ class ObjectPathVTable :
 #end ObjectPathVTable
 
 class _DummyError :
+
+    @property
+    def is_set(self) :
+        return \
+            False
+    #end is_set
 
     def raise_if_set(self) :
         pass
@@ -1993,7 +2011,7 @@ class Error :
     "wrapper around a DBusError object."
     # <https://dbus.freedesktop.org/doc/api/html/group__DBusErrors.html>
 
-    __slots__ = ("_dbobj") # to forestall typos
+    __slots__ = ("_dbobj",) # to forestall typos
 
     def __init__(self) :
         dbobj = DBUS.Error()
@@ -2053,9 +2071,123 @@ class Error :
 
 #end Error
 
+class AddressEntries :
+    "wrapper for arrays of DBusAddressEntry values. Do not instantiate directly;" \
+    " get from parse."
+    # <https://dbus.freedesktop.org/doc/api/html/group__DBusAddress.html>
+
+    __slots__ = ("_dbobj", "_nrelts") # to forestall typos
+
+    def __init__(self, _dbobj, _nrelts) :
+        self._dbobj = _dbobj
+        self._nrelts = _nrelts
+    #end __init__
+
+    def __del__(self) :
+        if self._dbobj != None :
+            dbus.dbus_address_entries_free(self._dbobj)
+            self._dbobj = None
+        #end if
+    #end __del__
+
+    class Entry :
+        "a single AddressEntry. Do not instantiate directly; get from AddressEntries[]."
+
+        __slots__ = ("_dbobj", "_index") # to forestall typos
+
+        def __init__(self, _dbobj, _index) :
+            self._dbobj = _dbobj
+            self._index = _index
+        #end __init__
+
+        @property
+        def method(self) :
+            result = dbus.dbus_address_entry_get_method(self._dbobj[self._index])
+            if result != None :
+                result = result.decode()
+            #end if
+            return \
+                result
+        #end method
+
+        def get_value(self, key) :
+            c_result = dbus.dbus_address_entry_get_value(self._dbobj[self._index], key.encode())
+            if c_result != None :
+                result = c_result.decode()
+            else :
+                result = None
+            #end if
+            return \
+                result
+        #end get_value
+        __getitem__ = get_value
+
+    #end Entry
+
+    @classmethod
+    def parse(celf, address, error = None) :
+        error, my_error = _get_error(error)
+        c_result = ct.POINTER(ct.c_void_p)()
+        nr_elts = ct.c_int()
+        if not dbus.dbus_parse_address(address.encode(), ct.byref(c_result), ct.byref(nr_elts), error._dbobj) :
+            c_result.contents = None
+            nr_elts.value = 0
+        #end if
+        my_error.raise_if_set()
+        if c_result.contents != None :
+            result = celf(c_result, nr_elts.value)
+        else :
+            result = None
+        #end if
+        return \
+            result
+    #end parse
+
+    def __len__(self) :
+        return \
+            self._nrelts
+    #end __len__
+
+    def __getitem__(self, index) :
+        if not isinstance(index, int) or index < 0 or index >= self._nrelts :
+            raise IndexError("AddressEntries[%d] out of range" % index)
+        #end if
+        return \
+            type(self).Entry(self._dbobj, index)
+    #end __getitem__
+
+#end AddressEntries
+
+def address_escape_value(value) :
+    c_result = dbus.dbus_address_escape_value(value.encode())
+    if c_result == None :
+        raise DBusFailure("dbus_address_escape_value failed")
+    #end if
+    result = ct.cast(c_result, ct.c_char_p).value.decode()
+    dbus.dbus_free(c_result)
+    return \
+        result
+#end address_escape_value
+
+def address_unescape_value(value, error = None) :
+    error, my_error = _get_error(error)
+    c_result = dbus.dbus_address_unescape_value(value.encode(), error._dbobj)
+    my_error.raise_if_set()
+    if c_result != None :
+        result = ct.cast(c_result, ct.c_char_p).value.decode()
+        dbus.dbus_free(c_result)
+    elif not error.is_set :
+        raise DBusFailure("dbus_address_unescape_value failed")
+    else :
+        result = None
+    #end if
+    return \
+        result
+#end address_unescape_value
+
 def _atexit() :
     # disable all __del__ methods at process termination to avoid segfaults
-    for cls in Connection, PreallocatedSend, Message, PendingCall, Error :
+    for cls in Connection, PreallocatedSend, Message, PendingCall, Error, AddressEntries :
         delattr(cls, "__del__")
     #end for
 #end _atexit

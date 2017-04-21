@@ -315,6 +315,29 @@ class DBUS :
     TIMEOUT_INFINITE = 0x7fffffff
     TIMEOUT_USE_DEFAULT = -1
 
+    # from dbus-message.h:
+    class MessageIter(ct.Structure) :
+        "contains no public fields."
+        _fields_ = \
+            [
+                ("dummy1", ct.c_void_p),
+                ("dummy2", ct.c_void_p),
+                ("dummy3", ct.c_uint),
+                ("dummy4", ct.c_int),
+                ("dummy5", ct.c_int),
+                ("dummy6", ct.c_int),
+                ("dummy7", ct.c_int),
+                ("dummy8", ct.c_int),
+                ("dummy9", ct.c_int),
+                ("dummy10", ct.c_int),
+                ("dummy11", ct.c_int),
+                ("pad1", ct.c_int),
+                ("pad2", ct.c_void_p),
+                ("pad3", ct.c_void_p),
+            ]
+    #end MessageIter
+    MessageIterPtr = ct.POINTER(MessageIter)
+
 #end DBUS
 
 #+
@@ -529,7 +552,184 @@ dbus.dbus_set_error.argtypes = (DBUS.ErrorPtr, ct.c_char_p, ct.c_char_p, ct.c_ch
   # note I can’t handle varargs
 
 # from dbus-pending-call.h:
-# more TBD
+dbus.dbus_pending_call_ref.restype = ct.c_void_p
+dbus.dbus_pending_call_ref.argtypes = (ct.c_void_p,)
+dbus.dbus_pending_call_unref.restype = None
+dbus.dbus_pending_call_unref.argtypes = (ct.c_void_p,)
+dbus.dbus_pending_call_set_notify.restype = DBUS.bool_t
+dbus.dbus_pending_call_set_notify.argtypes = (ct.c_void_p, ct.c_void_p, ct.c_void_p, ct.c_void_p)
+dbus.dbus_pending_call_cancel.restype = None
+dbus.dbus_pending_call_cancel.argtypes = (ct.c_void_p,)
+dbus.dbus_pending_call_get_completed.restype = DBUS.bool_t
+dbus.dbus_pending_call_get_completed.argtypes = (ct.c_void_p,)
+dbus.dbus_pending_call_steal_reply.restype = ct.c_void_p
+dbus.dbus_pending_call_steal_reply.argtypes = (ct.c_void_p,)
+dbus.dbus_pending_call_block.restype = None
+dbus.dbus_pending_call_block.argtypes = (ct.c_void_p,)
+dbus.dbus_pending_call_allocate_data_slot.restype = DBUS.bool_t
+dbus.dbus_pending_call_allocate_data_slot.argtypes = (ct.POINTER(ct.c_int),)
+dbus.dbus_pending_call_free_data_slot.restype = None
+dbus.dbus_pending_call_free_data_slot.argtypes = (ct.c_int,)
+dbus.dbus_pending_call_set_data.restype = DBUS.bool_t
+dbus.dbus_pending_call_set_data.argtypes = (ct.c_void_p, ct.c_int, ct.c_void_p, ct.c_void_p)
+dbus.dbus_pending_call_get_data.restype = ct.c_void_p
+dbus.dbus_pending_call_get_data.argtypes = (ct.c_void_p, ct.c_int)
+
+# from dbus-message.h:
+dbus.dbus_message_new.restype = ct.c_void_p
+dbus.dbus_message_new.argtypes = (ct.c_int,)
+dbus.dbus_message_new_method_call.restype = ct.c_void_p
+dbus.dbus_message_new_method_call.argtypes = (ct.c_char_p, ct.c_char_p, ct.c_char_p, ct.c_char_p)
+dbus.dbus_message_new_method_return.restype = ct.c_void_p
+dbus.dbus_message_new_method_return.argtypes = (ct.c_void_p,)
+dbus.dbus_message_new_signal.restype = ct.c_void_p
+dbus.dbus_message_new_signal.argtypes = (ct.c_char_p, ct.c_char_p, ct.c_char_p)
+dbus.dbus_message_new_error.restype = ct.c_void_p
+dbus.dbus_message_new_error.argtypes = (ct.c_void_p, ct.c_char_p, ct.c_char_p)
+dbus.dbus_message_new_error_printf.restype = ct.c_void_p
+dbus.dbus_message_new_error_printf.argtypes = (ct.c_void_p, ct.c_char_p, ct.c_char_p, ct.c_char_p)
+  # note I can’t handle varargs
+dbus.dbus_message_copy.restype = ct.c_void_p
+dbus.dbus_message_copy.argtypes = (ct.c_void_p,)
+dbus.dbus_message_ref.restype = ct.c_void_p
+dbus.dbus_message_ref.argtypes = (ct.c_void_p,)
+dbus.dbus_message_unref.restype = None
+dbus.dbus_message_unref.argtypes = (ct.c_void_p,)
+dbus.dbus_message_get_type.restype = ct.c_int
+dbus.dbus_message_get_type.argtypes = (ct.c_void_p,)
+dbus.dbus_message_set_path.restype = DBUS.bool_t
+dbus.dbus_message_set_path.argtypes = (ct.c_void_p, ct.c_char_p)
+dbus.dbus_message_get_path.restype = ct.c_char_p
+dbus.dbus_message_get_path.argtypes = (ct.c_void_p,)
+dbus.dbus_message_has_path.restype = DBUS.bool_t
+dbus.dbus_message_has_path.argtypes = (ct.c_void_p, ct.c_char_p)
+dbus.dbus_message_set_interface.restype = DBUS.bool_t
+dbus.dbus_message_set_interface.argtypes = (ct.c_void_p, ct.c_char_p)
+dbus.dbus_message_get_interface.restype = ct.c_char_p
+dbus.dbus_message_get_interface.argtypes = (ct.c_void_p,)
+dbus.dbus_message_has_interface.restype = DBUS.bool_t
+dbus.dbus_message_has_interface.argtypes = (ct.c_void_p, ct.c_char_p)
+dbus.dbus_message_set_member.restype = DBUS.bool_t
+dbus.dbus_message_set_member.argtypes = (ct.c_void_p, ct.c_char_p)
+dbus.dbus_message_get_member.restype = ct.c_char_p
+dbus.dbus_message_get_member.argtypes = (ct.c_void_p,)
+dbus.dbus_message_has_member.restype = DBUS.bool_t
+dbus.dbus_message_has_member.argtypes = (ct.c_void_p, ct.c_char_p)
+dbus.dbus_message_set_error_name.restype = DBUS.bool_t
+dbus.dbus_message_set_error_name.argtypes = (ct.c_void_p, ct.c_char_p)
+dbus.dbus_message_get_error_name.restype = ct.c_char_p
+dbus.dbus_message_get_error_name.argtypes = (ct.c_void_p,)
+dbus.dbus_message_set_destination.restype = DBUS.bool_t
+dbus.dbus_message_set_destination.argtypes = (ct.c_void_p, ct.c_char_p)
+dbus.dbus_message_get_destination.restype = ct.c_char_p
+dbus.dbus_message_get_destination.argtypes = (ct.c_void_p,)
+dbus.dbus_message_set_sender.restype = DBUS.bool_t
+dbus.dbus_message_set_sender.argtypes = (ct.c_void_p, ct.c_char_p)
+dbus.dbus_message_get_sender.restype = ct.c_char_p
+dbus.dbus_message_get_sender.argtypes = (ct.c_void_p,)
+dbus.dbus_message_get_signature.restype = ct.c_char_p
+dbus.dbus_message_get_signature.argtypes = (ct.c_void_p,)
+dbus.dbus_message_set_no_reply.restype = None
+dbus.dbus_message_set_no_reply.argtypes = (ct.c_void_p, DBUS.bool_t)
+dbus.dbus_message_get_no_reply.restype = DBUS.bool_t
+dbus.dbus_message_get_no_reply.argtypes = (ct.c_void_p,)
+dbus.dbus_message_is_method_call.restype = DBUS.bool_t
+dbus.dbus_message_is_method_call.argtypes = (ct.c_void_p, ct.c_char_p, ct.c_char_p)
+dbus.dbus_message_is_signal.restype = DBUS.bool_t
+dbus.dbus_message_is_signal.argtypes = (ct.c_void_p, ct.c_char_p, ct.c_char_p)
+dbus.dbus_message_is_error.restype = DBUS.bool_t
+dbus.dbus_message_is_error.argtypes = (ct.c_void_p, ct.c_char_p)
+dbus.dbus_message_has_destination.restype = DBUS.bool_t
+dbus.dbus_message_has_destination.argtypes = (ct.c_void_p, ct.c_char_p)
+dbus.dbus_message_has_sender.restype = DBUS.bool_t
+dbus.dbus_message_has_sender.argtypes = (ct.c_void_p, ct.c_char_p)
+dbus.dbus_message_has_signature.restype = DBUS.bool_t
+dbus.dbus_message_has_signature.argtypes = (ct.c_void_p, ct.c_char_p)
+dbus.dbus_message_get_serial.restype = ct.c_uint
+dbus.dbus_message_get_serial.argtypes = (ct.c_void_p,)
+dbus.dbus_message_set_serial.restype = None
+dbus.dbus_message_set_serial.argtypes = (ct.c_void_p, ct.c_uint)
+dbus.dbus_message_set_reply_serial.restype = DBUS.bool_t
+dbus.dbus_message_set_reply_serial.argtypes = (ct.c_void_p, ct.c_uint)
+dbus.dbus_message_get_reply_serial.restype = ct.c_uint
+dbus.dbus_message_get_reply_serial.argtypes = (ct.c_void_p,)
+dbus.dbus_message_set_auto_start.restype = None
+dbus.dbus_message_set_auto_start.argtypes = (ct.c_void_p, DBUS.bool_t)
+dbus.dbus_message_get_auto_start.restype = DBUS.bool_t
+dbus.dbus_message_get_auto_start.argtypes = (ct.c_void_p,)
+dbus.dbus_message_get_path_decomposed.restype = DBUS.bool_t
+dbus.dbus_message_get_path_decomposed.argtypes = (ct.c_void_p, ct.c_void_p)
+dbus.dbus_message_append_args.restype = DBUS.bool_t
+dbus.dbus_message_append_args.argtypes = (ct.c_void_p, ct.c_int, ct.c_void_p)
+  # note I can’t handle varargs
+# probably cannot make use of dbus.dbus_message_append_args_valist
+dbus.dbus_message_get_args.restype = DBUS.bool_t
+dbus.dbus_message_get_args.argtypes = (ct.c_void_p, DBUS.ErrorPtr, ct.c_int, ct.c_void_p)
+  # note I can’t handle varargs
+# probably cannot make use of dbus.dbus_message_get_args_valist
+dbus.dbus_message_contains_unix_fds.restype = DBUS.bool_t
+dbus.dbus_message_contains_unix_fds.argtypes = (ct.c_void_p,)
+dbus.dbus_message_iter_init.restype = DBUS.bool_t
+dbus.dbus_message_iter_init.argtypes = (ct.c_void_p, DBUS.MessageIterPtr)
+dbus.dbus_message_iter_has_next.restype = DBUS.bool_t
+dbus.dbus_message_iter_has_next.argtypes = (DBUS.MessageIterPtr,)
+dbus.dbus_message_iter_next.restype = DBUS.bool_t
+dbus.dbus_message_iter_next.argtypes = (DBUS.MessageIterPtr,)
+dbus.dbus_message_iter_get_signature.restype = ct.c_void_p
+dbus.dbus_message_iter_next.argtypes = (DBUS.MessageIterPtr,)
+dbus.dbus_message_iter_get_signature.restype = ct.c_void_p
+dbus.dbus_message_iter_get_signature.argtypes = (DBUS.MessageIterPtr,)
+dbus.dbus_message_iter_get_arg_type.restype = ct.c_int
+dbus.dbus_message_iter_get_arg_type.argtypes = (DBUS.MessageIterPtr,)
+dbus.dbus_message_iter_get_element_type.restype = ct.c_int
+dbus.dbus_message_iter_get_element_type.argtypes = (DBUS.MessageIterPtr,)
+dbus.dbus_message_iter_recurse.restype = None
+dbus.dbus_message_iter_recurse.argtypes = (DBUS.MessageIterPtr, DBUS.MessageIterPtr)
+dbus.dbus_message_iter_get_basic.restype = None
+dbus.dbus_message_iter_get_basic.argtypes = (DBUS.MessageIterPtr, ct.c_void_p)
+dbus.dbus_message_iter_get_element_count.restype = ct.c_int
+dbus.dbus_message_iter_get_element_count.argtypes = (DBUS.MessageIterPtr,)
+# dbus_message_iter_get_array_len deprecated
+dbus.dbus_message_iter_get_fixed_array.restype = None
+dbus.dbus_message_iter_get_fixed_array.argtypes = (DBUS.MessageIterPtr, ct.c_void_p, ct.POINTER(ct.c_int))
+dbus.dbus_message_iter_init_append.restype = None
+dbus.dbus_message_iter_init_append.argtypes = (ct.c_void_p, DBUS.MessageIterPtr)
+dbus.dbus_message_iter_append_basic.restype = DBUS.bool_t
+dbus.dbus_message_iter_append_basic.argtypes = (DBUS.MessageIterPtr, ct.c_int, ct.c_void_p)
+dbus.dbus_message_iter_append_fixed_array.restype = DBUS.bool_t
+dbus.dbus_message_iter_append_fixed_array.argtypes = (DBUS.MessageIterPtr, ct.c_int, ct.c_void_p, ct.c_int)
+dbus.dbus_message_iter_open_container.restype = DBUS.bool_t
+dbus.dbus_message_iter_open_container.argtypes = (DBUS.MessageIterPtr, ct.c_int, ct.c_char_p, DBUS.MessageIterPtr)
+dbus.dbus_message_iter_close_container.restype = DBUS.bool_t
+dbus.dbus_message_iter_close_container.argtypes = (DBUS.MessageIterPtr, DBUS.MessageIterPtr)
+dbus.dbus_message_iter_abandon_container.restype = DBUS.bool_t
+dbus.dbus_message_iter_abandon_container.argtypes = (DBUS.MessageIterPtr, DBUS.MessageIterPtr)
+dbus.dbus_message_lock.restype = None
+dbus.dbus_message_lock.argtypes = (DBUS.MessageIterPtr,)
+dbus.dbus_set_error_from_message.restype = DBUS.bool_t
+dbus.dbus_set_error_from_message.argtypes = (ct.c_void_p, ct.c_void_p)
+dbus.dbus_message_allocate_data_slot.restype = DBUS.bool_t
+dbus.dbus_message_allocate_data_slot.argtypes = (ct.POINTER(ct.c_int),)
+dbus.dbus_message_free_data_slot.restype = None
+dbus.dbus_message_free_data_slot.argtypes = (ct.POINTER(ct.c_int),)
+dbus.dbus_message_set_data.restype = DBUS.bool_t
+dbus.dbus_message_set_data.argtypes = (ct.c_void_p, ct.c_int, ct.c_void_p, ct.c_void_p)
+dbus.dbus_message_get_data.restype = ct.c_void_p
+dbus.dbus_message_get_data.argtypes = (ct.c_void_p, ct.c_int)
+dbus.dbus_message_type_from_string.restype = ct.c_int
+dbus.dbus_message_type_from_string.argtypes = (ct.c_char_p,)
+dbus.dbus_message_type_to_string.restype = ct.c_char_p
+dbus.dbus_message_type_to_string.argtypes = (ct.c_int,)
+dbus.dbus_message_marshal.restype = DBUS.bool_t
+dbus.dbus_message_marshal.argtypes = (ct.c_void_p, ct.c_void_p, ct.POINTER(ct.c_int))
+dbus.dbus_message_demarshal.restype = ct.c_void_p
+dbus.dbus_message_demarshal.argtypes = (ct.c_char_p, ct.c_int, DBUS.ErrorPtr)
+dbus.dbus_message_demarshal_bytes_needed.restype = ct.c_int
+dbus.dbus_message_demarshal_bytes_needed.argtypes = (ct.c_char_p, ct.c_int)
+dbus.dbus_message_set_allow_interactive_authorization.restype = None
+dbus.dbus_message_set_allow_interactive_authorization.argtypes = (ct.c_void_p, DBUS.bool_t)
+dbus.dbus_message_get_allow_interactive_authorization.restype = DBUS.bool_t
+dbus.dbus_message_get_allow_interactive_authorization.argtypes = (ct.c_void_p,)
 
 # from dbus-memory.h:
 dbus.dbus_malloc.restype = ct.c_void_p

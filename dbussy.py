@@ -377,7 +377,7 @@ dbus.dbus_connection_get_dispatch_status.argtypes = (ct.c_void_p,)
 dbus.dbus_connection_dispatch.restype = ct.c_uint
 dbus.dbus_connection_dispatch.argtypes = (ct.c_void_p,)
 dbus.dbus_connection_set_watch_functions.restype = DBUS.bool_t
-dbus.dbus_connection_set_watch_functions.argtypes = (ct.c_void_p, ct.c_void_p, ct.c_void_p, ct.c_void_p, ct.c_void_p, ct.c_void_p)
+dbus.dbus_connection_set_watch_functions.argtypes = (ct.c_void_p, DBUS.AddWatchFunction, DBUS.RemoveWatchFunction, DBUS.WatchToggledFunction, ct.c_void_p, DBUS.FreeFunction)
 dbus.dbus_connection_set_timeout_functions.restype = DBUS.bool_t
 dbus.dbus_connection_set_timeout_functions.argtypes = (ct.c_void_p, ct.c_void_p, ct.c_void_p, ct.c_void_p, ct.c_void_p, ct.c_void_p)
 dbus.dbus_connection_set_wakeup_main_function.restype = None
@@ -438,16 +438,52 @@ dbus.dbus_connection_get_outgoing_size.argtypes = (ct.c_void_p,)
 dbus.dbus_connection_get_outgoing_unix_fds.restype = ct.c_long
 dbus.dbus_connection_get_outgoing_unix_fds.argtypes = (ct.c_void_p,)
 
-# from dbus-bus.h:
-dbus.dbus_connection_register_fallback.restype = DBUS.bool_t
-dbus.dbus_connection_register_fallback.argtypes = (ct.c_void_p, ct.c_char_p, DBUS.ObjectPathVTablePtr, ct.c_void_p)
 dbus.dbus_connection_register_object_path.restype = DBUS.bool_t
 dbus.dbus_connection_register_object_path.argtypes = (ct.c_void_p, ct.c_char_p, DBUS.ObjectPathVTablePtr, ct.c_void_p)
-dbus.dbus_connection_set_watch_functions.restype = DBUS.bool_t
-dbus.dbus_connection_set_watch_functions.argtypes = (ct.c_void_p, DBUS.AddWatchFunction, DBUS.RemoveWatchFunction, DBUS.WatchToggledFunction, ct.c_void_p, DBUS.FreeFunction)
+dbus.dbus_connection_try_register_object_path.restype = DBUS.bool_t
+dbus.dbus_connection_try_register_object_path.argtypes = (ct.c_void_p, ct.c_char_p, DBUS.ObjectPathVTablePtr, ct.c_void_p, DBUS.ErrorPtr)
+dbus.dbus_connection_register_fallback.restype = DBUS.bool_t
+dbus.dbus_connection_register_fallback.argtypes = (ct.c_void_p, ct.c_char_p, DBUS.ObjectPathVTablePtr, ct.c_void_p)
+dbus.dbus_connection_try_register_fallback.restype = DBUS.bool_t
+dbus.dbus_connection_try_register_fallback.argtypes = (ct.c_void_p, ct.c_char_p, DBUS.ObjectPathVTablePtr, ct.c_void_p, DBUS.ErrorPtr)
+dbus.dbus_connection_get_object_path_data.restype = DBUS.bool_t
+dbus.dbus_connection_get_object_path_data.argtypes = (ct.c_void_p, ct.c_char_p, ct.c_void_p)
+dbus.dbus_connection_list_registered.restype = DBUS.bool_t
+dbus.dbus_connection_list_registered.argtypes = (ct.c_void_p, ct.c_char_p, ct.c_void_p)
+dbus.dbus_connection_get_unix_fd.restype = DBUS.bool_t
+dbus.dbus_connection_get_unix_fd.argtypes = (ct.c_void_p, ct.POINTER(ct.c_int))
+dbus.dbus_connection_get_socket.restype = DBUS.bool_t
+dbus.dbus_connection_get_socket.argtypes = (ct.c_void_p, ct.POINTER(ct.c_int))
 dbus.dbus_connection_unregister_object_path.restype = DBUS.bool_t
 dbus.dbus_connection_unregister_object_path.argtypes = (ct.c_void_p, ct.c_char_p)
 
+dbus.dbus_watch_get_unix_fd.restype = ct.c_int
+dbus.dbus_watch_get_unix_fd.argtypes = (ct.c_void_p,)
+dbus.dbus_watch_get_socket.restype = ct.c_int
+dbus.dbus_watch_get_socket.argtypes = (ct.c_void_p,)
+dbus.dbus_watch_get_flags.restype = ct.c_uint
+dbus.dbus_watch_get_flags.argtypes = (ct.c_void_p,)
+dbus.dbus_watch_get_data.restype = ct.c_void_p
+dbus.dbus_watch_get_data.argtypes = (ct.c_void_p,)
+dbus.dbus_watch_set_data.restype = None
+dbus.dbus_watch_set_data.argtypes = (ct.c_void_p, ct.c_void_p, ct.c_void_p)
+dbus.dbus_watch_handle.restype = DBUS.bool_t
+dbus.dbus_watch_handle.argtypes = (ct.c_void_p, ct.c_uint)
+dbus.dbus_watch_get_enabled.restype = DBUS.bool_t
+dbus.dbus_watch_get_enabled.argtypes = (ct.c_void_p, ct.c_uint)
+
+dbus.dbus_timeout_get_interval.restype = ct.c_int
+dbus.dbus_timeout_get_interval.argtypes = (ct.c_void_p,)
+dbus.dbus_timeout_get_data.restype = ct.c_void_p
+dbus.dbus_timeout_get_data.argtypes = (ct.c_void_p,)
+dbus.dbus_timeout_set_data.restype = None
+dbus.dbus_timeout_set_data.argtypes = (ct.c_void_p, ct.c_void_p, ct.c_void_p)
+dbus.dbus_timeout_handle.restype = DBUS.bool_t
+dbus.dbus_timeout_handle.argtypes = (ct.c_void_p,)
+dbus.dbus_timeout_get_enabled.restype = DBUS.bool_t
+dbus.dbus_timeout_get_enabled.argtypes = (ct.c_void_p,)
+
+# from dbus-bus.h:
 dbus.dbus_bus_get.restype = ct.c_void_p
 dbus.dbus_bus_get.argtypes = (ct.c_uint, DBUS.ErrorPtr)
 dbus.dbus_bus_get_private.restype = ct.c_void_p
@@ -748,6 +784,78 @@ class Connection :
         return \
             dbus.dbus_connection_read_write(self._dbobj, timeout) != 0
     #end read_write
+
+    # TODO: borrowed messages
+
+    def pop_message(self) :
+        message = dbus.dbus_connection_pop_message(self._dbobj)
+        if message != None :
+            message = Message(message)
+        #end if
+        return \
+            message
+    #end pop_message
+
+    @property
+    def dispatch_status(self) :
+        "returns a DISPATCH_XXX code."
+        return \
+            dbus.dbus_connection_get_dispatch_status(self._dbobj)
+    #end dispatch_status
+
+    def dispatch(self) :
+        "returns a DISPATCH_XXX code."
+        return \
+            dbus.dbus_connection_dispatch(self._dbobj)
+    #end dispatch
+
+    # TODO: set watch/timeout/wakeup_main/dispatch_status functions
+
+    @property
+    def unix_fd(self) :
+        c_fd = ct.c_int()
+        if dbus.dbus_connection_get_unix_fd(self._dbobj, ct.byref(c_fd)) :
+            result = c_fd.falue
+        else :
+            result = None
+        #end if
+        return \
+            result
+    #end unix_fd
+
+    @property
+    def unix_process_id(self) :
+        c_fd = ct.c_ulong()
+        if dbus.dbus_connection_get_unix_process_id(self._dbobj, ct.byref(c_fd)) :
+            result = c_fd.falue
+        else :
+            result = None
+        #end if
+        return \
+            result
+    #end unix_process_id
+
+    @property
+    def unix_user(self) :
+        c_fd = ct.c_ulong()
+        if dbus.dbus_connection_get_unix_user(self._dbobj, ct.byref(c_fd)) :
+            result = c_fd.falue
+        else :
+            result = None
+        #end if
+        return \
+            result
+    #end unix_user
+
+    # TODO: get_adt, set_unix_user_function
+
+    def set_allow_anonymous(self, allow) :
+        dbus.dbus_connection_set_allow_anonymous(self._dbobj, allow)
+    #end set_allow_anonymous
+
+    def set_route_peer_messages(self, enable) :
+        dbus.dbus_connection_set_route_peer_messages(self._dbobj, enable)
+    #end set_route_peer_messages
 
     # more TBD
 

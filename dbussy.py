@@ -50,6 +50,23 @@ class DBUS :
     TYPE_SIGNATURE = ord('g') # D-Bus type signature
     TYPE_UNIX_FD = ord('h') # unix file descriptor
 
+    basic_to_ctypes = \
+        { # ctypes objects suitable for holding values of D-Bus types
+            TYPE_BYTE : ct.c_ubyte,
+            TYPE_BOOLEAN : ct.c_ubyte,
+            TYPE_INT16 : ct.c_short,
+            TYPE_UINT16 : ct.c_ushort,
+            TYPE_INT32 : ct.c_int,
+            TYPE_UINT32 : ct.c_uint,
+            TYPE_INT64 : ct.c_long,
+            TYPE_UINT64 : ct.c_ulong,
+            TYPE_DOUBLE : ct.c_double,
+            TYPE_STRING : ct.c_char_p,
+            TYPE_OBJECT_PATH : ct.c_char_p,
+            TYPE_SIGNATURE : ct.c_char_p,
+            TYPE_UNIX_FD : ct.c_int,
+        }
+
     # Compound types
     TYPE_ARRAY = ord('a') # D-Bus array type
     TYPE_VARIANT = ord('v') # D-Bus variant type
@@ -59,7 +76,6 @@ class DBUS :
     NUMBER_OF_TYPES = 16 # does not include TYPE_INVALID or STRUCT/DICT_ENTRY_BEGIN/END_CHAR
 
     # characters other than typecodes that appear in type signatures
-
     STRUCT_BEGIN_CHAR = ord('(') # start of a struct type in a type signature
     STRUCT_END_CHAR = ord(')') # end of a struct type in a type signature
     DICT_ENTRY_BEGIN_CHAR = ord('{') # start of a dict entry type in a type signature
@@ -657,11 +673,11 @@ dbus.dbus_message_get_auto_start.argtypes = (ct.c_void_p,)
 dbus.dbus_message_get_path_decomposed.restype = DBUS.bool_t
 dbus.dbus_message_get_path_decomposed.argtypes = (ct.c_void_p, ct.c_void_p)
 dbus.dbus_message_append_args.restype = DBUS.bool_t
-dbus.dbus_message_append_args.argtypes = (ct.c_void_p, ct.c_int, ct.c_void_p)
+dbus.dbus_message_append_args.argtypes = (ct.c_void_p, ct.c_int, ct.c_void_p, ct.c_int)
   # note I can’t handle varargs
 # probably cannot make use of dbus.dbus_message_append_args_valist
 dbus.dbus_message_get_args.restype = DBUS.bool_t
-dbus.dbus_message_get_args.argtypes = (ct.c_void_p, DBUS.ErrorPtr, ct.c_int, ct.c_void_p)
+dbus.dbus_message_get_args.argtypes = (ct.c_void_p, DBUS.ErrorPtr, ct.c_int, ct.c_void_p, ct.c_int)
   # note I can’t handle varargs
 # probably cannot make use of dbus.dbus_message_get_args_valist
 dbus.dbus_message_contains_unix_fds.restype = DBUS.bool_t
@@ -699,7 +715,7 @@ dbus.dbus_message_iter_open_container.restype = DBUS.bool_t
 dbus.dbus_message_iter_open_container.argtypes = (DBUS.MessageIterPtr, ct.c_int, ct.c_char_p, DBUS.MessageIterPtr)
 dbus.dbus_message_iter_close_container.restype = DBUS.bool_t
 dbus.dbus_message_iter_close_container.argtypes = (DBUS.MessageIterPtr, DBUS.MessageIterPtr)
-dbus.dbus_message_iter_abandon_container.restype = DBUS.bool_t
+dbus.dbus_message_iter_abandon_container.restype = None
 dbus.dbus_message_iter_abandon_container.argtypes = (DBUS.MessageIterPtr, DBUS.MessageIterPtr)
 dbus.dbus_message_lock.restype = None
 dbus.dbus_message_lock.argtypes = (DBUS.MessageIterPtr,)
@@ -1357,7 +1373,196 @@ class Message :
             dbus.dbus_message_get_type(self._dbobj)
     #end type
 
-    # TODO: append_args, get_args, iter
+    # TODO: append_args, get_args
+
+    class Iter :
+        "for iterating over the arguments in a Message, whether for reading or appending." \
+        " Do not instantiate directly; get from Message.iter_init, Message.Iter.recurse," \
+        " Message.iter_init_append or Message.Iter.open_container."
+
+        __slots__ = ("_dbobj", "_parent", "_writing") # to forestall typos
+
+        def __init__(self, _parent, _writing) :
+            self._MessageIter = DBUS.MessageIter()
+            self._parent = _parent
+            self._writing = writing
+        #end __init__
+
+        @property
+        def has_next(self) :
+            assert not self._writing, "cannot read from write iterator"
+            return \
+                dbus.dbus_message_iter_has_next(self._dbobj)
+        #end has_next
+
+        def next(self) :
+            assert not self._writing, "cannot read from write iterator"
+            if not dbus.dbus_message_iter_next(self._dbobj) :
+                raise StopIteration("end of message iterator")
+            #end if
+        #end next
+
+        @property
+        def arg_type(self) :
+            assert not self._writing, "cannot read from write iterator"
+            return \
+                dbus.dbus_message_iter_get_arg_type(self._dbobj)
+        #end arg_type
+
+        @property
+        def element_type(self) :
+            assert not self._writing, "cannot read from write iterator"
+            return \
+                dbus.dbus_message_iter_get_element_type(self._dbobj)
+        #end element_type
+
+        def recurse(self) :
+            assert not self._writing, "cannot read from write iterator"
+            subiter = type(self)(self, False)
+            dbus.dbus_message_iter_recurse(self._dbobj, subiter._dbobj)
+            return \
+                subiter
+        #end recurse
+
+        @property
+        def signature(self) :
+            assert not self._writing, "cannot read from write iterator"
+            c_result = dbus.dbus_message_iter_get_signature(self._dbobj)
+            if c_result == None :
+                raise RuntimeError("dbus_message_iter_get_signature failure")
+            #end if
+            result = ct.cast(c_result, ct.c_char_p).value.decode()
+            dbus.dbus_free(c_result)
+            return \
+                result
+        #end signature
+
+        @property
+        def basic(self) :
+            assert not self._writing, "cannot read from write iterator"
+            c_result_type = DBUS.basic_to_ctypes[self.arg_type]
+            c_result = c_result_type()
+            dbus.dbus_message_iter_get_basic(self._dbobj, ct.byref(c_result))
+            if c_result_type == ct.c_char_p :
+                result = c_result.value.decode()
+            else :
+                result = c_result.value
+            #end if
+            return \
+                result
+        #end basic
+
+        @property
+        def element_count(self) :
+            assert not self._writing, "cannot read from write iterator"
+            return \
+                dbus.dbus_message_iter_get_element_count(self._dbobj)
+        #end element_count
+
+        @property
+        def fixed_array(self) :
+            assert not self._writing, "cannot read from write iterator"
+            c_element_type = DBUS.basic_to_ctypes[self.element_type]
+            c_result = ct.POINTER(c_element_type)()
+            c_nr_elts = ct.c_int()
+            dbus.dbus_message_iter_get_fixed_array(self._dbobj, ct.byref(c_result), ct.byref(c_nr_elts))
+            result = []
+            for i in range(c_nr_elts.value) :
+                elt = c_result[i]
+                if c_element_type == ct.c_char_p :
+                    elt = elt.value.decode()
+                else :
+                    elt = elt.value
+                #end if
+                result.append(elt)
+            #end for
+            return \
+                result
+        #end fixed_array
+
+        def append_basic(self, type, value) :
+            assert self._writing, "cannot write to read iterator"
+            c_type = DBUS.basic_to_ctypes[type]
+            if c_type == ct.c_char_p :
+                value = value.encode()
+            #end if
+            c_value = c_type(value)
+            if not dbus.dbus_message_iter_append_basic(self._dbobj, ct.byref(c_value)) :
+                raise RuntimeError("dbus_message_iter_append_basic failed")
+            #end if
+            return \
+                self
+        #end append_basic
+
+        def append_fixed_array(self, element_type, values) :
+            assert self._writing, "cannot write to read iterator"
+            c_elt_type = DBUS.basic_to_ctypes[element_type]
+            nr_elts = len(values)
+            c_arr = (nr_elts * c_elt_type)()
+            for i in range(nr_elts) :
+                if c_elt_type == ct.c_char_p :
+                    c_arr[i] = values[i].encode()
+                else :
+                    c_arr[i] = values[i]
+                #end if
+            #end for
+            if not dbus.dbus_message_iter_append_fixed_array(self._dbobj, ct.byref(c_arr)) :
+                raise RuntimeError("dbus_message_iter_append_fixed_array failed")
+            #end if
+            return \
+                self
+        #end append_fixed_array
+
+        def open_container(self, type, contained_signature) :
+            assert self._writing, "cannot write to read iterator"
+            if contained_signature != None :
+                c_sig = contained_signature.encode()
+            else :
+                c_sig = None
+            #end if
+            subiter = type(self)(self, True)
+            if not dbus.dbus_message_iter_open_container(self._dbobj, type, c_sig, subiter._dbobj) :
+                raise RuntimeError("dbus_message_iter_open_container failed")
+            #end if
+            return \
+                subiter
+        #end open_container
+
+        def close(self) :
+            assert self._writing, "cannot write to read iterator"
+            assert self._parent != None, "cannot close top-level iterator"
+            if not dbus.dbus_message_iter_close_container(self._parent._dbobj, self._dbobj) :
+                raise RuntimeError("dbus_message_iter_close_container failed")
+            #end if
+            return \
+                self._parent
+        #end close
+
+        def abandon(self) :
+            assert self._writing, "cannot write to read iterator"
+            assert self._parent != None, "cannot abandon top-level iterator"
+            dbus.dbus_message_iter_abandon_container(self._parent._dbobj, self._dbobj)
+            return \
+                self._parent
+        #end abandon
+
+    #end Iter
+
+    def iter_init(self) :
+        iter = self.Iter(None, False)
+        if dbus.dbus_message_iter_init(self._dbobj, iter._dbobj) == 0 :
+            iter = None
+        #end if
+        return \
+             iter
+    #end iter_init
+
+    def init_append(self) :
+        iter = self.Iter(None, True)
+        dbus.dbus_message_iter_init_append(self._dbobj, iter._dbobj)
+        return \
+            iter
+    #end init_append
 
     @property
     def no_reply(self) :

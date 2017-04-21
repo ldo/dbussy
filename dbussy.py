@@ -1206,6 +1206,8 @@ class PreallocatedSend :
 
     __slots__ = ("_dbobj", "_parent", "_sent") # to forestall typos
 
+    _instances = WeakValueDictionary()
+
     def __new__(celf, _dbobj, _parent) :
         self = celf._instances.get(_dbobj)
         if self == None :
@@ -1231,6 +1233,7 @@ class PreallocatedSend :
     #end __del__
 
     def send(self, message) :
+        "alternative to Connection.send_preallocated."
         if not isinstance(message, Message) :
             raise TypeError("message must be a Message")
         #end if
@@ -1245,9 +1248,308 @@ class PreallocatedSend :
 #end PreallocatedSend
 
 class Message :
-    "wrapper around a DBusMessage object."
+    "wrapper around a DBusMessage object. Do not instantiate directly; use one of the" \
+    " new methods."
     # <https://dbus.freedesktop.org/doc/api/html/group__DBusMessage.html>
-    pass # TBD
+
+    __slots__ = ("_dbobj") # to forestall typos
+
+    def __new__(celf, _dbobj) :
+        self = celf._instances.get(_dbobj)
+        if self == None :
+            self = super().__new__(celf)
+            self._dbobj = _dbobj
+            celf._instances[_dbobj] = self
+        else :
+            dbus.dbus_message_unref(self._dbobj)
+              # lose extra reference created by caller
+        #end if
+        return \
+            self
+    #end __new__
+
+    def __del__(self) :
+        if self._dbobj != None :
+            dbus.dbus_message_unref(self._dbobj)
+            self._dbobj = None
+        #end if
+    #end __del__
+
+    @classmethod
+    def new(celf, type) :
+        "type is one of the MESSAGE_TYPE_xxx codes."
+        result = dbus.dbus_message_new(type)
+        if result == None :
+            raise RuntimeError("dbus_message_new failed")
+        #end if
+        return \
+            celf(result)
+    #end new
+
+    @classmethod
+    def new_error(celf, name, message) :
+        result = dbus.dbus_message_new_error(name.encode(), message.encode())
+        if result == None :
+            raise RuntimeError("dbus_message_new_error failed")
+        #end if
+        return \
+            celf(result)
+    #end new_error
+
+    # probably not much point trying to use new_error_printf
+
+    @classmethod
+    def new_method_call(celf, destination, path, iface, method) :
+        result = dbus.dbus_message_new_method_call \
+          (
+            (lambda : None, lambda : destination.encode())[destination != None](),
+            (lambda : None, lambda : path.encode())[path != None](),
+            (lambda : None, lambda : iface.encode())[iface != None](),
+            (lambda : None, lambda : method.encode())[method != None](),
+          )
+        if result == None :
+            raise RuntimeError("dbus_message_new_method_call failed")
+        #end if
+        return \
+            celf(result)
+    #end new_method_call
+
+    def new_method_return(self) :
+        result = dbus.dbus_message_new_method_return(self._dbobj)
+        if result == None :
+            raise RuntimeError("dbus_message_new_method_return failed")
+        #end if
+        return \
+            type(self)(result)
+    #end new_method_return
+
+    @classmethod
+    def new_signal(celf, path, iface, name) :
+        result = dbus.dbus_message_new_signal(path.encode(), iface.encode(), name.encode())
+        if result == None :
+            raise RuntimeError("dbus_message_new_signal failed")
+        #end if
+        return \
+            celf(result)
+    #end new_signal
+
+    def copy(self) :
+        result = dbus.dbus_message_copy(self._dbobj)
+        if result == None :
+            raise RuntimeError("dbus_message_copy failed")
+        #end if
+        return \
+            type(self)(result)
+    #end copy
+
+    @property
+    def type(self) :
+        return \
+            dbus.dbus_message_get_type(self._dbobj)
+    #end type
+
+    # TODO: append_args, get_args, iter
+
+    @property
+    def no_reply(self) :
+        return \
+            dbus.dbus_message_get_no_reply(self._dbobj) != 0
+    #end no_reply
+
+    @no_reply.setter
+    def no_reply(self, no_reply) :
+        dbus.dbus_message_set_no_reply(self._dbobj, no_reply)
+    #end no_reply
+
+    @property
+    def auto_start(self) :
+        return \
+            dbus.dbus_message_get_auto_start(self._dbobj) != 0
+    #end auto_start
+
+    @auto_start.setter
+    def auto_start(self, y) :
+        dbus.dbus_message_set_auto_start(self._dbobj, auto_start)
+    #end auto_start
+
+    @property
+    def path(self) :
+        result = dbus.dbus_message_get_path(self._dbobj)
+        if result != None :
+            result = result.decode()
+        #end if
+        return \
+            result
+    #end path
+
+    @path.setter
+    def path(self, object_path) :
+        if not dbus.dbus_message_set_path(self._dbobj, (lambda : None, lambda : object_path.encode())[object_path != None]()) :
+            raise RuntimeError("dbus_message_set_path failed")
+        #end if
+    #end path
+
+    @property
+    def path_decomposed(self) :
+        path = ct.POINTER(ct.c_char_p)()
+        if not dbus.dbus_message_get_path_decomposed(self._dbobj, ct.byref(path)) :
+            raise RuntimeError("dbus_message_get_path_decomposed failed")
+        #end if
+        if bool(path) :
+            result = []
+            i = 0
+            while True :
+                entry = path[i]
+                if entry == None :
+                    break
+                result.append(entry.decode())
+                i += 1
+            #end while
+            dbus.dbus_free_string_array(path)
+        else :
+            result = None
+        #end if
+        return \
+            result
+    #end path_decomposed
+
+    @property
+    def interface(self) :
+        result = dbus.dbus_message_get_interface(self._dbobj)
+        if result != None :
+            result = result.decode()
+        #end if
+        return \
+            result
+    #end interface
+
+    @interface.setter
+    def interface(self, iface) :
+        if not dbus.dbus_message_set_interface(self._dbobj, (lambda : None, lambda : iface.encode())[iface != None]()) :
+            raise RuntimeError("dbus_message_set_interface failed")
+        #end if
+    #end interface
+
+    def has_interface(self, iface) :
+        return \
+            dbus.dbus_message_has_interface(self._dbobj, iface.encode()) != 0
+    #end has_interface
+
+    @property
+    def member(self) :
+        result = dbus.dbus_message_get_member(self._dbobj)
+        if result != None :
+            result = result.decode()
+        #end if
+        return \
+            result
+    #end member
+
+    @member.setter
+    def member(self, member) :
+        if not dbus.dbus_message_set_member(self._dbobj, (lambda : None, lambda : member.encode())[member != None]()) :
+            raise RuntimeError("dbus_message_set_member failed")
+        #end if
+    #end member
+
+    def has_member(self, member) :
+        return \
+            dbus.dbus_message_has_member(self._dbobj, member.encode()) != 0
+    #end has_member
+
+    @property
+    def error_name(self) :
+        result = dbus.dbus_message_get_error_name(self._dbobj)
+        if result != None :
+            result = result.decode()
+        #end if
+        return \
+            result
+    #end error_name
+
+    @error_name.setter
+    def error_name(self, error_name) :
+        if not dbus.dbus_message_set_error_name(self._dbobj, (lambda : None, lambda : error_name.encode())[error_name != None]()) :
+            raise RuntimeError("dbus_message_set_error_name failed")
+        #end if
+    #end error_name
+
+    @property
+    def destination(self) :
+        result = dbus.dbus_message_get_destination(self._dbobj)
+        if result != None :
+            result = result.decode()
+        #end if
+        return \
+            result
+    #end destination
+
+    @destination.setter
+    def destination(self, destination) :
+        if not dbus.dbus_message_set_destination(self._dbobj, (lambda : None, lambda : destination.encode())[destination != None]()) :
+            raise RuntimeError("dbus_message_set_destination failed")
+        #end if
+    #end destination
+
+    @property
+    def sender(self) :
+        result = dbus.dbus_message_get_sender(self._dbobj)
+        if result != None :
+            result = result.decode()
+        #end if
+        return \
+            result
+    #end sender
+
+    @sender.setter
+    def sender(self, sender) :
+        if not dbus.dbus_message_set_sender(self._dbobj, (lambda : None, lambda : sender.encode())[sender != None]()) :
+            raise RuntimeError("dbus_message_set_sender failed")
+        #end if
+    #end sender
+
+    @property
+    def signature(self) :
+        result = dbus.dbus_message_get_signature(self._dbobj)
+        if result != None :
+            result = result.decode()
+        #end if
+        return \
+            result
+    #end signature
+
+    def is_method_call(self, iface, method) :
+        return \
+            dbus.dbus_message_is_method_call(self._dbobj, iface.encode(), method.encode()) != 0
+    #end is_method_call
+
+    def is_signal(self, iface, signal_name) :
+        return \
+            dbus.dbus_message_is_signal(self._dbobj, iface.encode(), signal_name.encode()) != 0
+    #end is_signal
+
+    def is_error(self, iface, error_name) :
+        return \
+            dbus.dbus_message_is_error(self._dbobj, error_name.encode()) != 0
+    #end is_error
+
+    def has_destination(self, iface, destination) :
+        return \
+            dbus.dbus_message_has_destination(self._dbobj, destination.encode()) != 0
+    #end has_destination
+
+    def has_sender(self, iface, sender) :
+        return \
+            dbus.dbus_message_has_sender(self._dbobj, sender.encode()) != 0
+    #end has_sender
+
+    def has_signature(self, iface, signature) :
+        return \
+            dbus.dbus_message_has_signature(self._dbobj, signature.encode()) != 0
+    #end has_signature
+
+    # more TBD
+
 #end Message
 
 class PendingCall :
@@ -1314,7 +1616,7 @@ class Error :
 
 def _atexit() :
     # disable all __del__ methods at process termination to avoid segfaults
-    for cls in Connection, Message, Error :
+    for cls in Connection, PreallocatedSend, Message, Error :
         delattr(cls, "__del__")
     #end for
 #end _atexit

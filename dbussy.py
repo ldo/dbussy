@@ -581,7 +581,8 @@ def _get_error(error) :
 #end _get_error
 
 class Connection :
-    "wrapper around a DBusConnection object."
+    "wrapper around a DBusConnection object. Do not instantiate directly; use the open" \
+    " or bus_get methods."
     # <https://dbus.freedesktop.org/doc/api/html/group__DBusConnection.html>
 
     __slots__ = ("__weakref__", "_dbobj",) # to forestall typos
@@ -624,6 +625,60 @@ class Connection :
     def close(self) :
         dbus.dbus_connection_close(self._dbobj)
     #end close
+
+    @property
+    def is_connected(self) :
+        return \
+            dbus.dbus_connection_get_is_connected(self._dbobj) != 0
+    #end is_connected
+
+    @property
+    def is_authenticated(self) :
+        return \
+            dbus.dbus_connection_get_is_authenticated(self._dbobj) != 0
+    #end is_authenticated
+
+    @property
+    def is_anonymous(self) :
+        return \
+            dbus.dbus_connection_get_is_anonymous(self._dbobj) != 0
+    #end is_anonymous
+
+    @property
+    def server_id(self) :
+        c_result = dbus.dbus_connection_get_server_id(self._dbobj)
+        result = ct.cast(c_result, ct.c_char_p).decode()
+        dbus.dbus_free(c_result)
+        return \
+            result
+    #end server_id
+
+    def can_send_type(self, type_code) :
+        return \
+            dbus.dbus_connection_can_send_type(self._dbobj, type_code) != 0
+    #end can_send_type
+
+    def set_exit_on_disconnect(self, exit_on_disconnect) :
+        dbus.dbus_connection_set_exit_on_disconnect(self._dbobj, exit_on_disconnect)
+    #end set_exit_on_disconnect
+
+    def preallocate_send(self) :
+        result = dbus.dbus_connection_preallocate_send(self._dbobj)
+        if result == None :
+            raise RuntimeError("dbus_connection_preallocate_send failed")
+        #end if
+        return \
+            PreallocatedSend(result, self)
+    #end preallocate_send
+
+    def send_preallocated(self, preallocated, message) :
+        if not isinstance(preallocated, PreallocatedSend) or not isinstance(message, Message) :
+            raise TypeError("preallocated must be a PreallocatedSend and message must be a Message")
+        #end if
+        assert not preallocated._sent, "preallocated has already been sent"
+        dbus.dbus_connection_send_preallocated(self._dbobj, preallocated._dbobj, message._dbobj)
+        preallocated._sent = True
+    #end send_preallocated
 
     # more TBD
 
@@ -705,7 +760,7 @@ class Connection :
         my_error.raise_if_set()
         return \
             result
-    #end if
+    #end bus_name_has_owner
 
     def bus_start_service_by_name(self, name, flags = 0, error = None) :
         error, my_error = _get_error(error)
@@ -730,6 +785,48 @@ class Connection :
 
 #end Connection
 
+class PreallocatedSend :
+    "wrapper around a DBusPreallocatedSend object. Do not instantiate directly;" \
+    " get from Connection.preallocate_send method."
+    # <https://dbus.freedesktop.org/doc/api/html/group__DBusConnection.html>
+
+    __slots__ = ("_dbobj", "_parent", "_sent") # to forestall typos
+
+    def __new__(celf, _dbobj, _parent) :
+        self = celf._instances.get(_dbobj)
+        if self == None :
+            self = super().__new__(celf)
+            self._dbobj = _dbobj
+            self._parent = _parent
+            self._sent = False
+            celf._instances[_dbobj] = self
+        else :
+            assert self._parent == _parent
+        #end if
+        return \
+            self
+    #end __new__
+
+    def __del__(self) :
+        if self._dbobj != None :
+            if not self._sent :
+                dbus.dbus_connection_free_preallocated_send(self._parent._dbobj, self._dbobj)
+            #end if
+            self._dbobj = None
+        #end if
+    #end __del__
+
+    def send(self, message) :
+        if not isinstance(message, Message) :
+            raise TypeError("message must be a Message")
+        #end if
+        assert not self._sent, "preallocated has already been sent"
+        dbus.dbus_connection_send_preallocated(self._parent._dbobj, self._dbobj, message._dbobj)
+        self._sent = True
+    #end send
+
+#end PreallocatedSend
+
 class Message :
     "wrapper around a DBusMessage object."
     # <https://dbus.freedesktop.org/doc/api/html/group__DBusMessage.html>
@@ -740,7 +837,7 @@ class Error :
     "wrapper around a DBusError object."
     # <https://dbus.freedesktop.org/doc/api/html/group__DBusErrors.html>
 
-    __slots__ = ("_dbobj",) # to forestall typos
+    __slots__ = ("_dbobj") # to forestall typos
 
     def __init__(self) :
         dbobj = DBUS.Error()

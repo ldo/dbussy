@@ -531,11 +531,17 @@ dbus.dbus_set_error.argtypes = (DBUS.ErrorPtr, ct.c_char_p, ct.c_char_p, ct.c_ch
 # from dbus-pending-call.h:
 # more TBD
 
-# memory functions <https://dbus.freedesktop.org/doc/api/html/group__DBusMemory.html>
-# (shouldn’t need these outside this module)
-
+# from dbus-memory.h:
+dbus.dbus_malloc.restype = ct.c_void_p
+dbus.dbus_malloc.argtypes = (ct.c_size_t,)
+dbus.dbus_malloc0.restype = ct.c_void_p
+dbus.dbus_malloc0.argtypes = (ct.c_size_t,)
+dbus.dbus_realloc.restype = ct.c_void_p
+dbus.dbus_realloc.argtypes = (ct.c_void_p, ct.c_size_t)
 dbus.dbus_free.restype = None
 dbus.dbus_free.argtypes = (ct.c_void_p,)
+dbus.dbus_free_string_array.restype = None
+dbus.dbus_free_string_array.argtypes = (ct.c_void_p,)
 
 #+
 # High-level stuff follows
@@ -857,7 +863,38 @@ class Connection :
         dbus.dbus_connection_set_route_peer_messages(self._dbobj, enable)
     #end set_route_peer_messages
 
-    # more TBD
+    # TODO: add/remove filter
+    # TODO: register/unregister object_path/fallback
+
+    def list_registered(self, parent_path) :
+        child_entries = ct.POINTER(ct.c_char_p)()
+        if not dbus.dbus_connection_list_registered(self._dbobj, parent_path.encode(), ct.byref(child_entries)) :
+            raise RuntimeError("dbus_connection_list_registered failed")
+        #end if
+        result = []
+        i = 0
+        while True :
+            entry = child_entries[i]
+            if entry == None :
+                break
+            result.append(entry.decode())
+            i += 1
+        #end while
+        dbus.dbus_free_string_array(child_entries)
+        return \
+            result
+    #end list_registered
+
+    # TODO: allocate/free data slot -- staticmethods
+    # TODO: get/set data
+    # TODO: set_change_sigpipe
+    # TODO: get/set max message/received size/fds outgoing
+
+    @property
+    def has_messages_to_send(self) :
+        return \
+            dbus.dbus_connection_has_messages_to_send(self._dbobj) != 0
+    #end has_messages_to_send
 
     # message bus APIs
     # <https://dbus.freedesktop.org/doc/api/html/group__DBusBus.html>

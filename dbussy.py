@@ -1018,7 +1018,7 @@ class Connection :
     def unix_fd(self) :
         c_fd = ct.c_int()
         if dbus.dbus_connection_get_unix_fd(self._dbobj, ct.byref(c_fd)) :
-            result = c_fd.falue
+            result = c_fd.value
         else :
             result = None
         #end if
@@ -1030,7 +1030,7 @@ class Connection :
     def unix_process_id(self) :
         c_fd = ct.c_ulong()
         if dbus.dbus_connection_get_unix_process_id(self._dbobj, ct.byref(c_fd)) :
-            result = c_fd.falue
+            result = c_fd.value
         else :
             result = None
         #end if
@@ -1042,7 +1042,7 @@ class Connection :
     def unix_user(self) :
         c_fd = ct.c_ulong()
         if dbus.dbus_connection_get_unix_user(self._dbobj, ct.byref(c_fd)) :
-            result = c_fd.falue
+            result = c_fd.value
         else :
             result = None
         #end if

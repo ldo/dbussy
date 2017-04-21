@@ -772,12 +772,28 @@ dbus.dbus_setenv.argtypes = (ct.c_char_p, ct.c_char_p)
 # High-level stuff follows
 #-
 
+class DBusError(Exception) :
+
+    def __init__(self, name, message) :
+        self.args = ("DBus error %s -- %s" % (name, message),)
+    #end __init__
+
+#end DBusError
+
+class DBusFailure(DBusError) :
+
+    def __init__(self, message) :
+        super().__init__(DBUS.ERROR_FAILED, message)
+    #end __init__
+
+#end DBusFailure
+
 # Misc: <https://dbus.freedesktop.org/doc/api/html/group__DBusMisc.html>
 
 def get_local_machine_id() :
     c_result = dbus.dbus_get_local_machine_id()
     if c_result == None :
-        raise RuntimeError("dbus_get_local_machine_id failed")
+        raise DBusFailure("dbus_get_local_machine_id failed")
     #end if
     result = ct.cast(c_result, ct.c_char_p).value.decode()
     dbus.dbus_free(c_result)
@@ -801,7 +817,7 @@ def setenv(key, value) :
         value = value.encode()
     #end if
     if not dbus.dbus_setenv(key, value) :
-        raise RuntimeError("dbus_setenv failed")
+        raise DBusFailure("dbus_setenv failed")
     #end if
 #end setenv
 
@@ -976,7 +992,7 @@ class Connection :
     def preallocate_send(self) :
         result = dbus.dbus_connection_preallocate_send(self._dbobj)
         if result == None :
-            raise RuntimeError("dbus_connection_preallocate_send failed")
+            raise DBusFailure("dbus_connection_preallocate_send failed")
         #end if
         return \
             PreallocatedSend(result, self)
@@ -1000,7 +1016,7 @@ class Connection :
         #end if
         serial = ct.c_uint()
         if not dbus.dbus_connection_send(self._dbobj, message._dbobj, ct.byref(serial)) :
-            raise RuntimeError("dbus_connection_send failed")
+            raise DBusFailure("dbus_connection_send failed")
         #end if
         return \
             serial.value
@@ -1012,7 +1028,7 @@ class Connection :
         #end if
         pending_call = ct.c_void_p()
         if not dbus.dbus_connection_send_with_reply(self._dbobj, message._dbobj, ct.byref(pending_call), timeout) :
-            raise RuntimeError("dbus_connection_send_with_reply failed")
+            raise DBusFailure("dbus_connection_send_with_reply failed")
         #end if
         if pending_call.value != None :
             result = PendingCall(pending_call.value)
@@ -1143,7 +1159,7 @@ class Connection :
     def list_registered(self, parent_path) :
         child_entries = ct.POINTER(ct.c_char_p)()
         if not dbus.dbus_connection_list_registered(self._dbobj, parent_path.encode(), ct.byref(child_entries)) :
-            raise RuntimeError("dbus_connection_list_registered failed")
+            raise DBusFailure("dbus_connection_list_registered failed")
         #end if
         result = []
         i = 0
@@ -1201,7 +1217,7 @@ class Connection :
     @bus_unique_name.setter
     def bus_unique_name(self, unique_name) :
         if not dbus.dbus_bus_set_unique_name(self._dbobj, unique_name.encode()) :
-            raise RuntimeError("D-Bus set-unique-name failed")
+            raise DBusFailure("D-Bus set-unique-name failed")
         #end if
     #end bus_unique_name
 
@@ -1356,7 +1372,7 @@ class Message :
         "type is one of the MESSAGE_TYPE_xxx codes."
         result = dbus.dbus_message_new(type)
         if result == None :
-            raise RuntimeError("dbus_message_new failed")
+            raise DBusFailure("dbus_message_new failed")
         #end if
         return \
             celf(result)
@@ -1366,7 +1382,7 @@ class Message :
     def new_error(celf, name, message) :
         result = dbus.dbus_message_new_error(name.encode(), message.encode())
         if result == None :
-            raise RuntimeError("dbus_message_new_error failed")
+            raise DBusFailure("dbus_message_new_error failed")
         #end if
         return \
             celf(result)
@@ -1384,7 +1400,7 @@ class Message :
             (lambda : None, lambda : method.encode())[method != None](),
           )
         if result == None :
-            raise RuntimeError("dbus_message_new_method_call failed")
+            raise DBusFailure("dbus_message_new_method_call failed")
         #end if
         return \
             celf(result)
@@ -1393,7 +1409,7 @@ class Message :
     def new_method_return(self) :
         result = dbus.dbus_message_new_method_return(self._dbobj)
         if result == None :
-            raise RuntimeError("dbus_message_new_method_return failed")
+            raise DBusFailure("dbus_message_new_method_return failed")
         #end if
         return \
             type(self)(result)
@@ -1403,7 +1419,7 @@ class Message :
     def new_signal(celf, path, iface, name) :
         result = dbus.dbus_message_new_signal(path.encode(), iface.encode(), name.encode())
         if result == None :
-            raise RuntimeError("dbus_message_new_signal failed")
+            raise DBusFailure("dbus_message_new_signal failed")
         #end if
         return \
             celf(result)
@@ -1412,7 +1428,7 @@ class Message :
     def copy(self) :
         result = dbus.dbus_message_copy(self._dbobj)
         if result == None :
-            raise RuntimeError("dbus_message_copy failed")
+            raise DBusFailure("dbus_message_copy failed")
         #end if
         return \
             type(self)(result)
@@ -1506,7 +1522,7 @@ class Message :
             assert not self._writing, "cannot read from write iterator"
             c_result = dbus.dbus_message_iter_get_signature(self._dbobj)
             if c_result == None :
-                raise RuntimeError("dbus_message_iter_get_signature failure")
+                raise DBusFailure("dbus_message_iter_get_signature failure")
             #end if
             result = ct.cast(c_result, ct.c_char_p).value.decode()
             dbus.dbus_free(c_result)
@@ -1565,7 +1581,7 @@ class Message :
             #end if
             c_value = c_type(value)
             if not dbus.dbus_message_iter_append_basic(self._dbobj, type, ct.byref(c_value)) :
-                raise RuntimeError("dbus_message_iter_append_basic failed")
+                raise DBusFailure("dbus_message_iter_append_basic failed")
             #end if
             return \
                 self
@@ -1584,7 +1600,7 @@ class Message :
                 #end if
             #end for
             if not dbus.dbus_message_iter_append_fixed_array(self._dbobj, ct.byref(c_arr)) :
-                raise RuntimeError("dbus_message_iter_append_fixed_array failed")
+                raise DBusFailure("dbus_message_iter_append_fixed_array failed")
             #end if
             return \
                 self
@@ -1599,7 +1615,7 @@ class Message :
             #end if
             subiter = type(self)(self, True)
             if not dbus.dbus_message_iter_open_container(self._dbobj, type, c_sig, subiter._dbobj) :
-                raise RuntimeError("dbus_message_iter_open_container failed")
+                raise DBusFailure("dbus_message_iter_open_container failed")
             #end if
             return \
                 subiter
@@ -1609,7 +1625,7 @@ class Message :
             assert self._writing, "cannot write to read iterator"
             assert self._parent != None, "cannot close top-level iterator"
             if not dbus.dbus_message_iter_close_container(self._parent._dbobj, self._dbobj) :
-                raise RuntimeError("dbus_message_iter_close_container failed")
+                raise DBusFailure("dbus_message_iter_close_container failed")
             #end if
             return \
                 self._parent
@@ -1676,7 +1692,7 @@ class Message :
     @path.setter
     def path(self, object_path) :
         if not dbus.dbus_message_set_path(self._dbobj, (lambda : None, lambda : object_path.encode())[object_path != None]()) :
-            raise RuntimeError("dbus_message_set_path failed")
+            raise DBusFailure("dbus_message_set_path failed")
         #end if
     #end path
 
@@ -1684,7 +1700,7 @@ class Message :
     def path_decomposed(self) :
         path = ct.POINTER(ct.c_char_p)()
         if not dbus.dbus_message_get_path_decomposed(self._dbobj, ct.byref(path)) :
-            raise RuntimeError("dbus_message_get_path_decomposed failed")
+            raise DBusFailure("dbus_message_get_path_decomposed failed")
         #end if
         if bool(path) :
             result = []
@@ -1717,7 +1733,7 @@ class Message :
     @interface.setter
     def interface(self, iface) :
         if not dbus.dbus_message_set_interface(self._dbobj, (lambda : None, lambda : iface.encode())[iface != None]()) :
-            raise RuntimeError("dbus_message_set_interface failed")
+            raise DBusFailure("dbus_message_set_interface failed")
         #end if
     #end interface
 
@@ -1739,7 +1755,7 @@ class Message :
     @member.setter
     def member(self, member) :
         if not dbus.dbus_message_set_member(self._dbobj, (lambda : None, lambda : member.encode())[member != None]()) :
-            raise RuntimeError("dbus_message_set_member failed")
+            raise DBusFailure("dbus_message_set_member failed")
         #end if
     #end member
 
@@ -1761,7 +1777,7 @@ class Message :
     @error_name.setter
     def error_name(self, error_name) :
         if not dbus.dbus_message_set_error_name(self._dbobj, (lambda : None, lambda : error_name.encode())[error_name != None]()) :
-            raise RuntimeError("dbus_message_set_error_name failed")
+            raise DBusFailure("dbus_message_set_error_name failed")
         #end if
     #end error_name
 
@@ -1778,7 +1794,7 @@ class Message :
     @destination.setter
     def destination(self, destination) :
         if not dbus.dbus_message_set_destination(self._dbobj, (lambda : None, lambda : destination.encode())[destination != None]()) :
-            raise RuntimeError("dbus_message_set_destination failed")
+            raise DBusFailure("dbus_message_set_destination failed")
         #end if
     #end destination
 
@@ -1795,7 +1811,7 @@ class Message :
     @sender.setter
     def sender(self, sender) :
         if not dbus.dbus_message_set_sender(self._dbobj, (lambda : None, lambda : sender.encode())[sender != None]()) :
-            raise RuntimeError("dbus_message_set_sender failed")
+            raise DBusFailure("dbus_message_set_sender failed")
         #end if
     #end sender
 
@@ -1942,7 +1958,7 @@ class PendingCall :
             self._wrap_free = None
         #end if
         if not dbus.dbus_pending_call_set_notify(self._dbobj, self._wrap_notify, None, self._wrap_free) :
-            raise RuntimeError("dbus_pending_call_set_notify failed")
+            raise DBusFailure("dbus_pending_call_set_notify failed")
         #end if
     #end set_notify
 
@@ -2021,7 +2037,7 @@ class Error :
 
     def raise_if_set(self) :
         if self.is_set :
-            raise RuntimeError("D-Bus error %s: %s" % (self.name, self.message))
+            raise DBusError(self.name, self.message)
         #end if
     #end raise_if_set
 

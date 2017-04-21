@@ -2042,5 +2042,5 @@ def _atexit() :
         delattr(cls, "__del__")
     #end for
 #end _atexit
-# atexit.register(_atexit) # TBD enable later
+atexit.register(_atexit)
 del _atexit

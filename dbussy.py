@@ -534,9 +534,6 @@ dbus.dbus_bus_add_match.argtypes = (ct.c_void_p, ct.c_char_p, DBUS.ErrorPtr)
 dbus.dbus_bus_remove_match.restype = None
 dbus.dbus_bus_remove_match.argtypes = (ct.c_void_p, ct.c_char_p, DBUS.ErrorPtr)
 
-dbus.dbus_message_get_serial.restype = ct.c_uint
-dbus.dbus_message_get_serial.argtypes = (ct.c_void_p,)
-
 dbus.dbus_error_init.restype = None
 dbus.dbus_error_init.argtypes = (DBUS.ErrorPtr,)
 dbus.dbus_error_free.restype = None
@@ -1548,7 +1545,52 @@ class Message :
             dbus.dbus_message_has_signature(self._dbobj, signature.encode()) != 0
     #end has_signature
 
-    # more TBD
+    def set_error(self, error) :
+        "fills in error if this is an error message, else does nothing. Returns" \
+        " whether it was an error message or not."
+        if not isinstance(error, Error) :
+            raise TypeError("error must be an Error")
+        #end if
+        return \
+            dbus.dbus_set_error_from_message(error._dbobj, self._dbobj) != 0
+    #end set_error
+
+    @property
+    def contains_unix_fds(self) :
+        return \
+            dbus.dbus_message_contains_unix_fds(self._dbobj) != 0
+    #end contains_unix_fds
+
+    @property
+    def serial(self) :
+        return \
+            dbus.dbus_message_get_serial(self._dbobj)
+    #end serial
+
+    @serial.setter
+    def serial(self, serial) :
+        dbus.dbus_message_set_serial(self._dbobj, serial)
+    #end serial
+
+    def lock(self) :
+        dbus.dbus_message_lock(self._dbobj)
+    #end lock
+
+    # TODO: allocate/free data slot (freeing slot can set passed-in var to -1 on actual free; do I care?)
+    # TODO: set/get data
+    # TODO: type from/to string
+    # TODO: marshal/demarshal
+
+    @property
+    def interactive_authorization(self) :
+        return \
+            dbus.dbus_message_get_interactive_authorization(self._dbobj)
+    #end interactive_authorization
+
+    @interactive_authorization.setter
+    def interactive_authorization(self, allow) :
+        dbus.dbus_message_set_interactive_authorization(self._dbobj, allow)
+    #end interactive_authorization
 
 #end Message
 
@@ -1609,6 +1651,16 @@ class Error :
             raise RuntimeError("D-Bus error %s: %s" % (self.name, self.message))
         #end if
     #end raise_if_set
+
+    def set_from_message(self, message) :
+        "fills in this Error object from message if it is an error message." \
+        " Returns whether it was or not."
+        if not isinstance(message, Message) :
+            raise TypeError("message must be a Message")
+        #end if
+        return \
+            dbus.dbus_set_error_from_message(self._dbobj, message._dbobj) != 0
+    #end set_from_message
 
 #end Error
 

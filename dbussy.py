@@ -1382,12 +1382,14 @@ class Message :
         " Do not instantiate directly; get from Message.iter_init, Message.Iter.recurse," \
         " Message.iter_init_append or Message.Iter.open_container."
 
-        __slots__ = ("_dbobj", "_parent", "_writing") # to forestall typos
+        __slots__ = ("_dbobj", "_parent", "_nulliter", "_writing", "_startiter") # to forestall typos
 
         def __init__(self, _parent, _writing) :
-            self._MessageIter = DBUS.MessageIter()
+            self._dbobj = DBUS.MessageIter()
             self._parent = _parent
-            self._writing = writing
+            self._nulliter = False
+            self._writing = _writing
+            self._startiter = False
         #end __init__
 
         @property
@@ -1399,10 +1401,34 @@ class Message :
 
         def next(self) :
             assert not self._writing, "cannot read from write iterator"
-            if not dbus.dbus_message_iter_next(self._dbobj) :
+            if self._nulliter or not dbus.dbus_message_iter_next(self._dbobj) :
                 raise StopIteration("end of message iterator")
             #end if
+            return \
+                self
         #end next
+
+        def __iter__(self) :
+            assert not self._writing, "cannot read from write iterator"
+            self._startiter = True
+            return \
+                self
+        #end __iter__
+
+        def __next__(self) :
+            assert not self._writing, "cannot read from write iterator"
+            if self._nulliter :
+                raise StopIteration("empty message iterator")
+            else :
+                if self._startiter :
+                    self._startiter = False
+                else :
+                    self.next()
+                #end if
+            #end if
+            return \
+                self
+        #end __next__
 
         @property
         def arg_type(self) :
@@ -1489,7 +1515,7 @@ class Message :
                 value = value.encode()
             #end if
             c_value = c_type(value)
-            if not dbus.dbus_message_iter_append_basic(self._dbobj, ct.byref(c_value)) :
+            if not dbus.dbus_message_iter_append_basic(self._dbobj, type, ct.byref(c_value)) :
                 raise RuntimeError("dbus_message_iter_append_basic failed")
             #end if
             return \
@@ -1553,18 +1579,18 @@ class Message :
     def iter_init(self) :
         iter = self.Iter(None, False)
         if dbus.dbus_message_iter_init(self._dbobj, iter._dbobj) == 0 :
-            iter = None
+            iter._nulliter = True
         #end if
         return \
              iter
     #end iter_init
 
-    def init_append(self) :
+    def iter_init_append(self) :
         iter = self.Iter(None, True)
         dbus.dbus_message_iter_init_append(self._dbobj, iter._dbobj)
         return \
             iter
-    #end init_append
+    #end iter_init_append
 
     @property
     def no_reply(self) :

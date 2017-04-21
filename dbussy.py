@@ -408,7 +408,7 @@ dbus.dbus_connection_set_wakeup_main_function.argtypes = (ct.c_void_p, ct.c_void
 dbus.dbus_connection_set_dispatch_status_function.restype = None
 dbus.dbus_connection_set_dispatch_status_function.argtypes = (ct.c_void_p, ct.c_void_p, ct.c_void_p, ct.c_void_p)
 dbus.dbus_connection_get_unix_user.restype = DBUS.bool_t
-dbus.dbus_connection_get_unix_user.argtypes = (ct.c_void_p, ct.POINTER(ct.c_uint))
+dbus.dbus_connection_get_unix_user.argtypes = (ct.c_void_p, ct.POINTER(ct.c_ulong))
 dbus.dbus_connection_get_unix_process_id.restype = DBUS.bool_t
 dbus.dbus_connection_get_unix_process_id.argtypes = (ct.c_void_p, ct.POINTER(ct.c_ulong))
 dbus.dbus_connection_get_adt_audit_session_data.restype = DBUS.bool_t
@@ -1027,10 +1027,22 @@ class Connection :
     #end unix_fd
 
     @property
-    def unix_process_id(self) :
-        c_fd = ct.c_ulong()
-        if dbus.dbus_connection_get_unix_process_id(self._dbobj, ct.byref(c_fd)) :
+    def socket(self) :
+        c_fd = ct.c_int()
+        if dbus.dbus_connection_get_socket(self._dbobj, ct.byref(c_fd)) :
             result = c_fd.value
+        else :
+            result = None
+        #end if
+        return \
+            result
+    #end socket
+
+    @property
+    def unix_process_id(self) :
+        c_pid = ct.c_ulong()
+        if dbus.dbus_connection_get_unix_process_id(self._dbobj, ct.byref(c_pid)) :
+            result = c_pid.value
         else :
             result = None
         #end if
@@ -1040,9 +1052,9 @@ class Connection :
 
     @property
     def unix_user(self) :
-        c_fd = ct.c_ulong()
-        if dbus.dbus_connection_get_unix_user(self._dbobj, ct.byref(c_fd)) :
-            result = c_fd.value
+        c_uid = ct.c_ulong()
+        if dbus.dbus_connection_get_unix_user(self._dbobj, ct.byref(c_uid)) :
+            result = c_uid.value
         else :
             result = None
         #end if

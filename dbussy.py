@@ -775,7 +775,7 @@ dbus.dbus_setenv.argtypes = (ct.c_char_p, ct.c_char_p)
 class DBusError(Exception) :
 
     def __init__(self, name, message) :
-        self.args = ("DBus error %s -- %s" % (name, message),)
+        self.args = ("%s -- %s" % (name, message),)
     #end __init__
 
 #end DBusError

@@ -1870,7 +1870,8 @@ class Message :
         dbus.dbus_message_lock(self._dbobj)
     #end lock
 
-    # TODO: allocate/free data slot (freeing slot can set passed-in var to -1 on actual free; do I care?)
+    # TODO: allocate/free data slot -- static methods
+    #    (freeing slot can set passed-in var to -1 on actual free; do I care?)
     # TODO: set/get data
     # TODO: type from/to string
     # TODO: marshal/demarshal
@@ -1968,7 +1969,7 @@ class PendingCall :
         dbus.dbus.dbus_pending_call_block(self._dbobj)
     #end block
 
-    # TODO: data slots, get/set data
+    # TODO: data slots (static methods), get/set data
 
 #end PendingCall
 

@@ -311,6 +311,10 @@ class DBUS :
         ]
     ObjectPathVTablePtr = ct.POINTER(ObjectPathVTable)
 
+    # from dbus-pending-call.h:
+    TIMEOUT_INFINITE = 0x7fffffff
+    TIMEOUT_USE_DEFAULT = -1
+
 #end DBUS
 
 #+
@@ -487,6 +491,9 @@ dbus.dbus_error_is_set.argtypes = (DBUS.ErrorPtr,)
 dbus.dbus_set_error.restype = None
 dbus.dbus_set_error.argtypes = (DBUS.ErrorPtr, ct.c_char_p, ct.c_char_p, ct.c_char_p)
   # note I can’t handle varargs
+
+# from dbus-pending-call.h:
+# more TBD
 
 # memory functions <https://dbus.freedesktop.org/doc/api/html/group__DBusMemory.html>
 # (shouldn’t need these outside this module)
@@ -676,9 +683,71 @@ class Connection :
             raise TypeError("preallocated must be a PreallocatedSend and message must be a Message")
         #end if
         assert not preallocated._sent, "preallocated has already been sent"
-        dbus.dbus_connection_send_preallocated(self._dbobj, preallocated._dbobj, message._dbobj)
+        serial = ct.c_uint()
+        dbus.dbus_connection_send_preallocated(self._dbobj, preallocated._dbobj, message._dbobj, ct.byref(serial))
         preallocated._sent = True
+        return \
+            serial.value
     #end send_preallocated
+
+    def send(self, message) :
+        if not isinstance(message, Message) :
+            raise TypeError("message must be a Message")
+        #end if
+        serial = ct.c_uint()
+        if not dbus.dbus_connection_send(self._dbobj, message._dbobj, ct.byref(serial)) :
+            raise RuntimeError("dbus_connection_send failed")
+        #end if
+        return \
+            serial.value
+    #end send
+
+    def send_with_reply(self, message, timeout) :
+        if not isinstance(message, Message) :
+            raise TypeError("message must be a Message")
+        #end if
+        pending_call = ct.c_void_p()
+        if not dbus.dbus_connection_send_with_reply(self._dbobj, message._dbobj, ct.byref(pending_call), timeout) :
+            raise RuntimeError("dbus_connection_send_with_reply failed")
+        #end if
+        if pending_call.value != None :
+            result = PendingCall(pending_call.value)
+        else :
+            result = None
+        #end if
+        return \
+            result
+    #end send_with_reply
+
+    def send_with_reply_and_block(self, message, timeout, error = None) :
+        if not isinstance(message, Message) :
+            raise TypeError("message must be a Message")
+        #end if
+        error, my_error = _get_error(error)
+        reply = dbus.dbus_connection_send_with_reply_and_block(self._dbobj, message._dbobj, timeout, error._dbobj)
+        my_error.raise_if_set()
+        if reply != None :
+            result = Message(reply)
+        else :
+            result = None
+        #end if
+        return \
+            result
+    #end send_with_reply_and_block
+
+    def flush(self) :
+        dbus.dbus_connection_flush(self._dbobj)
+    #end flush
+
+    def read_write_dispatch(self, timeout) :
+        return \
+            dbus.dbus_connection_read_write_dispatch(self._dbobj, timeout) != 0
+    #end read_write_dispatch
+
+    def read_write(self, timeout) :
+        return \
+            dbus.dbus_connection_read_write(self._dbobj, timeout) != 0
+    #end read_write
 
     # more TBD
 
@@ -821,8 +890,11 @@ class PreallocatedSend :
             raise TypeError("message must be a Message")
         #end if
         assert not self._sent, "preallocated has already been sent"
-        dbus.dbus_connection_send_preallocated(self._parent._dbobj, self._dbobj, message._dbobj)
+        serial = ct.c_uint()
+        dbus.dbus_connection_send_preallocated(self._parent._dbobj, self._dbobj, message._dbobj, ct.byref(serial))
         self._sent = True
+        return \
+            serial.value
     #end send
 
 #end PreallocatedSend
@@ -832,6 +904,12 @@ class Message :
     # <https://dbus.freedesktop.org/doc/api/html/group__DBusMessage.html>
     pass # TBD
 #end Message
+
+class PendingCall :
+    "wrapper around a DBusPendingCall object."
+    # <https://dbus.freedesktop.org/doc/api/html/group__DBusPendingCall.html>
+    pass # TBD
+#end PendingCall
 
 class Error :
     "wrapper around a DBusError object."

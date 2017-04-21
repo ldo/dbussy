@@ -308,6 +308,8 @@ class DBUS :
     AllowUnixUserFunction = ct.CFUNCTYPE(bool_t, ct.c_void_p, ct.c_void_p, ct.c_void_p)
     AllowWindowsUserFunction = ct.CFUNCTYPE(bool_t, ct.c_void_p, ct.c_void_p, ct.c_void_p)
 
+    PendingCallNotifyFunction = ct.CFUNCTYPE(None, ct.c_void_p, ct.c_void_p)
+
     HandleMessageFunction = ct.CFUNCTYPE(HandlerResult, ct.c_void_p, ct.c_void_p, ct.c_void_p)
 
     ObjectPathUnregisterFunction = ct.CFUNCTYPE(None, ct.c_void_p, ct.c_void_p)
@@ -756,9 +758,21 @@ dbus.dbus_free.argtypes = (ct.c_void_p,)
 dbus.dbus_free_string_array.restype = None
 dbus.dbus_free_string_array.argtypes = (ct.c_void_p,)
 
+# from dbus-misc.h:
+dbus.dbus_get_local_machine_id.restype = ct.c_char_p
+dbus.dbus_get_local_machine_id.argtypes = ()
+dbus.dbus_get_version.restype = None
+dbus.dbus_get_version.argtypes = (ct.POINTER(ct.c_int), ct.POINTER(ct.c_int), ct.POINTER(ct.c_int))
+dbus.dbus_setenv.restype = DBUS.bool_t
+dbus.dbus_setenv.argtypes = (ct.c_char_p, ct.c_char_p)
+
+# TODO: dbus-address.h
+
 #+
 # High-level stuff follows
 #-
+
+# TODO: dbus-misc
 
 class ObjectPathVTable :
 
@@ -1842,7 +1856,85 @@ class Message :
 class PendingCall :
     "wrapper around a DBusPendingCall object."
     # <https://dbus.freedesktop.org/doc/api/html/group__DBusPendingCall.html>
-    pass # TBD
+
+    __slots__ = ("__weakref__", "_dbobj", "_wrap_notify", "_wrap_free") # to forestall typos
+
+    _instances = WeakValueDictionary()
+
+    def __new__(celf, _dbobj) :
+        self = celf._instances.get(_dbobj)
+        if self == None :
+            self = super().__new__(celf)
+            self._dbobj = _dbobj
+            self._wrap_notify = None
+            self._wrap_free = None
+            celf._instances[_dbobj] = self
+        else :
+            dbus.dbus_pending_call_unref(self._dbobj)
+              # lose extra reference created by caller
+        #end if
+        return \
+            self
+    #end __new__
+
+    def __del__(self) :
+        if self._dbobj != None :
+            dbus.dbus_pending_call_unref(self._dbobj)
+            self._dbobj = None
+        #end if
+    #end __del__
+
+    def set_notify(self, function, user_data, free_user_data) :
+
+        def _wrap_notify(c_pending, c_user_data) :
+            function(self, user_data)
+        #end _wrap_notify
+
+        def _wrap_free(c_user_data) :
+            free_user_data(user_data)
+        #end _wrap_free
+
+    #begin set_notify
+        if function != None :
+            self._wrap_notify = DBUS.PendingCallNotifyFunction(_wrap_notify)
+        else :
+            self._wrap_notify = None
+        #end if
+        if free_user_data != None :
+            self._wrap_free = DBUS.FreeFunction(_wrap_free)
+        else :
+            self._wrap_free = None
+        #end if
+        if not dbus.dbus_pending_call_set_notify(self._dbobj, self._wrap_notify, None, self._wrap_free) :
+            raise RuntimeError("dbus_pending_call_set_notify failed")
+        #end if
+    #end set_notify
+
+    def cancel(self) :
+        dbus.dbus_pending_call_cancel(self._dbobj)
+    #end cancel
+
+    @property
+    def completed(self) :
+        return \
+            dbus.dbus_pending_call_get_completed(self._dbobj) != 0
+    #end completed
+
+    def steal_reply(self) :
+        result = dbus.dbus_pending_call_steal_reply(self._dbobj)
+        if result != None :
+            result = Message(result)
+        #end if
+        return \
+            result
+    #end steal_reply
+
+    def block(self) :
+        dbus.dbus.dbus_pending_call_block(self._dbobj)
+    #end block
+
+    # TODO: data slots, get/set data
+
 #end PendingCall
 
 class Error :
@@ -1909,11 +2001,9 @@ class Error :
 
 #end Error
 
-# more TBD
-
 def _atexit() :
     # disable all __del__ methods at process termination to avoid segfaults
-    for cls in Connection, PreallocatedSend, Message, Error :
+    for cls in Connection, PreallocatedSend, Message, PendingCall, Error :
         delattr(cls, "__del__")
     #end for
 #end _atexit

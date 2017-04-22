@@ -5,6 +5,7 @@
 # libdbus API: <https://dbus.freedesktop.org/doc/api/html/index.html>.
 #-
 
+import array
 import ctypes as ct
 from weakref import \
     ref as weak_ref, \
@@ -787,9 +788,9 @@ dbus.dbus_message_type_to_string.argtypes = (ct.c_int,)
 dbus.dbus_message_marshal.restype = DBUS.bool_t
 dbus.dbus_message_marshal.argtypes = (ct.c_void_p, ct.c_void_p, ct.POINTER(ct.c_int))
 dbus.dbus_message_demarshal.restype = ct.c_void_p
-dbus.dbus_message_demarshal.argtypes = (ct.c_char_p, ct.c_int, DBUS.ErrorPtr)
+dbus.dbus_message_demarshal.argtypes = (ct.c_void_p, ct.c_int, DBUS.ErrorPtr)
 dbus.dbus_message_demarshal_bytes_needed.restype = ct.c_int
-dbus.dbus_message_demarshal_bytes_needed.argtypes = (ct.c_char_p, ct.c_int)
+dbus.dbus_message_demarshal_bytes_needed.argtypes = (ct.c_void_p, ct.c_int)
 dbus.dbus_message_set_allow_interactive_authorization.restype = None
 dbus.dbus_message_set_allow_interactive_authorization.argtypes = (ct.c_void_p, DBUS.bool_t)
 dbus.dbus_message_get_allow_interactive_authorization.restype = DBUS.bool_t
@@ -2058,7 +2059,60 @@ class Message :
     #    (freeing slot can set passed-in var to -1 on actual free; do I care?)
     # TODO: set/get data
     # TODO: type from/to string
-    # TODO: marshal/demarshal
+
+    def marshal(self) :
+        buf = ct.POINTER(ct.c_ubyte)()
+        nr_bytes = ct.c_int()
+        if not dbus.dbus_message_marshal(self._dbobj, ct.byref(buf), ct.byref(nr_bytes)) :
+            raise DBusFailure("dbus_message_marshal failed")
+        #end if
+        result = bytearray(nr_bytes.value)
+        ct.memmove \
+          (
+            ct.addressof((ct.c_ubyte * nr_bytes.value).from_buffer(result)),
+            buf,
+            nr_bytes.value
+          )
+        dbus.dbus_free(buf)
+        return \
+            result
+    #end marshal
+
+    @classmethod
+    def demarshal(celf, buf, error = None) :
+        error, my_error = _get_error(error)
+        if isinstance(buf, bytes) :
+            baseadr = ct.cast(buf, ct.c_void_p).value
+        elif isinstance(buf, bytearray) :
+            baseadr = ct.addressof((ct.c_ubyte * len(buf)).from_buffer(buf))
+        elif isinstance(buf, array.array) and buf.typecode == "B" :
+            baseadr = buf.buffer_info()[0]
+        else :
+            raise TypeError("buf is not bytes, bytearray or array.array of bytes")
+        #end if
+        msg = dbus.dbus_message_demarshal(baseadr, len(buf), error._dbobj)
+        my_error.raise_if_set()
+        if msg != None :
+            msg = celf(msg)
+        #end if
+        return \
+            msg
+    #end demarshal
+
+    @classmethod
+    def demarshal_bytes_needed(celf, buf) :
+        if isinstance(buf, bytes) :
+            baseadr = ct.cast(buf, ct.c_void_p).value
+        elif isinstance(buf, bytearray) :
+            baseadr = ct.addressof((ct.c_ubyte * len(buf)).from_buffer(buf))
+        elif isinstance(buf, array.array) and buf.typecode == "B" :
+            baseadr = buf.buffer_info()[0]
+        else :
+            raise TypeError("buf is not bytes, bytearray or array.array of bytes")
+        #end if
+        return \
+            dbus.dbus_message_demarshal_bytes_needed(baseadr, len(buf))
+    #end demarshal_bytes_needed
 
     @property
     def interactive_authorization(self) :

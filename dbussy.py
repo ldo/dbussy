@@ -801,7 +801,7 @@ dbus.dbus_get_version.argtypes = (ct.POINTER(ct.c_int), ct.POINTER(ct.c_int), ct
 dbus.dbus_setenv.restype = DBUS.bool_t
 dbus.dbus_setenv.argtypes = (ct.c_char_p, ct.c_char_p)
 
-# TODO from dbus-address.h:
+# from dbus-address.h:
 dbus.dbus_parse_address.restype = DBUS.bool_t
 dbus.dbus_parse_address.argtypes = (ct.c_char_p, ct.c_void_p, ct.POINTER(ct.c_int), DBUS.ErrorPtr)
 dbus.dbus_address_entry_get_value.restype = ct.c_char_p

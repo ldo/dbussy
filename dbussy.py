@@ -1618,7 +1618,8 @@ class Message :
                     c_arr[i] = values[i]
                 #end if
             #end for
-            if not dbus.dbus_message_iter_append_fixed_array(self._dbobj, ct.byref(c_arr)) :
+            c_arr_ptr = ct.pointer(c_arr)
+            if not dbus.dbus_message_iter_append_fixed_array(self._dbobj, element_type, ct.byref(c_arr_ptr), nr_elts) :
                 raise DBusFailure("dbus_message_iter_append_fixed_array failed")
             #end if
             return \
@@ -1632,7 +1633,7 @@ class Message :
             else :
                 c_sig = None
             #end if
-            subiter = type(self)(self, True)
+            subiter = __builtins__["type"](self)(self, True)
             if not dbus.dbus_message_iter_open_container(self._dbobj, type, c_sig, subiter._dbobj) :
                 raise DBusFailure("dbus_message_iter_open_container failed")
             #end if

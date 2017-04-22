@@ -68,6 +68,40 @@ class DBUS :
             TYPE_UNIX_FD : ct.c_int,
         }
 
+    class ObjectPath(str) :
+
+        def __repr__(self) :
+            return \
+                "%s(%s)" % (self.__class__.__name__, super().__repr__())
+        #end __repr__
+
+    #end ObjectPath
+
+    class Signature(str) :
+
+        def __repr__(self) :
+            return \
+                "%s(%s)" % (self.__class__.__name__, super().__repr__())
+        #end __repr__
+
+    #end Signature
+
+    class UnixFD(int) :
+
+        def __repr__(self) :
+            return \
+                "%s(%s)" % (self.__class__.__name__, super().__repr__())
+        #end __repr__
+
+    #end UnixFD
+
+    basic_subclasses = \
+        {
+            TYPE_OBJECT_PATH : ObjectPath,
+            TYPE_SIGNATURE : Signature,
+            TYPE_UNIX_FD : UnixFD,
+        }
+
     # Compound types
     TYPE_ARRAY = ord('a') # D-Bus array type
     TYPE_VARIANT = ord('v') # D-Bus variant type
@@ -1466,7 +1500,11 @@ class Message :
     class Iter :
         "for iterating over the arguments in a Message, whether for reading or appending." \
         " Do not instantiate directly; get from Message.iter_init, Message.Iter.recurse," \
-        " Message.iter_init_append or Message.Iter.open_container."
+        " Message.iter_init_append or Message.Iter.open_container.\n" \
+        "\n" \
+        "When reading, you can use this as a Python iterator, in a for-loop, passing" \
+        " it to the next() built-in function etc. Do not mix such usage with calls to" \
+        " the has_next() and next() methods."
 
         __slots__ = ("_dbobj", "_parent", "_nulliter", "_writing", "_startiter") # to forestall typos
 
@@ -1475,7 +1513,7 @@ class Message :
             self._parent = _parent
             self._nulliter = False
             self._writing = _writing
-            self._startiter = False
+            self._startiter = True
         #end __init__
 
         @property
@@ -1490,13 +1528,13 @@ class Message :
             if self._nulliter or not dbus.dbus_message_iter_next(self._dbobj) :
                 raise StopIteration("end of message iterator")
             #end if
+            self._startiter = False
             return \
                 self
         #end next
 
         def __iter__(self) :
             assert not self._writing, "cannot read from write iterator"
-            self._startiter = True
             return \
                 self
         #end __iter__
@@ -1554,7 +1592,8 @@ class Message :
         @property
         def basic(self) :
             assert not self._writing, "cannot read from write iterator"
-            c_result_type = DBUS.basic_to_ctypes[self.arg_type]
+            argtype = self.arg_type
+            c_result_type = DBUS.basic_to_ctypes[argtype]
             c_result = c_result_type()
             dbus.dbus_message_iter_get_basic(self._dbobj, ct.byref(c_result))
             if c_result_type == ct.c_char_p :
@@ -1562,9 +1601,42 @@ class Message :
             else :
                 result = c_result.value
             #end if
+            if argtype in DBUS.basic_subclasses :
+                result = DBUS.basic_subclasses[argtype](result)
+            #end if
             return \
                 result
         #end basic
+
+        @property
+        def object(self) :
+            assert not self._writing, "cannot read from write iterator"
+            argtype = self.arg_type
+            if argtype in DBUS.basic_to_ctypes :
+                result = self.basic
+            elif argtype == DBUS.TYPE_ARRAY :
+                if self.element_type == DBUS.TYPE_DICT_ENTRY :
+                    result = {}
+                    subiter = self.recurse()
+                    while True :
+                        entry = next(subiter, None)
+                        if entry == None :
+                            break
+                        assert entry.arg_type == DBUS.TYPE_DICT_ENTRY
+                        key, value = tuple(x.object for x in entry.recurse())
+                        result[key] = value
+                    #end while
+                else :
+                    result = list(x.object for x in self.recurse())
+                #end if
+            elif argtype == DBUS.TYPE_STRUCT :
+                result = list(x.object for x in self.recurse())
+            else :
+                raise RuntimeError("unrecognized argtype %d" % argtype)
+            #end if
+            return \
+                result
+        #end object
 
         @property
         def element_count(self) :
@@ -1671,6 +1743,13 @@ class Message :
         return \
              iter
     #end iter_init
+
+    @property
+    def objects(self) :
+        for iter in self.iter_init() :
+            yield iter.object
+        #end for
+    #end objects
 
     def iter_init_append(self) :
         iter = self.Iter(None, True)

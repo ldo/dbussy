@@ -2194,7 +2194,8 @@ class Error :
 
 class AddressEntries :
     "wrapper for arrays of DBusAddressEntry values. Do not instantiate directly;" \
-    " get from parse."
+    " get from parse. This object behaves like an array; you can obtain the number" \
+    " of elements with len(), and use array subscripting to access the elements."
     # <https://dbus.freedesktop.org/doc/api/html/group__DBusAddress.html>
 
     __slots__ = ("__weakref__", "_dbobj", "_nrelts") # to forestall typos
@@ -2212,7 +2213,10 @@ class AddressEntries :
     #end __del__
 
     class Entry :
-        "a single AddressEntry. Do not instantiate directly; get from AddressEntries[]."
+        "a single AddressEntry. Do not instantiate directly; get from AddressEntries[]." \
+        " This object behaves like a dictionary in that you can use keys to get values;" \
+        " however, there is no D-Bus API to check what keys are present; unrecognized" \
+        " keys return a value of None."
 
         __slots__ = ("_dbobj", "_parent", "_index") # to forestall typos
 

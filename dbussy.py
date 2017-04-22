@@ -781,6 +781,8 @@ dbus.dbus_address_escape_value.argtypes = (ct.c_char_p,)
 dbus.dbus_address_unescape_value.restype = ct.c_void_p
 dbus.dbus_address_unescape_value.argtypes = (ct.c_char_p, DBUS.ErrorPtr)
 
+# TODO: dbus-signature.h, <https://dbus.freedesktop.org/doc/api/html/group__DBusSignature.html>
+
 #+
 # High-level stuff follows
 #-

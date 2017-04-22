@@ -1162,7 +1162,19 @@ class Connection :
             dbus.dbus_connection_read_write(self._dbobj, timeout) != 0
     #end read_write
 
-    # TODO: borrowed messages
+    def borrow_message(self) :
+        msg = dbus.dbus_connection_borrow_message(self._dbobj)
+        if msg != None :
+            msg = Message(msg)
+            msg._conn = self
+            msg._borrowed = True
+        #end if
+        return \
+            msg
+    #end borrow_message
+
+    # returning/stealing borrowed messages done with
+    # Message.return_borrowed and Message.steal_borrowed
 
     def pop_message(self) :
         message = dbus.dbus_connection_pop_message(self._dbobj)
@@ -1432,10 +1444,10 @@ class PreallocatedSend :
 
 class Message :
     "wrapper around a DBusMessage object. Do not instantiate directly; use one of the" \
-    " new_xxx or copy methods."
+    " new_xxx or copy methods, or Connection.pop_message or Connection.borrow_message."
     # <https://dbus.freedesktop.org/doc/api/html/group__DBusMessage.html>
 
-    __slots__ = ("__weakref__", "_dbobj") # to forestall typos
+    __slots__ = ("__weakref__", "_dbobj", "_conn", "_borrowed") # to forestall typos
 
     _instances = WeakValueDictionary()
 
@@ -1444,6 +1456,8 @@ class Message :
         if self == None :
             self = super().__new__(celf)
             self._dbobj = _dbobj
+            self._conn = None
+            self._borrowed = False
             celf._instances[_dbobj] = self
         else :
             dbus.dbus_message_unref(self._dbobj)
@@ -1455,6 +1469,7 @@ class Message :
 
     def __del__(self) :
         if self._dbobj != None :
+            assert not self._borrowed, "trying to dispose of borrowed message"
             dbus.dbus_message_unref(self._dbobj)
             self._dbobj = None
         #end if
@@ -2024,6 +2039,20 @@ class Message :
     def lock(self) :
         dbus.dbus_message_lock(self._dbobj)
     #end lock
+
+    def return_borrowed(self) :
+        assert self._borrowed and self._conn != None
+        dbus.dbus_connection_return_message(self._conn._dbobj, self._dbobj)
+        self._borrowed = False
+    #end return_borrowed
+
+    def steal_borrowed(self) :
+        assert self._borrowed and self._conn != None
+        dbus.dbus_connection_steal_borrowed_message(self._conn._dbobj, self._dbobj)
+        self._borrowed = False
+        return \
+            self
+    #end steal_borrowed
 
     # TODO: allocate/free data slot -- static methods
     #    (freeing slot can set passed-in var to -1 on actual free; do I care?)

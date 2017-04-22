@@ -1432,7 +1432,7 @@ class PreallocatedSend :
 
 class Message :
     "wrapper around a DBusMessage object. Do not instantiate directly; use one of the" \
-    " new methods."
+    " new_xxx or copy methods."
     # <https://dbus.freedesktop.org/doc/api/html/group__DBusMessage.html>
 
     __slots__ = ("__weakref__", "_dbobj") # to forestall typos
@@ -1814,7 +1814,7 @@ class Message :
     #end auto_start
 
     @auto_start.setter
-    def auto_start(self, y) :
+    def auto_start(self, auto_start) :
         dbus.dbus_message_set_auto_start(self._dbobj, auto_start)
     #end auto_start
 

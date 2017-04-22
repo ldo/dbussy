@@ -391,6 +391,20 @@ class DBUS :
     #end MessageIter
     MessageIterPtr = ct.POINTER(MessageIter)
 
+    # from dbus-signature.h:
+    class SignatureIter(ct.Structure) :
+        "contains no public fields."
+        _fields_ = \
+            [
+                ("dummy1", ct.c_void_p),
+                ("dummy2", ct.c_void_p),
+                ("dummy8", ct.c_uint),
+                ("dummy12", ct.c_int),
+                ("dummy17", ct.c_int),
+            ]
+    #end SignatureIter
+    SignatureIterPtr = ct.POINTER(SignatureIter)
+
 #end DBUS
 
 #+
@@ -815,7 +829,31 @@ dbus.dbus_address_escape_value.argtypes = (ct.c_char_p,)
 dbus.dbus_address_unescape_value.restype = ct.c_void_p
 dbus.dbus_address_unescape_value.argtypes = (ct.c_char_p, DBUS.ErrorPtr)
 
-# TODO: dbus-signature.h, <https://dbus.freedesktop.org/doc/api/html/group__DBusSignature.html>
+# from dbus-signature.h:
+dbus.dbus_signature_iter_init.restype = None
+dbus.dbus_signature_iter_init.argtypes = (DBUS.SignatureIterPtr, ct.c_char_p)
+dbus.dbus_signature_iter_get_current_type.restype = ct.c_int
+dbus.dbus_signature_iter_get_current_type.argtypes = (DBUS.SignatureIterPtr,)
+dbus.dbus_signature_iter_get_signature.restype = ct.c_void_p
+dbus.dbus_signature_iter_get_signature.argtypes = (DBUS.SignatureIterPtr,)
+dbus.dbus_signature_iter_get_element_type.restype = ct.c_int
+dbus.dbus_signature_iter_get_element_type.argtypes = (DBUS.SignatureIterPtr,)
+dbus.dbus_signature_iter_next.restype = DBUS.bool_t
+dbus.dbus_signature_iter_next.argtypes = (DBUS.SignatureIterPtr,)
+dbus.dbus_signature_iter_recurse.restype = None
+dbus.dbus_signature_iter_recurse.argtypes = (DBUS.SignatureIterPtr, DBUS.SignatureIterPtr)
+dbus.dbus_signature_validate.restype = DBUS.bool_t
+dbus.dbus_signature_validate.argtypes = (ct.c_char_p, DBUS.ErrorPtr)
+dbus.dbus_signature_validate_single.restype = DBUS.bool_t
+dbus.dbus_signature_validate_single.argtypes = (ct.c_char_p, DBUS.ErrorPtr)
+dbus.dbus_type_is_valid.restype = DBUS.bool_t
+dbus.dbus_type_is_valid.argtypes = (ct.c_int,)
+dbus.dbus_type_is_basic.restype = DBUS.bool_t
+dbus.dbus_type_is_basic.argtypes = (ct.c_int,)
+dbus.dbus_type_is_container.restype = DBUS.bool_t
+dbus.dbus_type_is_container.argtypes = (ct.c_int,)
+dbus.dbus_type_is_fixed.restype = DBUS.bool_t
+dbus.dbus_type_is_fixed.argtypes = (ct.c_int,)
 
 #+
 # High-level stuff follows
@@ -2270,6 +2308,118 @@ def address_unescape_value(value, error = None) :
     return \
         result
 #end address_unescape_value
+
+class SignatureIter :
+    "wraps a DBusSignatureIter object. Do not instantiate directly; use the init" \
+    " and recurse methods."
+    # <https://dbus.freedesktop.org/doc/api/html/group__DBusSignature.html>
+
+    __slots__ = ("_dbobj", "_signature", "_startiter") # to forestall typos
+
+    @classmethod
+    def init(celf, signature) :
+        self = celf()
+        self._signature = ct.c_char_p(signature.encode()) # need to ensure storage stays valid
+        dbus.dbus_signature_iter_init(self._dbobj, self._signature)
+        return \
+            self
+    #end init
+
+    def __init__(self) :
+        self._dbobj = DBUS.SignatureIter()
+        self._signature = None # caller will set as necessary
+        self._startiter = True
+    #end __init__
+
+    def __iter__(self) :
+        return \
+            self
+    #end __iter__
+
+    def __next__(self) :
+        if self._startiter :
+            self._startiter = False
+        else :
+            self.next()
+        #end if
+        return \
+            self
+    #end __next__
+
+    def next(self) :
+        if dbus.dbus_signature_iter_next(self._dbobj) == 0 :
+            raise StopIteration("end of signature iterator")
+        #end if
+        self._startiter = False
+        return \
+            self
+    #end next
+
+    def recurse(self) :
+        subiter = type(self)()
+        dbus.dbus_signature_iter_recurse(self._dbobj, subiter._dbobj)
+        return \
+            subiter
+    #end recurse
+
+    @property
+    def current_type(self) :
+        return \
+            dbus.dbus_signature_iter_get_current_type(self._dbobj)
+    #end current_type
+
+    @property
+    def signature(self) :
+        c_result = dbus.dbus_signature_iter_get_signature(self._dbobj)
+        result = ct.cast(c_result, ct.c_char_p).value.decode()
+        dbus.dbus_free(c_result)
+        return \
+            result
+    #end signature
+
+    @property
+    def element_type(self) :
+        return \
+            dbus.dbus_signature_iter_get_element_type(self._dbobj)
+    #end element_type
+
+#end SignatureIter
+
+def signature_validate(signature, error = None) :
+    error, my_error = _get_error(error)
+    result = dbus.dbus_signature_validate(signature.encode(), error._dbobj) != 0
+    my_error.raise_if_set()
+    return \
+        result
+#end signature_validate
+
+def signature_validate_single(signature, error = None) :
+    error, my_error = _get_error(error)
+    result = dbus.dbus_signature_validate_single(signature.encode(), error._dbobj) != 0
+    my_error.raise_if_set()
+    return \
+        result
+#end signature_validate_single
+
+def type_is_valid(typecode) :
+    return \
+        dbus.dbus_type_is_valid(typecode) != 0
+#end type_is_valid
+
+def type_is_basic(typecode) :
+    return \
+        dbus.dbus_type_is_basic(typecode) != 0
+#end type_is_basic
+
+def type_is_container(typecode) :
+    return \
+        dbus.dbus_type_is_container(typecode) != 0
+#end type_is_container
+
+def type_is_fixed(typecode) :
+    return \
+        dbus.dbus_type_is_fixed(typecode) != 0
+#end type_is_fixed
 
 def _atexit() :
     # disable all __del__ methods at process termination to avoid segfaults

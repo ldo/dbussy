@@ -856,9 +856,22 @@ dbus.dbus_type_is_container.argtypes = (ct.c_int,)
 dbus.dbus_type_is_fixed.restype = DBUS.bool_t
 dbus.dbus_type_is_fixed.argtypes = (ct.c_int,)
 
+# TODO: dbus-syntax.h <https://dbus.freedesktop.org/doc/api/html/group__DBusSyntax.html>
+dbus.dbus_validate_path.restype = DBUS.bool_t
+dbus.dbus_validate_path.argtypes = (ct.c_char_p, DBUS.ErrorPtr)
+dbus.dbus_validate_interface.restype = DBUS.bool_t
+dbus.dbus_validate_interface.argtypes = (ct.c_char_p, DBUS.ErrorPtr)
+dbus.dbus_validate_member.restype = DBUS.bool_t
+dbus.dbus_validate_member.argtypes = (ct.c_char_p, DBUS.ErrorPtr)
+dbus.dbus_validate_error_name.restype = DBUS.bool_t
+dbus.dbus_validate_error_name.argtypes = (ct.c_char_p, DBUS.ErrorPtr)
+dbus.dbus_validate_bus_name.restype = DBUS.bool_t
+dbus.dbus_validate_bus_name.argtypes = (ct.c_char_p, DBUS.ErrorPtr)
+dbus.dbus_validate_utf8.restype = DBUS.bool_t
+dbus.dbus_validate_utf8.argtypes = (ct.c_char_p, DBUS.ErrorPtr)
+
 # TODO: dbus-server.h <https://dbus.freedesktop.org/doc/api/html/group__DBusServer.html>
 # TODO: dbus-threads.h <https://dbus.freedesktop.org/doc/api/html/group__DBusThreads.html>
-# TODO: dbus-syntax.h <https://dbus.freedesktop.org/doc/api/html/group__DBusSyntax.html>
 
 #+
 # High-level stuff follows
@@ -2511,6 +2524,56 @@ def type_is_fixed(typecode) :
     return \
         dbus.dbus_type_is_fixed(typecode) != 0
 #end type_is_fixed
+
+# syntax validation <https://dbus.freedesktop.org/doc/api/html/group__DBusSyntax.html>
+
+def validate_path(path, error = None) :
+    error, my_error = _get_error(error)
+    result = dbus.dbus_validate_path(path.encode(), error._dbobj) != 0
+    my_error.raise_if_set()
+    return \
+        result
+#end validate_path
+
+def validate_interface(name, error = None) :
+    error, my_error = _get_error(error)
+    result = dbus.dbus_validate_interface(name.encode(), error._dbobj) != 0
+    my_error.raise_if_set()
+    return \
+        result
+#end validate_interface
+
+def validate_member(name, error = None) :
+    error, my_error = _get_error(error)
+    result = dbus.dbus_validate_member(name.encode(), error._dbobj) != 0
+    my_error.raise_if_set()
+    return \
+        result
+#end validate_member
+
+def validate_error_name(name, error = None) :
+    error, my_error = _get_error(error)
+    result = dbus.dbus_validate_error_name(name.encode(), error._dbobj) != 0
+    my_error.raise_if_set()
+    return \
+        result
+#end validate_error_name
+
+def validate_bus_name(name, error = None) :
+    error, my_error = _get_error(error)
+    result = dbus.dbus_validate_bus_name(name.encode(), error._dbobj) != 0
+    my_error.raise_if_set()
+    return \
+        result
+#end validate_bus_name
+
+def validate_utf8(alleged_utf8, error = None) :
+    error, my_error = _get_error(error)
+    result = dbus.dbus_validate_utf8(alleged_utf8, error._dbobj) != 0
+    my_error.raise_if_set()
+    return \
+        result
+#end validate_utf8
 
 #+
 # Cleanup

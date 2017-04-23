@@ -966,7 +966,7 @@ def unsetenv(key) :
 
 class Watch :
     "wrapper around a DBusWatch object. Do not instantiate directly; they" \
-    " are created and destroyed by D-Bus."
+    " are created and destroyed by libdbus."
     # <https://dbus.freedesktop.org/doc/api/html/group__DBusWatch.html>
 
     __slots__ = ("__weakref__", "_dbobj",) # to forestall typos
@@ -1023,7 +1023,7 @@ class Watch :
 
 class Timeout :
     "wrapper around a DBusTimeout object. Do not instantiate directly; they" \
-    " are created and destroyed by D-Bus."
+    " are created and destroyed by libdbus."
     # <https://dbus.freedesktop.org/doc/api/html/group__DBusTimeout.html>
 
     __slots__ = ("__weakref__", "_dbobj",) # to forestall typos
@@ -1443,7 +1443,7 @@ class Connection :
                 "function" : DBUS.HandleMessageFunction(wrap_function),
                 "free_data" : (lambda : None, lambda : DBUS.FreeFunction(wrap_free_data))[free_data != None](),
             }
-        # pass user_data id because D-Bus identifies filter entry by both function address and user data address
+        # pass user_data id because libdbus identifies filter entry by both function address and user data address
         if not dbus.dbus_connection_add_filter(self._dbobj, filter_value["function"], filter_key[1], filter_value["free_data"]) :
             raise DBusFailure("dbus_connection_add_filter failed")
         #end if
@@ -1458,7 +1458,7 @@ class Connection :
             raise KeyError("removing nonexistent Connection filter")
         #end if
         filter_value = self._filters[filter_key]
-        # pass user_data id because D-Bus identifies filter entry by both function address and user data address
+        # pass user_data id because libdbus identifies filter entry by both function address and user data address
         dbus.dbus_connection_remove_filter(self._dbobj, filter_value["function"], filter_key[1])
         del self._filters[filter_key]
     #end remove_filter
@@ -2756,7 +2756,7 @@ class AddressEntries :
     class Entry :
         "a single AddressEntry. Do not instantiate directly; get from AddressEntries[]." \
         " This object behaves like a dictionary in that you can use keys to get values;" \
-        " however, there is no D-Bus API to check what keys are present; unrecognized" \
+        " however, there is no libdbus API to check what keys are present; unrecognized" \
         " keys return a value of None."
 
         __slots__ = ("_dbobj", "_parent", "_index") # to forestall typos

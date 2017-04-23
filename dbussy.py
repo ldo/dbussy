@@ -1088,10 +1088,10 @@ class ObjectPathVTable :
     #end __init__
 
     @classmethod
-    def init(celf) :
+    def init(celf, *, unregister = None, message = None) :
         "for consistency with other classes that don’t want caller to instantiate directly."
         return \
-            celf()
+            celf(unregister = unregister, message = message)
     #end init
 
     def set_unregister(self, unregister) :

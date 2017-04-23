@@ -2568,6 +2568,7 @@ def validate_bus_name(name, error = None) :
 #end validate_bus_name
 
 def validate_utf8(alleged_utf8, error = None) :
+    "alleged_utf8 must be null-terminated bytes."
     error, my_error = _get_error(error)
     result = dbus.dbus_validate_utf8(alleged_utf8, error._dbobj) != 0
     my_error.raise_if_set()

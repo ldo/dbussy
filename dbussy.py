@@ -1087,7 +1087,7 @@ class ObjectPathVTable :
         #end if
     #end __init__
 
-    def set_unregister(self, unregister = None) :
+    def set_unregister(self, unregister) :
 
         def wrap_unregister(c_conn, user_data) :
             unregister(Connection(dbus.dbus_connection_ref(c_conn)), user_data)
@@ -1104,7 +1104,7 @@ class ObjectPathVTable :
             self
     #end set_unregister
 
-    def set_message(self, message = None) :
+    def set_message(self, message) :
 
         def wrap_message(c_conn, c_message, user_data) :
             return \

@@ -1087,6 +1087,13 @@ class ObjectPathVTable :
         #end if
     #end __init__
 
+    @classmethod
+    def init(celf) :
+        "for consistency with other classes that don’t want caller to instantiate directly."
+        return \
+            celf()
+    #end init
+
     def set_unregister(self, unregister) :
 
         def wrap_unregister(c_conn, user_data) :
@@ -2656,7 +2663,7 @@ class PendingCall :
 #end PendingCall
 
 class Error :
-    "wrapper around a DBusError object."
+    "wrapper around a DBusError object. You can create one by calling the init method."
     # <https://dbus.freedesktop.org/doc/api/html/group__DBusErrors.html>
 
     __slots__ = ("_dbobj",) # to forestall typos
@@ -2673,6 +2680,13 @@ class Error :
             self._dbobj = None
         #end if
     #end __del__
+
+    @classmethod
+    def init(celf) :
+        "for consistency with other classes that don’t want caller to instantiate directly."
+        return \
+            celf()
+    #end init
 
     def set(self, name, msg) :
         dbus.dbus_set_error(self._dbobj, name.encode(), b"%s", msg.encode())

@@ -930,6 +930,62 @@ def unsetenv(key) :
     setenv(key, None)
 #end unsetenv
 
+class Watch :
+    "wrapper around a DBusWatch object. Do not instantiate directly; use TBD."
+    # <https://dbus.freedesktop.org/doc/api/html/group__DBusWatch.html>
+
+    __slots__ = ("__weakref__", "_dbobj",) # to forestall typos
+
+    _instances = WeakValueDictionary()
+
+    def __new__(celf, _dbobj) :
+        self = celf._instances.get(_dbobj)
+        if self == None :
+            self = super().__new__(celf)
+            self._dbobj = _dbobj
+            celf._instances[_dbobj] = self
+        #end if
+        return \
+            self
+    #end __new__
+
+    # no __del__ method -- no underlying dispose API call
+
+    @property
+    def unix_fd(self) :
+        return \
+            dbus.dbus_watch_get_unix_fd(self._dbobj)
+    #end unix_fd
+
+    @property
+    def socket(self) :
+        return \
+            dbus.dbus_watch_get_socket(self._dbobj)
+    #end socket
+
+    @property
+    def flags(self) :
+        "returns WATCH_READABLE and/or WATCH_WRITABLE, indicating what to watch for."
+        return \
+            dbus.dbus_watch_get_flags(self._dbobj)
+    #end flags
+
+    # TODO: get/set data
+
+    def handle(self, flags) :
+        "flags are a combination of WATCH_xxx values."
+        return \
+            dbus.dbus_watch_handle(self._dbobj, flags) != 0
+    #end handle
+
+    @property
+    def enabled(self) :
+        return \
+            dbus.dbus_watch_get_enabled(self._dbobj) != 0
+    #end enabled
+
+#end Watch
+
 class ObjectPathVTable :
 
     __slots__ = \

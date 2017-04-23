@@ -856,7 +856,7 @@ dbus.dbus_type_is_container.argtypes = (ct.c_int,)
 dbus.dbus_type_is_fixed.restype = DBUS.bool_t
 dbus.dbus_type_is_fixed.argtypes = (ct.c_int,)
 
-# TODO: dbus-syntax.h <https://dbus.freedesktop.org/doc/api/html/group__DBusSyntax.html>
+# from dbus-syntax.h:
 dbus.dbus_validate_path.restype = DBUS.bool_t
 dbus.dbus_validate_path.argtypes = (ct.c_char_p, DBUS.ErrorPtr)
 dbus.dbus_validate_interface.restype = DBUS.bool_t

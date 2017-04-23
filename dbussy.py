@@ -1162,6 +1162,7 @@ class Connection :
         "__weakref__",
         "_dbobj",
         "_filters",
+        "_object_paths",
       ) # to forestall typos
 
     _instances = WeakValueDictionary()
@@ -1172,6 +1173,7 @@ class Connection :
             self = super().__new__(celf)
             self._dbobj = _dbobj
             self._filters = {}
+            self._object_paths = {}
             celf._instances[_dbobj] = self
         else :
             dbus.dbus_connection_unref(self._dbobj)
@@ -1454,7 +1456,44 @@ class Connection :
         del self._filters[filter_key]
     #end remove_filter
 
-    # TODO: register/unregister object_path/fallback
+    def register_object_path(self, path, vtable, user_data, error = None) :
+        if not isinstance(vtable, ObjectPathVTable) :
+            raise TypeError("vtable must be an ObjectPathVTable")
+        #end if
+        self._object_paths[path] = vtable # ensure it doesn’t disappear prematurely
+        error, my_error = _get_error(error)
+        dbus.dbus_connection_try_register_object_path(self._dbobj, path.encode(), vtable._dbobj, user_data, error._dbobj) != 0
+        my_error.raise_if_set()
+    #end register_object_path
+
+    def register_fallback(self, vtable, user_data, error = None) :
+        if not isinstance(vtable, ObjectPathVTable) :
+            raise TypeError("vtable must be an ObjectPathVTable")
+        #end if
+        self._object_paths[path] = vtable # ensure it doesn’t disappear prematurely
+        error, my_error = _get_error(error)
+        dbus.dbus_connection_try_register_fallback(self._dbobj, path.encode(), vtable._dbobj, user_data, error._dbobj) != 0
+        my_error.raise_if_set()
+    #end register_fallback
+
+    def unregister_object_path(self, path) :
+        if path not in self._object_paths :
+            raise KeyError("unregistering unregistered path")
+        #end if
+        if not dbus.dbus_connection_unregister_object_path(self._dbobj, path.encode()) :
+            raise DBusFailure("dbus_connection_unregister_object_path failed")
+        #end if
+        del self._object_paths[path]
+    #end unregister_object_path
+
+    def get_object_path_data(self, path) :
+        c_data_p = ct.c_void_p()
+        if not dbus.dbus_connection_get_object_path_data(self._dbobj, path.encode(), ct.byref(c_data_p)) :
+            raise DBusFailure("dbus_connection_get_object_path_data failed")
+        #end if
+        return \
+            c_data_p.value
+    #end get_object_path_data
 
     def list_registered(self, parent_path) :
         child_entries = ct.POINTER(ct.c_char_p)()

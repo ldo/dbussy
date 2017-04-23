@@ -1157,7 +1157,12 @@ class Connection :
     " or bus_get methods."
     # <https://dbus.freedesktop.org/doc/api/html/group__DBusConnection.html>
 
-    __slots__ = ("__weakref__", "_dbobj",) # to forestall typos
+    __slots__ = \
+      (
+        "__weakref__",
+        "_dbobj",
+        "_filters",
+      ) # to forestall typos
 
     _instances = WeakValueDictionary()
 
@@ -1166,6 +1171,7 @@ class Connection :
         if self == None :
             self = super().__new__(celf)
             self._dbobj = _dbobj
+            self._filters = {}
             celf._instances[_dbobj] = self
         else :
             dbus.dbus_connection_unref(self._dbobj)
@@ -1410,7 +1416,44 @@ class Connection :
         dbus.dbus_connection_set_route_peer_messages(self._dbobj, enable)
     #end set_route_peer_messages
 
-    # TODO: add/remove filter
+    def add_filter(self, function, user_data, free_data = None) :
+
+        def wrap_function(self, message, _data) :
+            function(self, Message(dbus.dbus_message_ref(conn)), user_data)
+        #end wrap_function
+
+        def wrap_free_data(_data) :
+            free_data(data)
+        #end wrap_free_data
+
+    #begin add_filter
+        filter_key = (function, id(user_data))
+          # use id to allow non-hashable user_data
+        filter_value = \
+            {
+                "function" : DBUS.HandleMessageFunction(wrap_function),
+                "free_data" : (lambda : None, lambda : DBUS.FreeFunction(wrap_free_data))[free_data != None](),
+            }
+        # pass user_data id because D-Bus identifies filter entry by both function address and user data address
+        if not dbus.dbus_connection_add_filter(self._dbobj, filter_value["function"], filter_key[1], filter_value["free_data"]) :
+            raise DBusFailure("dbus_connection_add_filter failed")
+        #end if
+        self._filters[filter_key] = filter_value
+          # need to ensure wrapped functions don’t disappear prematurely
+    #end add_filter
+
+    def remove_filter(self, function, user_data) :
+        filter_key = (function, id(user_data))
+          # use id to allow non-hashable user_data
+        if filter_key not in self._filters :
+            raise KeyError("removing nonexistent Connection filter")
+        #end if
+        filter_value = self._filters[filter_key]
+        # pass user_data id because D-Bus identifies filter entry by both function address and user data address
+        dbus.dbus_connection_remove_filter(self._dbobj, filter_value["function"], filter_key[1])
+        del self._filters[filter_key]
+    #end remove_filter
+
     # TODO: register/unregister object_path/fallback
 
     def list_registered(self, parent_path) :

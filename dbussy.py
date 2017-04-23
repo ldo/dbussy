@@ -392,6 +392,9 @@ class DBUS :
     #end MessageIter
     MessageIterPtr = ct.POINTER(MessageIter)
 
+    # from dbus-server.h:
+    NewConnectionFunction = ct.CFUNCTYPE(ct.c_void_p, ct.c_void_p, ct.c_void_p, ct.c_void_p)
+
     # from dbus-signature.h:
     class SignatureIter(ct.Structure) :
         "contains no public fields."
@@ -870,7 +873,38 @@ dbus.dbus_validate_bus_name.argtypes = (ct.c_char_p, DBUS.ErrorPtr)
 dbus.dbus_validate_utf8.restype = DBUS.bool_t
 dbus.dbus_validate_utf8.argtypes = (ct.c_char_p, DBUS.ErrorPtr)
 
-# TODO: dbus-server.h <https://dbus.freedesktop.org/doc/api/html/group__DBusServer.html>
+# from dbus-server.h:
+dbus.dbus_server_listen.restype = ct.c_void_p
+dbus.dbus_server_listen.argtypes = (ct.c_char_p, DBUS.ErrorPtr)
+dbus.dbus_server_ref.restype = ct.c_void_p
+dbus.dbus_server_ref.argtypes = (ct.c_void_p,)
+dbus.dbus_server_unref.restype = ct.c_void_p
+dbus.dbus_server_unref.argtypes = (ct.c_void_p,)
+dbus.dbus_server_disconnect.restype = None
+dbus.dbus_server_disconnect.argtypes = (ct.c_void_p,)
+dbus.dbus_server_get_is_connected.restype = DBUS.bool_t
+dbus.dbus_server_get_is_connected.argtypes = (ct.c_void_p,)
+dbus.dbus_server_get_address.restype = ct.c_void_p
+dbus.dbus_server_get_address.argtypes = (ct.c_void_p,)
+dbus.dbus_server_get_id.restype = ct.c_void_p
+dbus.dbus_server_get_id.argtypes = (ct.c_void_p,)
+dbus.dbus_server_set_new_connection_function.restype = None
+dbus.dbus_server_set_new_connection_function.argtypes = (ct.c_void_p, ct.c_void_p, ct.c_void_p, ct.c_void_p)
+dbus.dbus_server_set_watch_functions.restype = DBUS.bool_t
+dbus.dbus_server_set_watch_functions.argtypes = (ct.c_void_p, ct.c_void_p, ct.c_void_p, ct.c_void_p, ct.c_void_p, ct.c_void_p)
+dbus.dbus_server_set_timeout_functions.restype = DBUS.bool_t
+dbus.dbus_server_set_timeout_functions.argtypes = (ct.c_void_p, ct.c_void_p, ct.c_void_p, ct.c_void_p, ct.c_void_p, ct.c_void_p)
+dbus.dbus_server_set_auth_mechanisms.restype = DBUS.bool_t
+dbus.dbus_server_set_auth_mechanisms.argtypes = (ct.c_void_p, ct.c_void_p)
+dbus.dbus_server_allocate_data_slot.restype = DBUS.bool_t
+dbus.dbus_server_allocate_data_slot.argtypes = (ct.POINTER(ct.c_int),)
+dbus.dbus_server_free_data_slot.restype = DBUS.bool_t
+dbus.dbus_server_free_data_slot.argtypes = (ct.POINTER(ct.c_int),)
+dbus.dbus_server_set_data.restype = DBUS.bool_t
+dbus.dbus_server_set_data.argtypes = (ct.c_void_p, ct.c_int, ct.c_void_p, ct.c_void_p)
+dbus.dbus_server_set_data.restype = ct.c_void_p
+dbus.dbus_server_set_data.argtypes = (ct.c_void_p, ct.c_int)
+
 # TODO: dbus-threads.h <https://dbus.freedesktop.org/doc/api/html/group__DBusThreads.html>
 
 #+
@@ -931,7 +965,8 @@ def unsetenv(key) :
 #end unsetenv
 
 class Watch :
-    "wrapper around a DBusWatch object. Do not instantiate directly; use TBD."
+    "wrapper around a DBusWatch object. Do not instantiate directly; they" \
+    " are created and destroyed by D-Bus."
     # <https://dbus.freedesktop.org/doc/api/html/group__DBusWatch.html>
 
     __slots__ = ("__weakref__", "_dbobj",) # to forestall typos
@@ -985,6 +1020,49 @@ class Watch :
     #end enabled
 
 #end Watch
+
+class Timeout :
+    "wrapper around a DBusTimeout object. Do not instantiate directly; they" \
+    " are created and destroyed by D-Bus."
+    # <https://dbus.freedesktop.org/doc/api/html/group__DBusTimeout.html>
+
+    __slots__ = ("__weakref__", "_dbobj",) # to forestall typos
+
+    _instances = WeakValueDictionary()
+
+    def __new__(celf, _dbobj) :
+        self = celf._instances.get(_dbobj)
+        if self == None :
+            self = super().__new__(celf)
+            self._dbobj = _dbobj
+            celf._instances[_dbobj] = self
+        #end if
+        return \
+            self
+    #end __new__
+
+    # no __del__ method -- no underlying dispose API call
+
+    @property
+    def interval(self) :
+        return \
+            dbus.dbus_timeout_get_interval(self._dbobj)
+    #end interval
+
+    # TODO: get/set data
+
+    def timeout_handle(self) :
+        return \
+            dbus.dbus_timeout_handle(self._dbobj)
+    #end timeout_handle
+
+    @property
+    def enabled(self) :
+        return \
+            dbus.dbus_timeout_get_enabled(self._dbobj) != 0
+    #end enabled
+
+#end Timeout
 
 class ObjectPathVTable :
 
@@ -1467,6 +1545,217 @@ class Connection :
     #end bus_remove_match
 
 #end Connection
+
+class Server :
+    "wrapper around a DBusServer object. Do not instantiate directly; use" \
+    " the listen method."
+    # <https://dbus.freedesktop.org/doc/api/html/group__DBusServer.html>
+
+    __slots__ = \
+      (
+        "__weakref__",
+        "_dbobj",
+        # need to keep references to ctypes-wrapped functions
+        # so they don't disappear prematurely:
+        "_new_connection_function",
+        "_free_new_connection_data",
+        "_add_watch_function",
+        "_remove_watch_function",
+        "_toggled_watch_function",
+        "_free_watch_data",
+        "_add_timeout_function",
+        "_remove_timeout_function",
+        "_toggled_timeout_function",
+        "_free_timeout_data",
+      ) # to forestall typos
+
+    _instances = WeakValueDictionary()
+
+    def __new__(celf, _dbobj) :
+        self = celf._instances.get(_dbobj)
+        if self == None :
+            self = super().__new__(celf)
+            self._dbobj = _dbobj
+            self._new_connecion_function = None
+            self._free_new_connection_data = None
+            self._add_watch_function = None
+            self._remove_watch_function = None
+            self._toggled_watch_function = None
+            self._free_watch_data = None
+            self._add_timeout_function = None
+            self._remove_timeout_function = None
+            self._toggled_timeout_function = None
+            self._free_timeout_data = None
+            celf._instances[_dbobj] = self
+        else :
+            dbus.dbus_server_unref(self._dbobj)
+              # lose extra reference created by caller
+        #end if
+        return \
+            self
+    #end __new__
+
+    def __del__(self) :
+        if self._dbobj != None :
+            dbus.dbus_server_unref(self._dbobj)
+            self._dbobj = None
+        #end if
+    #end __del__
+
+    @classmethod
+    def listen(celf, address, error = None) :
+        error, my_error = _get_error(error)
+        result = dbus.dbus_server_listen(address,encode, error._dbobj)
+        my_error.raise_if_set()
+        if result != None :
+            result = celf(result)
+        #end if
+        return \
+            result
+    #end listen
+
+    def disconnect(self) :
+        dbus.dbus_server_disconnect(self._dbobj)
+    #end disconnect
+
+    @property
+    def is_connected(self) :
+        return \
+            dbus.dbus_server_get_is_connected(self._dbobj) != 0
+    #end is_connected
+
+    @property
+    def address(self) :
+        c_result = dbus.dbus_server_get_address(self._dbobj)
+        if c_result == None :
+            raise DBusFailure("dbus_server_get_address failed")
+        #end if
+        result = ct.cast(c_result, ct.c_char_p).value.decode()
+        dbus.dbus_free(c_result)
+        return \
+            result
+    #end address
+
+    @property
+    def id(self) :
+        c_result = dbus.dbus_server_get_id(self._dbobj)
+        if c_result == None :
+            raise DBusFailure("dbus_server_get_id failed")
+        #end if
+        result = ct.cast(c_result, ct.c_char_p).value.decode()
+        dbus.dbus_free(c_result)
+        return \
+            result
+    #end id
+
+    def set_new_connection_function(self, function, data, free_data = None) :
+
+        def wrap_function(self, conn, _data) :
+            function(self, Connection(conn), data)
+              # I don’t think I need to call dbus.dbus_connection_ref, since
+              # this is a new connection
+        #end wrap_function
+
+        def wrap_free_data(_data) :
+            free_data(data)
+        #end wrap_free_data
+
+    #begin set_new_connection_function
+        self._new_connection_function = DBUS.NewConnectionFunction(wrap_function)
+        if free_data != None :
+            self._free_new_connection_data = DBUS.FreeFunction(wrap_free_data)
+        else :
+            self._free_new_connection_data = None
+        #end if
+        dbus.dbus_server_set_new_connection_function(self._dbobj, self._new_connection_function, None, self._free_new_connection_data)
+    #end set_new_connection_function
+
+    def set_watch_functions(self, add_function, remove_function, toggled_function, data, free_data = None) :
+
+        def wrap_add_function(c_watch, _data) :
+            return \
+                add_function(Watch(c_watch), data)
+        #end wrap_add_function
+
+        def wrap_remove_function(c_watch, _data) :
+            return \
+                remove_function(Watch(c_watch), data)
+        #end wrap_remove_function
+
+        def wrap_toggled_function(c_watch, _data) :
+            return \
+                toggled_function(Watch(c_watch), data)
+        #end wrap_toggled_function
+
+        def wrap_free_data(_data) :
+            free_data(data)
+        #end wrap_free_data
+
+    #begin set_watch_functions
+        self._add_watch_function = DBUS.AddWatchFunction(wrap_add_function)
+        self._remove_watch_function = DBUS.RemoveWatchFunction(wrap_remove_function)
+        self._toggled_watch_function = DBUS.ToggledWatchFunction(wrap_toggled_function)
+        if free_data != None :
+            self._free_watch_data = DBUS.FreeFunction(wrap_free_data)
+        else :
+            self._free_watch_data = None
+        #end if
+        if not dbus.dbus_server_set_watch_functions(self._dbobj, self._add_watch_function, self._remove_watch_function, self._toggled_watch_function, None, self._free_watch_data) :
+            raise DBusFailure("dbus_server_set_watch_functions failed")
+        #end if
+    #end set_watch_functions
+
+    def set_timeout_functions(self, add_function, remove_function, toggled_function, data, free_data = None) :
+
+        def wrap_add_function(c_timeout, _data) :
+            return \
+                add_function(Timeout(c_timeout), data)
+        #end wrap_add_function
+
+        def wrap_remove_function(c_timeout, _data) :
+            return \
+                remove_function(Timeout(c_timeout), data)
+        #end wrap_remove_function
+
+        def wrap_toggled_function(c_timeout, _data) :
+            return \
+                toggled_function(Timeout(c_timeout), data)
+        #end wrap_toggled_function
+
+        def wrap_free_data(_data) :
+            free_data(data)
+        #end wrap_free_data
+
+    #begin set_timeout_functions
+        self._add_timeout_function = DBUS.AddTimeoutFunction(wrap_add_function)
+        self._remove_timeout_function = DBUS.RemoveTimeoutFunction(wrap_remove_function)
+        self._toggled_timeout_function = DBUS.ToggledTimeoutFunction(wrap_toggled_function)
+        if free_data != None :
+            self._free_timeout_data = DBUS.FreeFunction(wrap_free_data)
+        else :
+            self._free_timeout_data = None
+        #end if
+        if not dbus.dbus_server_set_timeout_functions(self._dbobj, self._add_timeout_function, self._remove_timeout_function, self._toggled_timeout_function, None, self._free_timeout_data) :
+            raise DBusFailure("dbus_server_set_timeout_functions failed")
+        #end if
+    #end set_timeout_functions
+
+    def set_auth_mechanisms(self, mechanisms) :
+        nr_mechanisms = len(mechanisms)
+        c_mechanisms = (ct.c_char_p * (nr_mechanisms + 1))()
+        for i in range(nr_mechanisms) :
+            c_mechanisms[i] = mechanisms[i].encode()
+        #end if
+        c_mechanisms[nr_mechanisms] = None # marks end of array
+        if not dbus.dbus_server_set_auth_mechanisms(self._dbobj, c_mechanisms) :
+            raise DBusFailure("dbus_server_set_auth_mechanisms failed")
+        #end if
+    #end set_auth_mechanisms
+
+    # TODO: allocate/free slot (static methods)
+    # TODO: get/set/data
+
+#end Server
 
 class PreallocatedSend :
     "wrapper around a DBusPreallocatedSend object. Do not instantiate directly;" \
@@ -2231,7 +2520,7 @@ class PendingCall :
         #end if
     #end __del__
 
-    def set_notify(self, function, user_data, free_user_data) :
+    def set_notify(self, function, user_data, free_user_data = None) :
 
         def _wrap_notify(c_pending, c_user_data) :
             function(self, user_data)
@@ -2638,7 +2927,7 @@ def validate_utf8(alleged_utf8, error = None) :
 
 def _atexit() :
     # disable all __del__ methods at process termination to avoid segfaults
-    for cls in Connection, PreallocatedSend, Message, PendingCall, Error, AddressEntries :
+    for cls in Connection, Server, PreallocatedSend, Message, PendingCall, Error, AddressEntries :
         delattr(cls, "__del__")
     #end for
 #end _atexit

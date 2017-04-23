@@ -856,6 +856,10 @@ dbus.dbus_type_is_container.argtypes = (ct.c_int,)
 dbus.dbus_type_is_fixed.restype = DBUS.bool_t
 dbus.dbus_type_is_fixed.argtypes = (ct.c_int,)
 
+# TODO: dbus-server.h
+# TODO: dbus-threads.h
+# TODO: dbus-syntax.h
+
 #+
 # High-level stuff follows
 #-
@@ -2507,6 +2511,10 @@ def type_is_fixed(typecode) :
     return \
         dbus.dbus_type_is_fixed(typecode) != 0
 #end type_is_fixed
+
+#+
+# Cleanup
+#-
 
 def _atexit() :
     # disable all __del__ methods at process termination to avoid segfaults

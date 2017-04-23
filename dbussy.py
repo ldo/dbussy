@@ -1694,7 +1694,7 @@ class Server :
     @classmethod
     def listen(celf, address, error = None) :
         error, my_error = _get_error(error)
-        result = dbus.dbus_server_listen(address,encode, error._dbobj)
+        result = dbus.dbus_server_listen(address.encode(), error._dbobj)
         my_error.raise_if_set()
         if result != None :
             result = celf(result)

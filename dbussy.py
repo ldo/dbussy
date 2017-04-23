@@ -1665,7 +1665,7 @@ class Server :
         if self == None :
             self = super().__new__(celf)
             self._dbobj = _dbobj
-            self._new_connecion_function = None
+            self._new_connection_function = None
             self._free_new_connection_data = None
             self._add_watch_function = None
             self._remove_watch_function = None

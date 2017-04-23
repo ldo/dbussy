@@ -856,9 +856,9 @@ dbus.dbus_type_is_container.argtypes = (ct.c_int,)
 dbus.dbus_type_is_fixed.restype = DBUS.bool_t
 dbus.dbus_type_is_fixed.argtypes = (ct.c_int,)
 
-# TODO: dbus-server.h
-# TODO: dbus-threads.h
-# TODO: dbus-syntax.h
+# TODO: dbus-server.h <https://dbus.freedesktop.org/doc/api/html/group__DBusServer.html>
+# TODO: dbus-threads.h <https://dbus.freedesktop.org/doc/api/html/group__DBusThreads.html>
+# TODO: dbus-syntax.h <https://dbus.freedesktop.org/doc/api/html/group__DBusSyntax.html>
 
 #+
 # High-level stuff follows

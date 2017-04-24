@@ -393,7 +393,7 @@ class DBUS :
     MessageIterPtr = ct.POINTER(MessageIter)
 
     # from dbus-server.h:
-    NewConnectionFunction = ct.CFUNCTYPE(ct.c_void_p, ct.c_void_p, ct.c_void_p, ct.c_void_p)
+    NewConnectionFunction = ct.CFUNCTYPE(None, ct.c_void_p, ct.c_void_p, ct.c_void_p)
 
     # from dbus-signature.h:
     class SignatureIter(ct.Structure) :

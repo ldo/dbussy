@@ -1893,9 +1893,8 @@ class Server :
     def set_new_connection_function(self, function, data, free_data = None) :
 
         def wrap_function(self, conn, _data) :
-            function(self, Connection(conn), data)
-              # I don’t think I need to call dbus.dbus_connection_ref, since
-              # this is a new connection
+            function(self, Connection(dbus.dbus_connection_ref(conn)), data)
+              # even though this is a new connection, I still have to reference it
         #end wrap_function
 
         def wrap_free_data(_data) :

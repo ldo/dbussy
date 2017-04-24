@@ -69,6 +69,43 @@ class DBUS :
             TYPE_UNIX_FD : ct.c_int,
         }
 
+    def int_subtype(i, bits, signed) :
+        if signed :
+            lo = - 1 << bits - 1
+            hi = (1 << bits - 1) - 1
+        else :
+            lo = 0
+            hi = (1 << bits) - 1
+        #end if
+        if i < lo or i > hi :
+            raise ValueError \
+              (
+                "%d not in range of %s %d-bit value" % (i, ("unsigned", "signed")[signed], bits)
+              )
+        #end if
+        return \
+            i
+    #end int_subtype
+
+    subtype_byte = lambda i : DBUS.int_subtype(i, 8, False)
+    subtype_int16 = lambda i : DBUS.int_subtype(i, 16, True)
+    subtype_uint16 = lambda i : DBUS.int_subtype(i, 16, False)
+    subtype_int32 = lambda i : DBUS.int_subtype(i, 32, True)
+    subtype_uint32 = lambda i : DBUS.int_subtype(i, 32, False)
+    subtype_int64 = lambda i : DBUS.int_subtype(i, 64, True)
+    subtype_uint64 = lambda i : DBUS.int_subtype(i, 64, False)
+
+    int_convert = \
+        {
+            TYPE_BYTE : subtype_byte,
+            TYPE_INT16 : subtype_int16,
+            TYPE_UINT16 : subtype_uint16,
+            TYPE_INT32 : subtype_int32,
+            TYPE_UINT32 : subtype_uint32,
+            TYPE_INT64 : subtype_int64,
+            TYPE_UINT64 : subtype_uint64,
+        }
+
     class ObjectPath(str) :
 
         def __repr__(self) :
@@ -2171,7 +2208,8 @@ class Message :
             dbus.dbus_message_get_type(self._dbobj)
     #end type
 
-    # TODO: append_args, get_args
+    # NYI append_args, get_args -- probably not useful, use my
+    # objects and append_objects convenience methods (below) instead
 
     class Iter :
         "for iterating over the arguments in a Message, whether for reading or appending." \
@@ -2286,6 +2324,8 @@ class Message :
 
         @property
         def object(self) :
+            "returns the current iterator item as a Python object. Will recursively" \
+            " process container objects."
             assert not self._writing, "cannot read from write iterator"
             argtype = self.arg_type
             if argtype in DBUS.basic_to_ctypes :
@@ -2344,6 +2384,9 @@ class Message :
 
         def append_basic(self, type, value) :
             assert self._writing, "cannot write to read iterator"
+            if type in DBUS.int_convert :
+                value = DBUS.int_convert[type](value)
+            #end if
             c_type = DBUS.basic_to_ctypes[type]
             if c_type == ct.c_char_p :
                 value = value.encode()
@@ -2433,6 +2476,63 @@ class Message :
         return \
             iter
     #end iter_init_append
+
+    def append_objects(self, signature, val) :
+        "interprets Python value val (which should be a sequence of objects) according" \
+        " to signature and appends converted items to the message args."
+
+        def append_sub(val, sigiter, appenditer) :
+            index = 0
+            for sigelt in sigiter :
+                elttype = sigelt.current_type
+                elt = val[index]
+                if elttype in DBUS.basic_to_ctypes :
+                    appenditer.append_basic(elttype, elt)
+                elif elttype == DBUS.TYPE_ARRAY :
+                    if sigiter.element_type == DBUS.TYPE_DICT_ENTRY :
+                        if not isinstance(elt, dict) :
+                            raise TypeError("dict expected for array of dict entry")
+                        #end if
+                        subsig = sigiter.recurse()
+                        subiter = appenditer.open_container(elttype, subsig.signature)
+                        for key in sorted(elt) : # might as well insert in some kind of predictable order
+                            value = elt[key]
+                            subsubiter = subiter.open_container(DBUS.TYPE_DICT_ENTRY, None)
+                            subsubsig = subsig.recurse()
+                            append_sub([key, value], subsubsig, subsubiter)
+                            subsubiter.close()
+                        #end for
+                        subiter.close()
+                    else :
+                        # append 0 or more elements matching sigiter.element_type
+                        subiter = appenditer.open_container(elttype, sigiter.recurse().signature)
+                        if not isinstance(elt, (tuple, list)) :
+                            raise TypeError("expecting sequence of values for array")
+                        #end if
+                        for subval in elt :
+                            subsig = sigiter.recurse()
+                            append_sub([subval], subsig, subiter)
+                        #end for
+                        subiter.close()
+                    #end if
+                elif elttype == DBUS.TYPE_STRUCT :
+                    subiter = appenditer.open_container(elttype, None)
+                    append_sub(elt, sigiter.recurse(), subiter)
+                    subiter.close()
+                else :
+                    raise RuntimeError("unrecognized type %s" % bytes((elttype,)))
+                #end if
+                index += 1
+            #end for
+            # assert index == len(val), "leftover unappended objects" # TBD where to put this
+        #end append_sub
+
+    #begin append_objects
+        if not isinstance(val, (tuple, list)) :
+            val = [val]
+        #end if
+        append_sub(val, SignatureIter.init(signature), self.iter_init_append())
+    #end append_objects
 
     @property
     def no_reply(self) :

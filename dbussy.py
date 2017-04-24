@@ -1178,7 +1178,21 @@ class Connection :
         "__weakref__",
         "_dbobj",
         "_filters",
+        # need to keep references to ctypes-wrapped functions
+        # so they don't disappear prematurely:
         "_object_paths",
+        "_add_watch_function",
+        "_remove_watch_function",
+        "_toggled_watch_function",
+        "_free_watch_data",
+        "_add_timeout_function",
+        "_remove_timeout_function",
+        "_toggled_timeout_function",
+        "_free_timeout_data",
+        "_wakeup_main",
+        "_free_wakeup_main_data",
+        "_dispatch_status",
+        "_free_dispatch_status_data",
       ) # to forestall typos
 
     _instances = WeakValueDictionary()
@@ -1374,7 +1388,123 @@ class Connection :
             dbus.dbus_connection_dispatch(self._dbobj)
     #end dispatch
 
-    # TODO: set watch/timeout/wakeup_main/dispatch_status functions
+    def set_watch_functions(self, add_function, remove_function, toggled_function, data, free_data = None) :
+
+        def wrap_add_function(c_watch, _data) :
+            return \
+                add_function(Watch(c_watch), data)
+        #end wrap_add_function
+
+        def wrap_remove_function(c_watch, _data) :
+            return \
+                remove_function(Watch(c_watch), data)
+        #end wrap_remove_function
+
+        def wrap_toggled_function(c_watch, _data) :
+            return \
+                toggled_function(Watch(c_watch), data)
+        #end wrap_toggled_function
+
+        def wrap_free_data(_data) :
+            free_data(data)
+        #end wrap_free_data
+
+    #begin set_watch_functions
+        self._add_watch_function = DBUS.AddWatchFunction(wrap_add_function)
+        self._remove_watch_function = DBUS.RemoveWatchFunction(wrap_remove_function)
+        if toggled_function != None :
+            self._toggled_watch_function = DBUS.WatchToggledFunction(wrap_toggled_function)
+        else :
+            self._toggled_watch_function = None
+        #end if
+        if free_data != None :
+            self._free_watch_data = DBUS.FreeFunction(wrap_free_data)
+        else :
+            self._free_watch_data = None
+        #end if
+        if not dbus.dbus_connection_set_watch_functions(self._dbobj, self._add_watch_function, self._remove_watch_function, self._toggled_watch_function, None, self._free_watch_data) :
+            raise DBusFailure("dbus_connection_set_watch_functions failed")
+        #end if
+    #end set_watch_functions
+
+    def set_timeout_functions(self, add_function, remove_function, toggled_function, data, free_data = None) :
+
+        def wrap_add_function(c_timeout, _data) :
+            return \
+                add_function(Timeout(c_timeout), data)
+        #end wrap_add_function
+
+        def wrap_remove_function(c_timeout, _data) :
+            return \
+                remove_function(Timeout(c_timeout), data)
+        #end wrap_remove_function
+
+        def wrap_toggled_function(c_timeout, _data) :
+            return \
+                toggled_function(Timeout(c_timeout), data)
+        #end wrap_toggled_function
+
+        def wrap_free_data(_data) :
+            free_data(data)
+        #end wrap_free_data
+
+    #begin set_timeout_functions
+        self._add_timeout_function = DBUS.AddTimeoutFunction(wrap_add_function)
+        self._remove_timeout_function = DBUS.RemoveTimeoutFunction(wrap_remove_function)
+        if toggled_function != None :
+            self._toggled_timeout_function = DBUS.TimeoutToggledFunction(wrap_toggled_function)
+        else :
+            self._toggled_timeout_function = None
+        #end if
+        if free_data != None :
+            self._free_timeout_data = DBUS.FreeFunction(wrap_free_data)
+        else :
+            self._free_timeout_data = None
+        #end if
+        if not dbus.dbus_connection_set_timeout_functions(self._dbobj, self._add_timeout_function, self._remove_timeout_function, self._toggled_timeout_function, None, self._free_timeout_data) :
+            raise DBusFailure("dbus_connection_set_timeout_functions failed")
+        #end if
+    #end set_timeout_functions
+
+    def set_wakeup_main_function(self, wakeup_main, data, free_data = None) :
+
+        def wrap_wakeup_main(_data) :
+            wakeup_main(data)
+        #end wrap_wakeup_main
+
+        def wrap_free_data(_data) :
+            free_data(data)
+        #end wrap_free_data
+
+    #begin set_wakeup_main_function
+        self._wakeup_main = DBUS.WakeupMainFunction(wrap_wakeup_main)
+        if free_data != None :
+            self._free_wakeup_main_data = DBUS.FreeFunction(wrap_free_data)
+        else :
+            self._free_wakeup_main_data = None
+        #end if
+        dbus.dbus_connection_set_wakeup_main_function(self._dbobj, self._wakeup_main, None, self._free_wakeup_main_data)
+    #end set_wakeup_main_function
+
+    def set_dispatch_status_function(self, function, data, free_data = None) :
+
+        def wrap_dispatch_status(_conn, status, _data) :
+            function(self, status, data)
+        #end wrap_dispatch_status
+
+        def wrap_free_data(_data) :
+            free_data(data)
+        #end wrap_free_data
+
+    #begin set_dispatch_status_function
+        self._dispatch_status = DBUS.DispatchStatusFunction(wrap_dispatch_status)
+        if free_data != None :
+            self._free_wakeup_main_data = DBUS.FreeFunction(wrap_free_data)
+        else :
+            self._free_wakeup_main_data = None
+        #end if
+        dbus.dbus_connection_set_dispatch_status_function(self._dbobj, self._dispatch_status, None, self._free_wakeup_main_data)
+    #end set_dispatch_status_function
 
     @property
     def unix_fd(self) :

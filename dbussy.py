@@ -995,7 +995,7 @@ class Watch :
     def fileno(self) :
         "for use with select(2) etc."
         return \
-            dbus.dbus_watch_get_unix_fd(self._dbobj)
+            self.unix_fd
     #end fileno
 
     @property
@@ -1387,6 +1387,12 @@ class Connection :
         return \
             result
     #end unix_fd
+
+    def fileno(self) :
+        "for use with select(2) etc."
+        return \
+            self.unix_fd
+    #end fileno
 
     @property
     def socket(self) :

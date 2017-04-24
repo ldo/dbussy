@@ -2524,7 +2524,7 @@ class Message :
                 #end if
                 index += 1
             #end for
-            # assert index == len(val), "leftover unappended objects" # TBD where to put this
+            assert index == len(val), "leftover unappended objects"
         #end append_sub
 
     #begin append_objects

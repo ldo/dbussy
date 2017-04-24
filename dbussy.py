@@ -1052,7 +1052,7 @@ class Timeout :
     @property
     def interval(self) :
         return \
-            dbus.dbus_timeout_get_interval(self._dbobj)
+            dbus.dbus_timeout_get_interval(self._dbobj) / 1000
     #end interval
 
     # TODO: get/set data

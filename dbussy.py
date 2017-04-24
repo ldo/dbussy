@@ -966,7 +966,17 @@ def unsetenv(key) :
 
 class Watch :
     "wrapper around a DBusWatch object. Do not instantiate directly; they" \
-    " are created and destroyed by libdbus."
+    " are created and destroyed by libdbus.\n" \
+    "\n" \
+    "A Watch is the basic mechanism for plugging libdbus-created file descriptors" \
+    " into your event loop. When created, they are passed to your add-watch callback" \
+    " to manage; and conversely, when deleted, your remove-watch callback is notified." \
+    " (These callbacks are ones you attach to Server and Connection objects.)\n" \
+    "\n" \
+    "Check the enabled property to decide if you need to pay attention to this Watch, and" \
+    " look at the flags to see if you need to check for pending reads, or writes, or both." \
+    " Call the handle() method with the appropriate flags when you see that reads or writes" \
+    " are pending."
     # <https://dbus.freedesktop.org/doc/api/html/group__DBusWatch.html>
 
     __slots__ = ("__weakref__", "_dbobj",) # to forestall typos
@@ -988,12 +998,13 @@ class Watch :
 
     @property
     def unix_fd(self) :
+        "the underlying file descriptor for this Watch."
         return \
             dbus.dbus_watch_get_unix_fd(self._dbobj)
     #end unix_fd
 
     def fileno(self) :
-        "for use with select(2) etc."
+        "for use with Python’s “select” functions."
         return \
             self.unix_fd
     #end fileno
@@ -1523,7 +1534,7 @@ class Connection :
     #end unix_fd
 
     def fileno(self) :
-        "for use with select(2) etc."
+        "for use with Python’s “select” functions."
         return \
             self.unix_fd
     #end fileno
@@ -3091,6 +3102,7 @@ class SignatureIter :
 #end SignatureIter
 
 def signature_validate(signature, error = None) :
+    "is signature a valid sequence of zero or more complete types."
     error, my_error = _get_error(error)
     result = dbus.dbus_signature_validate(signature.encode(), error._dbobj) != 0
     my_error.raise_if_set()
@@ -3099,6 +3111,7 @@ def signature_validate(signature, error = None) :
 #end signature_validate
 
 def signature_validate_single(signature, error = None) :
+    "is signature a single valid type."
     error, my_error = _get_error(error)
     result = dbus.dbus_signature_validate_single(signature.encode(), error._dbobj) != 0
     my_error.raise_if_set()

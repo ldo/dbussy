@@ -992,6 +992,12 @@ class Watch :
             dbus.dbus_watch_get_unix_fd(self._dbobj)
     #end unix_fd
 
+    def fileno(self) :
+        "for use with select(2) etc."
+        return \
+            dbus.dbus_watch_get_unix_fd(self._dbobj)
+    #end fileno
+
     @property
     def socket(self) :
         return \
@@ -1203,7 +1209,7 @@ class Connection :
     @classmethod
     def open(celf, address, private, error = None) :
         error, my_error = _get_error(error)
-        result = (dbus.dbus_connection_open, dbus.dbus_connection_open_private)[private](address, error._dbobj)
+        result = (dbus.dbus_connection_open, dbus.dbus_connection_open_private)[private](address.encode(), error._dbobj)
         my_error.raise_if_set()
         if result != None :
             result = celf(result)

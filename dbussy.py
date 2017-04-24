@@ -1064,6 +1064,9 @@ class Timeout :
 
 #end Timeout
 
+_global_user_data = WeakValueDictionary()
+  # for mapping user_data pointers back to Python objects
+
 class ObjectPathVTable :
 
     __slots__ = \
@@ -1097,7 +1100,7 @@ class ObjectPathVTable :
     def set_unregister(self, unregister) :
 
         def wrap_unregister(c_conn, user_data) :
-            unregister(Connection(dbus.dbus_connection_ref(c_conn)), user_data)
+            unregister(Connection(dbus.dbus_connection_ref(c_conn)), _global_user_data.get(user_data))
         #end wrap_unregister
 
     #begin set_unregister
@@ -1115,7 +1118,7 @@ class ObjectPathVTable :
 
         def wrap_message(c_conn, c_message, user_data) :
             return \
-                message(Connection(dbus.dbus_connection_ref(c_conn)), Message(c_message), user_data)
+                message(Connection(dbus.dbus_connection_ref(c_conn)), Message(c_message), _global_user_data.get(user_data))
         #end wrap_message
 
     #begin set_message
@@ -1469,7 +1472,9 @@ class Connection :
         #end if
         self._object_paths[path] = vtable # ensure it doesn’t disappear prematurely
         error, my_error = _get_error(error)
-        dbus.dbus_connection_try_register_object_path(self._dbobj, path.encode(), vtable._dbobj, user_data, error._dbobj) != 0
+        c_user_data = id(user_data)
+        _global_user_data[c_user_data] = user_data
+        dbus.dbus_connection_try_register_object_path(self._dbobj, path.encode(), vtable._dbobj, c_user_data, error._dbobj) != 0
         my_error.raise_if_set()
     #end register_object_path
 
@@ -1479,7 +1484,9 @@ class Connection :
         #end if
         self._object_paths[path] = vtable # ensure it doesn’t disappear prematurely
         error, my_error = _get_error(error)
-        dbus.dbus_connection_try_register_fallback(self._dbobj, path.encode(), vtable._dbobj, user_data, error._dbobj) != 0
+        c_user_data = id(user_data)
+        _global_user_data[c_user_data] = user_data
+        dbus.dbus_connection_try_register_fallback(self._dbobj, path.encode(), vtable._dbobj, c_user_data, error._dbobj) != 0
         my_error.raise_if_set()
     #end register_fallback
 

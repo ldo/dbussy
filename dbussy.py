@@ -1477,7 +1477,11 @@ class Connection :
         #end wrap_free_data
 
     #begin set_wakeup_main_function
-        self._wakeup_main = DBUS.WakeupMainFunction(wrap_wakeup_main)
+        if wakeup_main != None :
+            self._wakeup_main = DBUS.WakeupMainFunction(wrap_wakeup_main)
+        else :
+            self._wakeup_main = None
+        #end if
         if free_data != None :
             self._free_wakeup_main_data = DBUS.FreeFunction(wrap_free_data)
         else :

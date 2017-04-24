@@ -1051,10 +1051,10 @@ class Timeout :
 
     # TODO: get/set data
 
-    def timeout_handle(self) :
+    def handle(self) :
         return \
             dbus.dbus_timeout_handle(self._dbobj)
-    #end timeout_handle
+    #end handle
 
     @property
     def enabled(self) :

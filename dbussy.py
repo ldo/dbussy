@@ -564,7 +564,7 @@ dbus.dbus_watch_set_data.argtypes = (ct.c_void_p, ct.c_void_p, ct.c_void_p)
 dbus.dbus_watch_handle.restype = DBUS.bool_t
 dbus.dbus_watch_handle.argtypes = (ct.c_void_p, ct.c_uint)
 dbus.dbus_watch_get_enabled.restype = DBUS.bool_t
-dbus.dbus_watch_get_enabled.argtypes = (ct.c_void_p, ct.c_uint)
+dbus.dbus_watch_get_enabled.argtypes = (ct.c_void_p,)
 
 dbus.dbus_timeout_get_interval.restype = ct.c_int
 dbus.dbus_timeout_get_interval.argtypes = (ct.c_void_p,)
@@ -1791,7 +1791,7 @@ class Server :
         self._add_watch_function = DBUS.AddWatchFunction(wrap_add_function)
         self._remove_watch_function = DBUS.RemoveWatchFunction(wrap_remove_function)
         if toggled_function != None :
-            self._toggled_watch_function = DBUS.ToggledWatchFunction(wrap_toggled_function)
+            self._toggled_watch_function = DBUS.WatchToggledFunction(wrap_toggled_function)
         else :
             self._toggled_watch_function = None
         #end if
@@ -1830,7 +1830,7 @@ class Server :
         self._add_timeout_function = DBUS.AddTimeoutFunction(wrap_add_function)
         self._remove_timeout_function = DBUS.RemoveTimeoutFunction(wrap_remove_function)
         if toggled_function != None :
-            self._toggled_timeout_function = DBUS.ToggledTimeoutFunction(wrap_toggled_function)
+            self._toggled_timeout_function = DBUS.TimeoutToggledFunction(wrap_toggled_function)
         else :
             self._toggled_timeout_function = None
         #end if

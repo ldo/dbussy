@@ -1790,7 +1790,11 @@ class Server :
     #begin set_watch_functions
         self._add_watch_function = DBUS.AddWatchFunction(wrap_add_function)
         self._remove_watch_function = DBUS.RemoveWatchFunction(wrap_remove_function)
-        self._toggled_watch_function = DBUS.ToggledWatchFunction(wrap_toggled_function)
+        if toggled_function != None :
+            self._toggled_watch_function = DBUS.ToggledWatchFunction(wrap_toggled_function)
+        else :
+            self._toggled_watch_function = None
+        #end if
         if free_data != None :
             self._free_watch_data = DBUS.FreeFunction(wrap_free_data)
         else :
@@ -1825,7 +1829,11 @@ class Server :
     #begin set_timeout_functions
         self._add_timeout_function = DBUS.AddTimeoutFunction(wrap_add_function)
         self._remove_timeout_function = DBUS.RemoveTimeoutFunction(wrap_remove_function)
-        self._toggled_timeout_function = DBUS.ToggledTimeoutFunction(wrap_toggled_function)
+        if toggled_function != None :
+            self._toggled_timeout_function = DBUS.ToggledTimeoutFunction(wrap_toggled_function)
+        else :
+            self._toggled_timeout_function = None
+        #end if
         if free_data != None :
             self._free_timeout_data = DBUS.FreeFunction(wrap_free_data)
         else :

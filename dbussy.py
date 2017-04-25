@@ -1361,6 +1361,7 @@ def _loop_attach(self, loop, dispatch) :
         toggled_function = handle_timeout_toggled,
         data = None
       )
+    self = None # avoid circularity
 #end _loop_attach
 
 class Connection :

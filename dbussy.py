@@ -1753,13 +1753,13 @@ class Connection :
     # TODO: get/set data
 
     def set_change_sigpipe(self, will_modify_sigpipe) :
-        dbus.dbus.dbus_connection_set_change_sigpipe(self._dbobj, will_modify_sigpipe)
+        dbus.dbus_connection_set_change_sigpipe(self._dbobj, will_modify_sigpipe)
     #end set_change_sigpipe
 
     @property
     def max_message_size(self) :
         return \
-            dbus.dbus.dbus_connection_get_max_message_size(self._dbobj)
+            dbus.dbus_connection_get_max_message_size(self._dbobj)
     #end max_message_size
 
     @max_message_size.setter
@@ -1770,7 +1770,7 @@ class Connection :
     @property
     def max_received_size(self) :
         return \
-            dbus.dbus.dbus_connection_get_max_received_size(self._dbobj)
+            dbus.dbus_connection_get_max_received_size(self._dbobj)
     #end max_received_size
 
     @max_received_size.setter
@@ -1781,7 +1781,7 @@ class Connection :
     @property
     def max_message_unix_fds(self) :
         return \
-            dbus.dbus.dbus_connection_get_max_message_unix_fds(self._dbobj)
+            dbus.dbus_connection_get_max_message_unix_fds(self._dbobj)
     #end max_message_unix_fds
 
     @max_message_unix_fds.setter
@@ -1792,7 +1792,7 @@ class Connection :
     @property
     def max_received_unix_fds(self) :
         return \
-            dbus.dbus.dbus_connection_get_max_received_unix_fds(self._dbobj)
+            dbus.dbus_connection_get_max_received_unix_fds(self._dbobj)
     #end max_received_unix_fds
 
     @max_received_unix_fds.setter
@@ -1803,13 +1803,13 @@ class Connection :
     @property
     def outgoing_size(self) :
         return \
-            dbus.dbus.dbus_connection_get_outgoing_size(self._dbobj)
+            dbus.dbus_connection_get_outgoing_size(self._dbobj)
     #end outgoing_size
 
     @property
     def outgoing_unix_fds(self) :
         return \
-            dbus.dbus.dbus_connection_get_outgoing_unix_fds(self._dbobj)
+            dbus.dbus_connection_get_outgoing_unix_fds(self._dbobj)
     #end outgoing_unix_fds
 
     @property
@@ -3024,7 +3024,7 @@ class PendingCall :
     #end steal_reply
 
     def block(self) :
-        dbus.dbus.dbus_pending_call_block(self._dbobj)
+        dbus.dbus_pending_call_block(self._dbobj)
     #end block
 
     # TODO: data slots (static methods), get/set data

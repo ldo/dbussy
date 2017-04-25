@@ -1826,8 +1826,9 @@ class Connection :
 
     def add_filter(self, function, user_data, free_data = None) :
 
-        def wrap_function(self, message, _data) :
-            function(self, Message(dbus.dbus_message_ref(conn)), user_data)
+        def wrap_function(c_conn, message, _data) :
+            return \
+                function(self, Message(dbus.dbus_message_ref(message)), user_data)
         #end wrap_function
 
         def wrap_free_data(_data) :

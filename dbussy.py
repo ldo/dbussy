@@ -1870,9 +1870,11 @@ class Connection :
         #end if
         self._object_paths[path] = vtable # ensure it doesn’t disappear prematurely
         error, my_error = _get_error(error)
-        c_user_data = id(user_data)
         if user_data != None :
+            c_user_data = id(user_data)
             _global_user_data[c_user_data] = user_data
+        else :
+            c_user_data = None
         #end if
         dbus.dbus_connection_try_register_object_path(self._dbobj, path.encode(), vtable._dbobj, c_user_data, error._dbobj)
         my_error.raise_if_set()
@@ -1884,9 +1886,11 @@ class Connection :
         #end if
         self._object_paths[path] = vtable # ensure it doesn’t disappear prematurely
         error, my_error = _get_error(error)
-        c_user_data = id(user_data)
         if user_data != None :
+            c_user_data = id(user_data)
             _global_user_data[c_user_data] = user_data
+        else :
+            c_user_data = None
         #end if
         dbus.dbus_connection_try_register_fallback(self._dbobj, path.encode(), vtable._dbobj, c_user_data, error._dbobj)
         my_error.raise_if_set()

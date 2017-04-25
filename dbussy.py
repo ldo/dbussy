@@ -1231,12 +1231,22 @@ def _loop_attach(self, loop, dispatch) :
     watches = [] # do I need to keep track of Watch objects?
     timeouts = []
 
+    def call_dispatch() :
+        status = dispatch()
+        if status == DBUS.DISPATCH_NEED_MEMORY :
+            raise DBusFailure("not enough memory for connection dispatch")
+        #end if
+        if status == DBUS.DISPATCH_DATA_REMAINS :
+            loop.call_soon(call_dispatch)
+        #end if
+    #end call_dispatch
+
     def add_remove_watch(watch, add) :
 
         def handle_watch_event(flags) :
             watch.handle(flags)
             if dispatch != None :
-                dispatch()
+                call_dispatch()
             #end if
         #end handle_watch_event
 

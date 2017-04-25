@@ -2878,7 +2878,20 @@ class Message :
     # TODO: allocate/free data slot -- static methods
     #    (freeing slot can set passed-in var to -1 on actual free; do I care?)
     # TODO: set/get data
-    # TODO: type from/to string
+
+    @staticmethod
+    def type_from_string(type_str) :
+        "returns a MESSAGE_TYPE_xxx value."
+        return \
+            dbus.dbus_message_type_from_string(type_str.encode())
+    #end type_from_string
+
+    @staticmethod
+    def type_to_string(type) :
+        "type is a MESSAGE_TYPE_xxx value."
+        return \
+            dbus.dbus_message_type_to_string(type).decode()
+    #end type_to_string
 
     def marshal(self) :
         buf = ct.POINTER(ct.c_ubyte)()

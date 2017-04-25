@@ -1,8 +1,10 @@
+"""
+Pure-Python binding for D-Bus <https://www.freedesktop.org/wiki/Software/dbus/>,
+built around libdbus <https://dbus.freedesktop.org/doc/api/html/index.html>.
+"""
 #+
-# Pure-Python binding for parts of D-Bus <https://www.freedesktop.org/wiki/Software/dbus/>,
-# built around libdbus.
-#
-# libdbus API: <https://dbus.freedesktop.org/doc/api/html/index.html>.
+# Copyright 2017 Lawrence D'Oliveiro <ldo@geek-central.gen.nz>.
+# Licensed under the GNU Lesser General Public License v2.1 or later.
 #-
 
 import array

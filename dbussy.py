@@ -1871,19 +1871,23 @@ class Connection :
         self._object_paths[path] = vtable # ensure it doesn’t disappear prematurely
         error, my_error = _get_error(error)
         c_user_data = id(user_data)
-        _global_user_data[c_user_data] = user_data
+        if user_data != None :
+            _global_user_data[c_user_data] = user_data
+        #end if
         dbus.dbus_connection_try_register_object_path(self._dbobj, path.encode(), vtable._dbobj, c_user_data, error._dbobj) != 0
         my_error.raise_if_set()
     #end register_object_path
 
-    def register_fallback(self, vtable, user_data, error = None) :
+    def register_fallback(self, path, vtable, user_data, error = None) :
         if not isinstance(vtable, ObjectPathVTable) :
             raise TypeError("vtable must be an ObjectPathVTable")
         #end if
         self._object_paths[path] = vtable # ensure it doesn’t disappear prematurely
         error, my_error = _get_error(error)
         c_user_data = id(user_data)
-        _global_user_data[c_user_data] = user_data
+        if user_data != None :
+            _global_user_data[c_user_data] = user_data
+        #end if
         dbus.dbus_connection_try_register_fallback(self._dbobj, path.encode(), vtable._dbobj, c_user_data, error._dbobj) != 0
         my_error.raise_if_set()
     #end register_fallback

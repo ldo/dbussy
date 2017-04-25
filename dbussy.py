@@ -1178,7 +1178,7 @@ class ObjectPathVTable :
 
         def wrap_message(c_conn, c_message, user_data) :
             return \
-                message(Connection(dbus.dbus_connection_ref(c_conn)), Message(c_message), _global_user_data.get(user_data))
+                message(Connection(dbus.dbus_connection_ref(c_conn)), Message(dbus.dbus_message_ref(c_message)), _global_user_data.get(user_data))
         #end wrap_message
 
     #begin set_message
@@ -1187,7 +1187,7 @@ class ObjectPathVTable :
         else :
             self._wrap_message_func = None
         #end if
-        self._dbobj.message = self._wrap_message_func
+        self._dbobj.message_function = self._wrap_message_func
         return \
             self
     #end set_message

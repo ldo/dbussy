@@ -1241,6 +1241,8 @@ class Connection :
         "_free_wakeup_main_data",
         "_dispatch_status",
         "_free_dispatch_status_data",
+        "_allow_unix_user",
+        "_free_unix_user_data",
       ) # to forestall typos
 
     _instances = WeakValueDictionary()
@@ -1612,7 +1614,32 @@ class Connection :
             result
     #end unix_user
 
-    # TODO: get_adt, set_unix_user_function
+    # TODO: get_adt
+
+    def set_unix_user_function(self, allow_unix_user, data, free_data = None) :
+
+        def wrap_allow_unix_user(c_conn, uid, c_data) :
+            return \
+                allow_unix_user(self, uid, data)
+        #end wrap_allow_unix_user
+
+        def wrap_free_data(_data) :
+            free_data(data)
+        #end wrap_free_data
+
+    #begin set_unix_user_function
+        if allow_unix_user != None :
+            self._allow_unix_user = DBUS.AllowUnixUserFunction(wrap_allow_unix_user)
+        else :
+            self._allow_unix_user = None
+        #end if
+        if free_data != None :
+            self._free_unix_user_data = DBUS.FreeFunction(wrap_free_data)
+        else :
+            self._free_unix_user_data = None
+        #end if
+        dbus.dbus_connection_set_unix_user_function(self._dbobj, self._allow_unix_user, None, self._free_unix_user_data)
+    #end set_unix_user_function
 
     def set_allow_anonymous(self, allow) :
         dbus.dbus_connection_set_allow_anonymous(self._dbobj, allow)
@@ -1724,8 +1751,66 @@ class Connection :
 
     # TODO: allocate/free data slot -- staticmethods
     # TODO: get/set data
-    # TODO: set_change_sigpipe
-    # TODO: get/set max message/received size/fds outgoing
+
+    def set_change_sigpipe(self, will_modify_sigpipe) :
+        dbus.dbus.dbus_connection_set_change_sigpipe(self._dbobj, will_modify_sigpipe)
+    #end set_change_sigpipe
+
+    @property
+    def max_message_size(self) :
+        return \
+            dbus.dbus.dbus_connection_get_max_message_size(self._dbobj)
+    #end max_message_size
+
+    @max_message_size.setter
+    def max_message_size(self, size) :
+        dbus.dbus_connection_set_max_message_size(self._dbobj, size)
+    #end max_message_size
+
+    @property
+    def max_received_size(self) :
+        return \
+            dbus.dbus.dbus_connection_get_max_received_size(self._dbobj)
+    #end max_received_size
+
+    @max_received_size.setter
+    def max_received_size(self, size) :
+        dbus.dbus_connection_set_max_received_size(self._dbobj, size)
+    #end max_received_size
+
+    @property
+    def max_message_unix_fds(self) :
+        return \
+            dbus.dbus.dbus_connection_get_max_message_unix_fds(self._dbobj)
+    #end max_message_unix_fds
+
+    @max_message_unix_fds.setter
+    def max_message_unix_fds(self, size) :
+        dbus.dbus_connection_set_max_message_unix_fds(self._dbobj, size)
+    #end max_message_unix_fds
+
+    @property
+    def max_received_unix_fds(self) :
+        return \
+            dbus.dbus.dbus_connection_get_max_received_unix_fds(self._dbobj)
+    #end max_received_unix_fds
+
+    @max_received_unix_fds.setter
+    def max_received_unix_fds(self, size) :
+        dbus.dbus_connection_set_max_received_unix_fds(self._dbobj, size)
+    #end max_received_unix_fds
+
+    @property
+    def outgoing_size(self) :
+        return \
+            dbus.dbus.dbus_connection_get_outgoing_size(self._dbobj)
+    #end outgoing_size
+
+    @property
+    def outgoing_unix_fds(self) :
+        return \
+            dbus.dbus.dbus_connection_get_outgoing_unix_fds(self._dbobj)
+    #end outgoing_unix_fds
 
     @property
     def has_messages_to_send(self) :

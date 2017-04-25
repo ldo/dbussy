@@ -2759,6 +2759,19 @@ class Message :
         dbus.dbus_message_set_serial(self._dbobj, serial)
     #end serial
 
+    @property
+    def reply_serial(self) :
+        return \
+            dbus.dbus_message_get_reply_serial(self._dbobj)
+    #end reply_serial
+
+    @reply_serial.setter
+    def reply_serial(self, serial) :
+        if not dbus.dbus_message_set_reply_serial(self._dbobj, serial) :
+            raise DBusFailure("dbus_message_set_reply_serial failed")
+        #end if
+    #end serial
+
     def lock(self) :
         dbus.dbus_message_lock(self._dbobj)
     #end lock

@@ -1874,7 +1874,7 @@ class Connection :
         if user_data != None :
             _global_user_data[c_user_data] = user_data
         #end if
-        dbus.dbus_connection_try_register_object_path(self._dbobj, path.encode(), vtable._dbobj, c_user_data, error._dbobj) != 0
+        dbus.dbus_connection_try_register_object_path(self._dbobj, path.encode(), vtable._dbobj, c_user_data, error._dbobj)
         my_error.raise_if_set()
     #end register_object_path
 
@@ -1888,7 +1888,7 @@ class Connection :
         if user_data != None :
             _global_user_data[c_user_data] = user_data
         #end if
-        dbus.dbus_connection_try_register_fallback(self._dbobj, path.encode(), vtable._dbobj, c_user_data, error._dbobj) != 0
+        dbus.dbus_connection_try_register_fallback(self._dbobj, path.encode(), vtable._dbobj, c_user_data, error._dbobj)
         my_error.raise_if_set()
     #end register_fallback
 

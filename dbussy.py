@@ -1,6 +1,9 @@
 """
 Pure-Python binding for D-Bus <https://www.freedesktop.org/wiki/Software/dbus/>,
 built around libdbus <https://dbus.freedesktop.org/doc/api/html/index.html>.
+
+This Python binding supports hooking into event loops via Python’s standard
+asyncio module.
 """
 #+
 # Copyright 2017 Lawrence D'Oliveiro <ldo@geek-central.gen.nz>.
@@ -13,6 +16,7 @@ from weakref import \
     ref as weak_ref, \
     WeakValueDictionary
 import atexit
+import asyncio
 
 dbus = ct.cdll.LoadLibrary("libdbus-1.so.3")
 
@@ -1218,6 +1222,137 @@ def _get_error(error) :
         error, my_error
 #end _get_error
 
+def _loop_attach(self, loop, dispatch) :
+
+    if loop == None :
+        loop = asyncio.get_event_loop()
+    #end if
+
+    watches = [] # do I need to keep track of Watch objects?
+    timeouts = []
+
+    def add_remove_watch(watch, add) :
+
+        def handle_watch_event(flags) :
+            watch.handle(flags)
+            if dispatch != None :
+                dispatch()
+            #end if
+        #end handle_watch_event
+
+    #end add_remove_watch
+        if DBUS.WATCH_READABLE & watch.flags != 0 :
+            if add :
+                loop.add_reader(watch, handle_watch_event, DBUS.WATCH_READABLE)
+            else :
+                loop.remove_reader(watch)
+            #end if
+        #end if
+        if DBUS.WATCH_WRITABLE & watch.flags != 0 :
+            if add :
+                loop.add_writer(watch, handle_watch_event, DBUS.WATCH_WRITABLE)
+            else :
+                loop.remove_writer(watch)
+            #end if
+        #end if
+    #end add_remove_watch
+
+    def handle_add_watch(watch, data) :
+        if watch not in watches :
+            watches.append(watch)
+            add_remove_watch(watch, True)
+        #end if
+        return \
+            True
+    #end handle_add_watch
+
+    def handle_watch_toggled(watch, data) :
+        add_remove_watch(watch, watch.enabled)
+    #end handle_watch_toggled
+
+    def handle_remove_watch(watch, data) :
+        try :
+            pos = watches.index(watch)
+        except ValueError :
+            pos = None
+        #end try
+        if pos != None :
+            watches[pos : pos + 1] = []
+            add_remove_watch(watch, False)
+        #end if
+    #end handle_remove_watch
+
+    def handle_timeout(timeout) :
+        if timeout["due"] != None and timeout["due"] <= loop.time() and timeout["timeout"].enabled :
+            timeout["timeout"].handle()
+        #end if
+    #end handle_timeout
+
+    def handle_add_timeout(timeout, data) :
+        if timeout not in timeouts :
+            entry = \
+                {
+                    "timeout" : timeout,
+                    "due" : (lambda : None, lambda : loop.time() + timeout.interval)[timeout.enabled](),
+                }
+            timeouts.append(entry)
+            if timeout.enabled :
+                loop.call_later(timeout.interval, handle_timeout, entry)
+            #end if
+        #end if
+        return \
+            True
+    #end handle_add_timeout
+
+    def handle_timeout_toggled(timeout, data) :
+        # not sure what to do if a Timeout gets toggled from enabled to disabled
+        # and then to enabled again; effectively I update the due time from
+        # the time of re-enabling.
+        search = iter(timeouts)
+        while True :
+            entry = next(search, None)
+            if entry == None :
+                break
+            #end if
+            if entry["timeout"] == timeout :
+                if timeout.enabled :
+                    entry["due"] = loop.time() + timeout.enterval
+                    loop.call_later(timeout.interval, handle_timeout, (entry,))
+                else :
+                    entry["due"] = None
+                #end if
+                break
+            #end if
+        #end while
+    #end handle_timeout_toggled
+
+    def handle_remove_timeout(timeout, data) :
+        new_timeouts = timeouts
+        for entry in timeouts :
+            if entry["timeout"] != timeout :
+                new_timeouts.append(entry)
+            #end if
+        #end for
+        timeouts[:] = new_timeouts
+    #end handle_remove_timeout
+
+#begin _loop_attach
+    self.set_watch_functions \
+      (
+        add_function = handle_add_watch,
+        remove_function = handle_remove_watch,
+        toggled_function = handle_watch_toggled,
+        data = None
+      )
+    self.set_timeout_functions \
+      (
+        add_function = handle_add_timeout,
+        remove_function = handle_remove_timeout,
+        toggled_function = handle_timeout_toggled,
+        data = None
+      )
+#end _loop_attach
+
 class Connection :
     "wrapper around a DBusConnection object. Do not instantiate directly; use the open" \
     " or bus_get methods."
@@ -1389,6 +1524,34 @@ class Connection :
         return \
             result
     #end send_with_reply_and_block
+
+    async def send_await_reply(self, message, timeout) :
+        if not isinstance(message, Message) :
+            raise TypeError("message must be a Message")
+        #end if
+        pending_call = ct.c_void_p()
+        if not dbus.dbus_connection_send_with_reply(self._dbobj, message._dbobj, ct.byref(pending_call), round(timeout * 1000)) :
+            raise DBusFailure("dbus_connection_send_with_reply failed")
+        #end if
+        if pending_call.value != None :
+            pending = PendingCall(pending_call.value)
+        else :
+            pending = None
+        #end if
+        reply = None # to begin with
+        if pending != None :
+            done = asyncio.Future()
+
+            def pending_done(pending, _) :
+                done.set_result(pending.steal_reply())
+            #end pending_done
+
+            pending.set_notify(pending_done, None)
+            reply = await done
+        #end if
+        return \
+            reply
+    #end send_await_reply
 
     def flush(self) :
         dbus.dbus_connection_flush(self._dbobj)
@@ -1921,6 +2084,13 @@ class Connection :
         my_error.raise_if_set()
     #end bus_remove_match
 
+    def attach_asyncio(self, loop = None) :
+        "attaches this Connection object to an asyncio event loop. If none is" \
+        " specified, the default event loop (as returned from asyncio.get_event_loop()" \
+        " is used."
+        _loop_attach(self, loop, self.dispatch)
+    #end attach_asyncio
+
 #end Connection
 
 class Server :
@@ -2138,6 +2308,16 @@ class Server :
 
     # TODO: allocate/free slot (static methods)
     # TODO: get/set/data
+
+    def attach_asyncio(self, loop = None) :
+        "attaches this Server object to an asyncio event loop. If none is" \
+        " specified, the default event loop (as returned from asyncio.get_event_loop()" \
+        " is used.\n" \
+        "\n" \
+        "Note that you still need to attach a new_connection callback. This can call" \
+        " Connection.attach_asyncio() to handle events for the connection as well."
+        _loop_attach(self, loop, None)
+    #end attach_asyncio
 
 #end Server
 

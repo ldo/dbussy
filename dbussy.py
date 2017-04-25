@@ -1358,7 +1358,7 @@ class Connection :
             raise TypeError("message must be a Message")
         #end if
         pending_call = ct.c_void_p()
-        if not dbus.dbus_connection_send_with_reply(self._dbobj, message._dbobj, ct.byref(pending_call), timeout) :
+        if not dbus.dbus_connection_send_with_reply(self._dbobj, message._dbobj, ct.byref(pending_call), round(timeout * 1000)) :
             raise DBusFailure("dbus_connection_send_with_reply failed")
         #end if
         if pending_call.value != None :
@@ -1375,7 +1375,7 @@ class Connection :
             raise TypeError("message must be a Message")
         #end if
         error, my_error = _get_error(error)
-        reply = dbus.dbus_connection_send_with_reply_and_block(self._dbobj, message._dbobj, timeout, error._dbobj)
+        reply = dbus.dbus_connection_send_with_reply_and_block(self._dbobj, message._dbobj, round(timeout * 1000), error._dbobj)
         my_error.raise_if_set()
         if reply != None :
             result = Message(reply)
@@ -1392,12 +1392,12 @@ class Connection :
 
     def read_write_dispatch(self, timeout) :
         return \
-            dbus.dbus_connection_read_write_dispatch(self._dbobj, timeout) != 0
+            dbus.dbus_connection_read_write_dispatch(self._dbobj, round(timeout * 1000)) != 0
     #end read_write_dispatch
 
     def read_write(self, timeout) :
         return \
-            dbus.dbus_connection_read_write(self._dbobj, timeout) != 0
+            dbus.dbus_connection_read_write(self._dbobj, round(timeout * 1000)) != 0
     #end read_write
 
     def borrow_message(self) :

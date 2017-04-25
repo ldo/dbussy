@@ -2148,7 +2148,7 @@ class Message :
 
     @classmethod
     def new_error(celf, name, message) :
-        result = dbus.dbus_message_new_error(name.encode(), message.encode())
+        result = dbus.dbus_message_new_error(name.encode(), (lambda : None, lambda : message.encode())[message != None]())
         if result == None :
             raise DBusFailure("dbus_message_new_error failed")
         #end if

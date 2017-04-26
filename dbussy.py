@@ -1125,9 +1125,6 @@ class Timeout :
 
 #end Timeout
 
-_global_user_data = WeakValueDictionary()
-  # for mapping user_data pointers back to Python objects
-
 class ObjectPathVTable :
     "wrapper around an ObjectPathVTable struct. You can instantiate directly, or call" \
     " the init method. An additional feature beyond the underlying libdbus capabilities" \
@@ -1174,8 +1171,9 @@ class ObjectPathVTable :
 
     def set_unregister(self, unregister) :
 
-        def wrap_unregister(c_conn, user_data) :
-            unregister(Connection(dbus.dbus_connection_ref(c_conn)), _global_user_data.get(user_data))
+        def wrap_unregister(c_conn, c_user_data) :
+            conn = Connection(dbus.dbus_connection_ref(c_conn))
+            unregister(conn, conn._user_data.get(c_user_data))
         #end wrap_unregister
 
     #begin set_unregister
@@ -1194,7 +1192,7 @@ class ObjectPathVTable :
         def wrap_message(c_conn, c_message, c_user_data) :
             conn = Connection(dbus.dbus_connection_ref(c_conn))
             msg = Message(dbus.dbus_message_ref(c_message))
-            user_data = _global_user_data.get(c_user_data)
+            user_data = conn._user_data.get(c_user_data)
             result = message(conn, msg, user_data)
             if isinstance(result, types.CoroutineType) :
                 assert self.loop != None, "no event loop to attach coroutine to"
@@ -1399,6 +1397,7 @@ class Connection :
         "_dbobj",
         "_filters",
         "loop",
+        "_user_data",
         # need to keep references to ctypes-wrapped functions
         # so they don't disappear prematurely:
         "_object_paths",
@@ -1425,6 +1424,7 @@ class Connection :
         if self == None :
             self = super().__new__(celf)
             self._dbobj = _dbobj
+            self._user_data = {}
             self._filters = {}
             self.loop = None
             self._object_paths = {}
@@ -1898,7 +1898,7 @@ class Connection :
         error, my_error = _get_error(error)
         if user_data != None :
             c_user_data = id(user_data)
-            _global_user_data[c_user_data] = user_data
+            self._user_data[c_user_data] = user_data
         else :
             c_user_data = None
         #end if
@@ -1914,7 +1914,7 @@ class Connection :
         error, my_error = _get_error(error)
         if user_data != None :
             c_user_data = id(user_data)
-            _global_user_data[c_user_data] = user_data
+            self._user_data[c_user_data] = user_data
         else :
             c_user_data = None
         #end if
@@ -1929,6 +1929,16 @@ class Connection :
         if not dbus.dbus_connection_unregister_object_path(self._dbobj, path.encode()) :
             raise DBusFailure("dbus_connection_unregister_object_path failed")
         #end if
+        user_data = self._object_paths[path]["user_data"]
+        c_user_data = id(user_data)
+        nr_remaining_refs = sum(int(self._object_paths[p]["user_data"] == user_data) for p in self._object_paths if p != path)
+        if nr_remaining_refs == 0 :
+            try :
+                del self._user_data[c_user_data]
+            except KeyError :
+                pass
+            #end try
+        #end if
         del self._object_paths[path]
     #end unregister_object_path
 
@@ -1938,7 +1948,7 @@ class Connection :
             raise DBusFailure("dbus_connection_get_object_path_data failed")
         #end if
         return \
-            _global_user_data.get(c_data_p.value)
+            self._user_data.get(c_data_p.value)
     #end get_object_path_data
 
     def list_registered(self, parent_path) :

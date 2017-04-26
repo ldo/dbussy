@@ -2851,6 +2851,13 @@ class Message :
                     subiter = appenditer.open_container(elttype, None)
                     append_sub(elt, sigiter.recurse(), subiter)
                     subiter.close()
+                elif elttype == DBUS.TYPE_VARIANT :
+                    if not isinstance(elt, (list, tuple)) or len(elt) != 2 :
+                        raise TypeError("sequence of 2 elements expected for variant")
+                    #end if
+                    subiter = appenditer.open_container(elttype, elt[0])
+                    append_sub([elt[1]], SignatureIter.init(elt[0]), subiter)
+                    subiter.close()
                 else :
                     raise RuntimeError("unrecognized type %s" % bytes((elttype,)))
                 #end if

@@ -2831,6 +2831,7 @@ class Message :
                             value = elt[key]
                             subsubiter = subiter.open_container(DBUS.TYPE_DICT_ENTRY, None)
                             subsubsig = subsig.recurse()
+                            assert subsubsig.current_type in DBUS.basic_to_ctypes, "dict key type must be basic type"
                             append_sub([key, value], subsubsig, subsubiter)
                             subsubiter.close()
                         #end for

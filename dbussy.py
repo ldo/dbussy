@@ -1244,6 +1244,14 @@ def _get_error(error) :
         error, my_error
 #end _get_error
 
+def _get_timeout(timeout) :
+    if not isinstance(timeout, int) or timeout not in (DBUS.TIMEOUT_INFINITE, DBUS.TIMEOUT_USE_DEFAULT) :
+        timeout = round(timeout * 1000)
+    #end if
+    return \
+        timeout
+#end _get_timeout
+
 def _loop_attach(self, loop, dispatch) :
 
     if loop == None :
@@ -1534,7 +1542,7 @@ class Connection :
             raise TypeError("message must be a Message")
         #end if
         pending_call = ct.c_void_p()
-        if not dbus.dbus_connection_send_with_reply(self._dbobj, message._dbobj, ct.byref(pending_call), round(timeout * 1000)) :
+        if not dbus.dbus_connection_send_with_reply(self._dbobj, message._dbobj, ct.byref(pending_call), _get_timeout(timeout)) :
             raise DBusFailure("dbus_connection_send_with_reply failed")
         #end if
         if pending_call.value != None :
@@ -1551,7 +1559,7 @@ class Connection :
             raise TypeError("message must be a Message")
         #end if
         error, my_error = _get_error(error)
-        reply = dbus.dbus_connection_send_with_reply_and_block(self._dbobj, message._dbobj, round(timeout * 1000), error._dbobj)
+        reply = dbus.dbus_connection_send_with_reply_and_block(self._dbobj, message._dbobj, _get_timeout(timeout), error._dbobj)
         my_error.raise_if_set()
         if reply != None :
             result = Message(reply)
@@ -1567,7 +1575,7 @@ class Connection :
             raise TypeError("message must be a Message")
         #end if
         pending_call = ct.c_void_p()
-        if not dbus.dbus_connection_send_with_reply(self._dbobj, message._dbobj, ct.byref(pending_call), round(timeout * 1000)) :
+        if not dbus.dbus_connection_send_with_reply(self._dbobj, message._dbobj, ct.byref(pending_call), _get_timeout(timeout)) :
             raise DBusFailure("dbus_connection_send_with_reply failed")
         #end if
         if pending_call.value != None :
@@ -1596,12 +1604,12 @@ class Connection :
 
     def read_write_dispatch(self, timeout) :
         return \
-            dbus.dbus_connection_read_write_dispatch(self._dbobj, round(timeout * 1000)) != 0
+            dbus.dbus_connection_read_write_dispatch(self._dbobj, _get_timeout(timeout)) != 0
     #end read_write_dispatch
 
     def read_write(self, timeout) :
         return \
-            dbus.dbus_connection_read_write(self._dbobj, round(timeout * 1000)) != 0
+            dbus.dbus_connection_read_write(self._dbobj, _get_timeout(timeout)) != 0
     #end read_write
 
     def borrow_message(self) :

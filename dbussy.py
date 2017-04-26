@@ -11,6 +11,7 @@ asyncio module.
 #-
 
 import array
+import types
 import ctypes as ct
 from weakref import \
     ref as weak_ref, \
@@ -1130,27 +1131,25 @@ _global_user_data = WeakValueDictionary()
 class ObjectPathVTable :
     "wrapper around an ObjectPathVTable struct. You can instantiate directly, or call" \
     " the init method. An additional feature beyond the underlying libdbus capabilities" \
-    " is the option to specify an asyncio event loop and message_task function (which" \
-    " must have been defined with “async def”). If the message handler returns" \
-    " DBUS.HANDLER_RESULT_HANDLED, then an asyncio task is created to run the message_task;" \
+    " is the option to specify an asyncio event loop. If the message handler returns" \
+    " a coroutine, then an asyncio task is created to run it, and a result of" \
+    " DBUS.HANDLER_RESULT_HANDLED is returned on behalf of the message handler;" \
     " that way, the message function can do the minimum beyond some initial filtering of" \
-    " the message, leaving the time-consuming part of the work to the message_task."
+    " the message, leaving the time-consuming part of the work to the coroutine."
 
     __slots__ = \
       (
         "_dbobj",
         "loop",
-        "message_task",
         # need to keep references to ctypes-wrapped functions
         # so they don't disappear prematurely:
         "_wrap_unregister_func",
         "_wrap_message_func",
       ) # to forestall typos
 
-    def __init__(self, *, loop = None, unregister = None, message = None, message_task = None) :
+    def __init__(self, *, loop = None, unregister = None, message = None) :
         self._dbobj = DBUS.ObjectPathVTable()
         self.loop = loop
-        self.message_task = message_task
         self._wrap_unregister_func = None
         self._wrap_message_func = None
         if unregister != None :
@@ -1159,13 +1158,10 @@ class ObjectPathVTable :
         if message != None :
             self.set_message(message)
         #end if
-        if message_task != None :
-            self.set_message_task(message_task)
-        #end if
     #end __init__
 
     @classmethod
-    def init(celf, *, loop = None, unregister = None, message = None, message_task = None) :
+    def init(celf, *, loop = None, unregister = None, message = None) :
         "for consistency with other classes that don’t want caller to instantiate directly."
         return \
             celf \
@@ -1173,7 +1169,6 @@ class ObjectPathVTable :
                 loop = loop,
                 unregister = unregister,
                 message = message,
-                message_task = message_task,
               )
     #end init
 
@@ -1201,8 +1196,10 @@ class ObjectPathVTable :
             msg = Message(dbus.dbus_message_ref(c_message))
             user_data = _global_user_data.get(c_user_data)
             result = message(conn, msg, user_data)
-            if result == DBUS.HANDLER_RESULT_HANDLED and self.loop != None and self.message_task != None :
-                self.loop.create_task(self.message_task(conn, msg, user_data))
+            if isinstance(result, types.CoroutineType) :
+                assert self.loop != None, "no event loop to attach coroutine to"
+                self.loop.create_task(result)
+                result = DBUS.HANDLER_RESULT_HANDLED
             #end if
             return \
                 result
@@ -1218,11 +1215,6 @@ class ObjectPathVTable :
         return \
             self
     #end set_message
-
-    def set_message_task(self, message_task) :
-        assert message_task == None or self.loop != None, "message task requires event loop"
-        self.message_task = message_task
-    #end set_message_task
 
 #end ObjectPathVTable
 

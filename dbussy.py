@@ -1894,7 +1894,7 @@ class Connection :
         if not isinstance(vtable, ObjectPathVTable) :
             raise TypeError("vtable must be an ObjectPathVTable")
         #end if
-        self._object_paths[path] = vtable # ensure it doesn’t disappear prematurely
+        self._object_paths[path] = {"vtable" : vtable, "user_data" : user_data} # ensure it doesn’t disappear prematurely
         error, my_error = _get_error(error)
         if user_data != None :
             c_user_data = id(user_data)
@@ -1910,7 +1910,7 @@ class Connection :
         if not isinstance(vtable, ObjectPathVTable) :
             raise TypeError("vtable must be an ObjectPathVTable")
         #end if
-        self._object_paths[path] = vtable # ensure it doesn’t disappear prematurely
+        self._object_paths[path] = {"vtable" : vtable, "user_data" : user_data} # ensure it doesn’t disappear prematurely
         error, my_error = _get_error(error)
         if user_data != None :
             c_user_data = id(user_data)
@@ -1938,7 +1938,7 @@ class Connection :
             raise DBusFailure("dbus_connection_get_object_path_data failed")
         #end if
         return \
-            c_data_p.value
+            _global_user_data.get(c_data_p.value)
     #end get_object_path_data
 
     def list_registered(self, parent_path) :

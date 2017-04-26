@@ -3636,6 +3636,24 @@ def validate_utf8(alleged_utf8, error = None) :
 #end validate_utf8
 
 #+
+# Miscellaneous
+#-
+
+def make_weak_refable(cls) :
+    "returns a subclass of cls that allows for weak refs."
+
+    class WeakRef(cls) :
+        slots = ("__weakref__",)
+    #end WeakRef
+
+#begin make_weak_refable
+    WeakRef.__name__ = "WeakRef_%s" % cls.__name__
+    WeakRef.__doc__ = "weak-refable version of %s" % cls.__name__
+    return \
+        WeakRef
+#end make_weak_refable
+
+#+
 # Cleanup
 #-
 

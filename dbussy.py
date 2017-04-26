@@ -1374,7 +1374,7 @@ class Connection :
         "__weakref__",
         "_dbobj",
         "_filters",
-        "_loop",
+        "loop",
         # need to keep references to ctypes-wrapped functions
         # so they don't disappear prematurely:
         "_object_paths",
@@ -1402,7 +1402,7 @@ class Connection :
             self = super().__new__(celf)
             self._dbobj = _dbobj
             self._filters = {}
-            self._loop = None
+            self.loop = None
             self._object_paths = {}
             celf._instances[_dbobj] = self
         else :
@@ -1553,7 +1553,7 @@ class Connection :
         #end if
         reply = None # to begin with
         if pending != None :
-            done = self._loop.create_future()
+            done = self.loop.create_future()
 
             def pending_done(pending, _) :
                 done.set_result(pending.steal_reply())
@@ -2110,8 +2110,8 @@ class Connection :
         "attaches this Connection object to an asyncio event loop. If none is" \
         " specified, the default event loop (as returned from asyncio.get_event_loop()" \
         " is used."
-        assert self._loop == None, "already attached to an event loop"
-        self._loop = loop
+        assert self.loop == None, "already attached to an event loop"
+        self.loop = loop
         _loop_attach(self, loop, self.dispatch)
     #end attach_asyncio
 
@@ -2126,7 +2126,7 @@ class Server :
       (
         "__weakref__",
         "_dbobj",
-        "_loop",
+        "loop",
         # need to keep references to ctypes-wrapped functions
         # so they don't disappear prematurely:
         "_new_connection_function",
@@ -2148,7 +2148,7 @@ class Server :
         if self == None :
             self = super().__new__(celf)
             self._dbobj = _dbobj
-            self._loop = None
+            self.loop = None
             self._new_connection_function = None
             self._free_new_connection_data = None
             self._add_watch_function = None
@@ -2342,8 +2342,8 @@ class Server :
         "\n" \
         "Note that you still need to attach a new_connection callback. This can call" \
         " Connection.attach_asyncio() to handle events for the connection as well."
-        assert self._loop == None, "already attached to an event loop"
-        self._loop = loop
+        assert self.loop == None, "already attached to an event loop"
+        self.loop = loop
         _loop_attach(self, loop, None)
     #end attach_asyncio
 

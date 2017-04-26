@@ -2676,6 +2676,9 @@ class Message :
                 #end if
             elif argtype == DBUS.TYPE_STRUCT :
                 result = list(x.object for x in self.recurse())
+            elif argtype == DBUS.TYPE_VARIANT :
+                subiter = self.recurse()
+                result = next(subiter, None).object
             else :
                 raise RuntimeError("unrecognized argtype %d" % argtype)
             #end if

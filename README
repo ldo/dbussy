@@ -1,0 +1,75 @@
+DBussy is yet another Python binding for accessing D-Bus
+<https://www.freedesktop.org/wiki/Software/dbus/>. I know there is
+already dbus-python <http://dbus.freedesktop.org/doc/dbus-python/>,
+among others
+<https://www.freedesktop.org/wiki/Software/DBusBindings/>. So why do
+we need another one?
+
+The main issue is one of event loops. Most of the existing bindings
+seem to be based around GLib. However, Python now has its own
+“asyncio” event-loop architecture
+<https://docs.python.org/3/library/asyncio.html>. This goes back to
+Python 3.4, but as of 3.5, you now have full-fledged coroutines
+(“async def” and “await”) as a language feature.
+
+As I understand it, asyncio is not meant to *replace* event loops
+provided by other toolkits; while it includes its own default loop as
+standard, I believe it is also possible to hook the whole asyncio
+mechanism into other event loops. Thus, code written to work with
+asyncio becomes event-loop-agnostic.
+
+DBussy allows you to take advantage of asyncio, but it doesn’t force
+you to use it. DBussy is meant to give you access to (nearly) all the
+functionality of the underlying libdbus library
+<https://dbus.freedesktop.org/doc/api/html/index.html>. libdbus is a
+very low-level, very general library, designed to be called from C
+code, that makes no assumptions about event loops at all. Consider the
+basic task in a client program of sending a D-Bus request message and
+waiting for a reply; or consider a server waiting for a message to
+come in. libdbus offers 3 different ways to handle this:
+
+  * poll repeatedly until the message appears
+  * block the thread until the message comes in
+  * specify a callback to be notified when the message is available
+
+DBussy offers access to all these ways. But it also gives you the
+option of engaging the asyncio event loop. This means you can be doing
+other things in the loop, and when a message comes in, it can be
+passed automatically to a callback that you previously specified.
+
+It also gives clients another way of sending a message and waiting for
+the reply: using a coroutine. For example
+
+    async def request_reply(connection) :
+        message = dbussy.Message.new_method_call(...)
+        ... other setup of message args etc ...
+        reply = await connection.send_await_reply(message, timeout)
+        ... process reply ...
+    #end request_reply
+
+    loop = asyncio.get_event_loop()
+    dbus_task = loop.create_task(request_reply(connection))
+    ... maybe create other tasks to run while awaiting reply ...
+    loop.run_until_complete(dbus_task)
+
+On the server side, you can correspondingly use coroutines to handle
+time-consuming requests without blocking the main loop. A message
+filter or object-path message callback can return, instead of
+DBUS.HANDLER_RESULT_HANDLED, a coroutine. The wrapper code will give
+libdbus a result of DBUS.HANDLER_RESULT_HANDLED on your behalf, after
+creating a task to execute the coroutine on the event loop. The
+coroutine can then go on to handle the actual processing of the
+request, and return the reply at some later stage.
+
+
+How Do You Pronounce “DBussy”?
+==============================
+
+The name is a pun on “dbus” and the name of French Impressionist
+composer Claude Debussy. The most natural way to pronounce it would be
+the same as his name. At least, that’s my story, and I’m sticking to
+it.
+
+
+Lawrence D'Oliveiro <ldo@geek-central.gen.nz>
+2017 April 27

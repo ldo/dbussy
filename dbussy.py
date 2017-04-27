@@ -2485,14 +2485,13 @@ class Message :
             celf(result)
     #end new
 
-    @classmethod
-    def new_error(celf, name, message) :
-        result = dbus.dbus_message_new_error(name.encode(), (lambda : None, lambda : message.encode())[message != None]())
+    def new_error(self, name, message) :
+        result = dbus.dbus_message_new_error(self._dbobj, name.encode(), (lambda : None, lambda : message.encode())[message != None]())
         if result == None :
             raise DBusFailure("dbus_message_new_error failed")
         #end if
         return \
-            celf(result)
+            type(self)(result)
     #end new_error
 
     # probably not much point trying to use new_error_printf

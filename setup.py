@@ -18,5 +18,5 @@ distutils.core.setup \
     author = "Lawrence D'Oliveiro",
     author_email = "ldo@geek-central.gen.nz",
     url = "http://github.com/ldo/dbussy",
-    py_modules = ["dbussy"],
+    py_modules = ["dbussy", "ravel"],
   )

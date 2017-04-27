@@ -147,8 +147,9 @@ class Bus :
             self
     #end __new__
 
-    def attach_asyncio(loop = None) :
+    def attach_asyncio(self, loop = None) :
         self.connection.attach_asyncio(loop)
+        self.loop = self.connection.loop
         return \
             self
     #end attach_asyncio

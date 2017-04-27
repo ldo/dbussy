@@ -1329,7 +1329,7 @@ def _loop_attach(self, loop, dispatch) :
     #end handle_timeout
 
     def handle_add_timeout(timeout, data) :
-        if timeout not in timeouts :
+        if not any(timeout == t["timeout"] for t in timeouts) :
             entry = \
                 {
                     "timeout" : timeout,
@@ -1357,7 +1357,7 @@ def _loop_attach(self, loop, dispatch) :
             if entry["timeout"] == timeout :
                 if timeout.enabled :
                     entry["due"] = loop.time() + timeout.enterval
-                    loop.call_later(timeout.interval, handle_timeout, (entry,))
+                    loop.call_later(timeout.interval, handle_timeout, entry)
                 else :
                     entry["due"] = None
                 #end if
@@ -1367,9 +1367,11 @@ def _loop_attach(self, loop, dispatch) :
     #end handle_timeout_toggled
 
     def handle_remove_timeout(timeout, data) :
-        new_timeouts = timeouts
+        new_timeouts = []
         for entry in timeouts :
-            if entry["timeout"] != timeout :
+            if entry["timeout"] == timeout :
+                entry["due"] = None # in case already queued, avoid segfault in handle_timeout
+            else :
                 new_timeouts.append(entry)
             #end if
         #end for

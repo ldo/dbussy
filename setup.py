@@ -13,7 +13,7 @@ import distutils.core
 distutils.core.setup \
   (
     name = "DBussy",
-    version = "0.5",
+    version = "0.6",
     description = "language bindings for libdbus, for Python 3.5 or later",
     author = "Lawrence D'Oliveiro",
     author_email = "ldo@geek-central.gen.nz",

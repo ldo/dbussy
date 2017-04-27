@@ -243,11 +243,23 @@ class Method :
             message
     #end _construct_message
 
+    def _process_reply(self, reply) :
+        if reply.type == DBUS.MESSAGE_TYPE_METHOD_RETURN :
+            result = list(reply.objects)
+        elif reply.type == DBUS.MESSAGE_TYPE_ERROR :
+            raise dbus.DBusError(reply.member, list(reply.objects)[0])
+        else :
+            raise ValueError("unexpected reply type %d" % reply.type)
+        #end if
+        return \
+            result
+    #end _process_reply
+
     def __call__(self, *args) :
         message = self._construct_message(args)
         reply = self.interface.object.bus.connection.send_with_reply_and_block(message, timeout = self.interface.timeout)
         return \
-            list(reply.objects)
+            self._process_reply(reply)
     #end __call__
 
 #end Method
@@ -258,7 +270,7 @@ class AsyncMethod(Method) :
         message = self._construct_message(args)
         reply = await self.interface.object.bus.connection.send_await_reply(message, timeout = self.interface.timeout)
         return \
-            list(reply.objects)
+            self._process_reply(reply)
     #end _call__
 
 #end AsyncMethod

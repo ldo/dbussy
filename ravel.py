@@ -190,12 +190,12 @@ class Interface :
 
     __slots__ = ("object", "name", "timeout")
 
-    def __init__(self, object, interface, timeout = DBUS.TIMEOUT_USE_DEFAULT) :
+    def __init__(self, object, name, timeout = DBUS.TIMEOUT_USE_DEFAULT) :
         if not isinstance(object, Object) :
             raise TypeError("object must be an Object")
         #end if
         self.object = object
-        self.name = interface
+        self.name = name
         self.timeout = timeout
     #end __init__
 

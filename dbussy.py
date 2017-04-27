@@ -1864,8 +1864,14 @@ class Connection :
     def add_filter(self, function, user_data, free_data = None) :
 
         def wrap_function(c_conn, message, _data) :
+            result = function(self, Message(dbus.dbus_message_ref(message)), user_data)
+            if isinstance(result, types.CoroutineType) :
+                assert self.loop != None, "no event loop to attach coroutine to"
+                self.loop.create_task(result)
+                result = DBUS.HANDLER_RESULT_HANDLED
+            #end if
             return \
-                function(self, Message(dbus.dbus_message_ref(message)), user_data)
+                result
         #end wrap_function
 
         def wrap_free_data(_data) :

@@ -962,6 +962,7 @@ dbus.dbus_server_set_data.argtypes = (ct.c_void_p, ct.c_int)
 #-
 
 class DBusError(Exception) :
+    "for raising an exception that reports a D-Bus error name and accompanying message."
 
     def __init__(self, name, message) :
         self.args = ("%s -- %s" % (name, message),)
@@ -970,6 +971,7 @@ class DBusError(Exception) :
 #end DBusError
 
 class DBusFailure(DBusError) :
+    "used internally for reporting general libdbus call failures."
 
     def __init__(self, message) :
         super().__init__(DBUS.ERROR_FAILED, message)
@@ -980,6 +982,9 @@ class DBusFailure(DBusError) :
 # Misc: <https://dbus.freedesktop.org/doc/api/html/group__DBusMisc.html>
 
 def get_local_machine_id() :
+    "Returns a systemwide unique ID that is supposed to remain constant at least" \
+    " until the next reboot. Two processes seeing the same value for this can assume" \
+    " they are on the same machine."
     c_result = dbus.dbus_get_local_machine_id()
     if c_result == None :
         raise DBusFailure("dbus_get_local_machine_id failed")
@@ -991,7 +996,7 @@ def get_local_machine_id() :
 #end get_local_machine_id
 
 def get_version() :
-    "returns a tuple of integers (major, minor, micro)."
+    "returns the libdbus library version as a tuple of integers (major, minor, micro)."
     major = ct.c_int()
     minor = ct.c_int()
     micro = ct.c_int()
@@ -1075,13 +1080,15 @@ class Watch :
     # TODO: get/set data
 
     def handle(self, flags) :
-        "flags are a combination of WATCH_xxx values."
+        "tells libdbus that there is something to be read or written." \
+        " flags are a combination of WATCH_xxx values."
         return \
             dbus.dbus_watch_handle(self._dbobj, flags) != 0
     #end handle
 
     @property
     def enabled(self) :
+        "does libdbus want you to actually watch this Watch."
         return \
             dbus.dbus_watch_get_enabled(self._dbobj) != 0
     #end enabled
@@ -1090,7 +1097,18 @@ class Watch :
 
 class Timeout :
     "wrapper around a DBusTimeout object. Do not instantiate directly; they" \
-    " are created and destroyed by libdbus."
+    " are created and destroyed by libdbus.\n" \
+    "\n" \
+    " A Timeout is the basic mechanism for plugging libdbus-created timeouts" \
+    " into your event loop. When created, they are passed to your add-timeout" \
+    " callback to manage; and conversely, when deleted, your remove-timeout" \
+    " callback is notified. (These callbacks are ones you attach to Server and" \
+    " Connection objects.)\n" \
+    "\n" \
+    "Check the enabled property to decide if you need to pay attention to this" \
+    " Timeout. Call the handle() method when the timeout becomes due, as measured" \
+    " from when it was initially created or most recently enabled, whichever" \
+    " happened last."
     # <https://dbus.freedesktop.org/doc/api/html/group__DBusTimeout.html>
 
     __slots__ = ("__weakref__", "_dbobj",) # to forestall typos
@@ -1112,6 +1130,7 @@ class Timeout :
 
     @property
     def interval(self) :
+        "how long in float seconds until the timeout should fire."
         return \
             dbus.dbus_timeout_get_interval(self._dbobj) / 1000
     #end interval
@@ -1119,12 +1138,14 @@ class Timeout :
     # TODO: get/set data
 
     def handle(self) :
+        "tells libdbus the timeout has fired."
         return \
             dbus.dbus_timeout_handle(self._dbobj)
     #end handle
 
     @property
     def enabled(self) :
+        "does libdbus want you to actually schedule this Timeout."
         return \
             dbus.dbus_timeout_get_enabled(self._dbobj) != 0
     #end enabled
@@ -1223,6 +1244,7 @@ class ObjectPathVTable :
 #end ObjectPathVTable
 
 class _DummyError :
+    # like an Error, but is never set and so will never raise.
 
     @property
     def is_set(self) :
@@ -1237,6 +1259,26 @@ class _DummyError :
 #end _DummyError
 
 def _get_error(error) :
+    # Common routine which processes an optional user-supplied Error
+    # argument, and returns 2 Error-like objects: the first a real
+    # Error object to be passed to the libdbus call, the second is
+    # either the same Error object or a separate _DummyError object
+    # on which to call raise_if_set() afterwards. The procedure for
+    # using this is
+    #
+    #     error, my_error = _get_error(error)
+    #     ... call libdbus routine, passing error._dbobj ...
+    #     my_error.raise_if_set()
+    #
+    # If the user passes None for error, then an internal Error object
+    # is created, and returned as both results. That way, if it is
+    # filled in by the libdbus call, calling raise_if_set() will
+    # automatically raise the exception.
+    # But if the user passed their own Error object, then it is
+    # returned as the first result, and a _DummyError as the second
+    # result. This means the raise_if_set() call becomes a noop, and
+    # it is up to the caller to check if their Error object was filled
+    # in or not.
     if error != None and not isinstance(error, Error) :
         raise TypeError("error must be an Error")
     #end if
@@ -1259,6 +1301,9 @@ def _get_timeout(timeout) :
 #end _get_timeout
 
 def _loop_attach(self, loop, dispatch) :
+    # attaches a Server or Connection object to a given asyncio event loop.
+    # If loop is None, then the default asyncio loop is used. The actual loop
+    # value is returned as the function result for saving as an object attribute.
 
     if loop == None :
         loop = asyncio.get_event_loop()

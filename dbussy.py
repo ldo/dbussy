@@ -3532,13 +3532,13 @@ class Error :
     @property
     def name(self) :
         return \
-            self._dbobj.name.decode()
+            (lambda : None, lambda : self._dbobj.name.decode())[self._dbobj.name != None]()
     #end name
 
     @property
     def message(self) :
         return \
-            self._dbobj.message.decode()
+            (lambda : None, lambda : self._dbobj.message.decode())[self._dbobj.message != None]()
     #end message
 
     def raise_if_set(self) :

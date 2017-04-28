@@ -101,7 +101,7 @@ def guess_signature(obj) :
         #end if
         signature = "%c{%s%s}" % (DBUS.TYPE_ARRAY, common_key_type, common_value_type)
     elif isinstance(obj, str) :
-        try_types = tuple(DBUS.basic_subclasses.keys())
+        try_types = (DBUS.TYPE_SIGNATURE, DBUS.TYPE_OBJECT_PATH)
         i = 0
         while True :
             if isinstance(obj, DBUS.basic_subclasses[try_types[i]]) :

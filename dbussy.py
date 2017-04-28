@@ -77,6 +77,7 @@ class DBUS :
         }
 
     def int_subtype(i, bits, signed) :
+        "returns integer i after checking that it fits in the given number of bits."
         if signed :
             lo = - 1 << bits - 1
             hi = (1 << bits - 1) - 1
@@ -103,7 +104,7 @@ class DBUS :
     subtype_uint64 = lambda i : DBUS.int_subtype(i, 64, False)
 
     int_convert = \
-        {
+        { # range checks for the various D-Bus integer types
             TYPE_BYTE : subtype_byte,
             TYPE_INT16 : subtype_int16,
             TYPE_UINT16 : subtype_uint16,
@@ -113,7 +114,10 @@ class DBUS :
             TYPE_UINT64 : subtype_uint64,
         }
 
+    # subclasses for distinguishing various special kinds of D-Bus values:
+
     class ObjectPath(str) :
+        "an object path string."
 
         def __repr__(self) :
             return \
@@ -123,6 +127,7 @@ class DBUS :
     #end ObjectPath
 
     class Signature(str) :
+        "a type-signature string."
 
         def __repr__(self) :
             return \
@@ -132,6 +137,7 @@ class DBUS :
     #end Signature
 
     class UnixFD(int) :
+        "a file-descriptor integer."
 
         def __repr__(self) :
             return \

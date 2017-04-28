@@ -1303,7 +1303,7 @@ def _get_timeout(timeout) :
 def _loop_attach(self, loop, dispatch) :
     # attaches a Server or Connection object to a given asyncio event loop.
     # If loop is None, then the default asyncio loop is used. The actual loop
-    # value is returned as the function result for saving as an object attribute.
+    # value is also stored as the loop attribute of the object.
 
     if loop == None :
         loop = asyncio.get_event_loop()
@@ -1444,9 +1444,8 @@ def _loop_attach(self, loop, dispatch) :
         toggled_function = handle_timeout_toggled,
         data = None
       )
+    self.loop = loop
     self = None # avoid circularity
-    return \
-        loop
 #end _loop_attach
 
 class Connection :
@@ -2214,7 +2213,7 @@ class Connection :
         " specified, the default event loop (as returned from asyncio.get_event_loop()" \
         " is used."
         assert self.loop == None, "already attached to an event loop"
-        self.loop = _loop_attach(self, loop, self.dispatch)
+        _loop_attach(self, loop, self.dispatch)
     #end attach_asyncio
 
 #end Connection
@@ -2445,7 +2444,7 @@ class Server :
         "Note that you still need to attach a new_connection callback. This can call" \
         " Connection.attach_asyncio() to handle events for the connection as well."
         assert self.loop == None, "already attached to an event loop"
-        self.loop = _loop_attach(self, loop, None)
+        _loop_attach(self, loop, None)
     #end attach_asyncio
 
 #end Server

@@ -1592,7 +1592,7 @@ class Connection :
             serial.value
     #end send
 
-    def send_with_reply(self, message, timeout) :
+    def send_with_reply(self, message, timeout = DBUS.TIMEOUT_USE_DEFAULT) :
         if not isinstance(message, Message) :
             raise TypeError("message must be a Message")
         #end if
@@ -1609,7 +1609,7 @@ class Connection :
             result
     #end send_with_reply
 
-    def send_with_reply_and_block(self, message, timeout, error = None) :
+    def send_with_reply_and_block(self, message, timeout = DBUS.TIMEOUT_USE_DEFAULT, error = None) :
         if not isinstance(message, Message) :
             raise TypeError("message must be a Message")
         #end if
@@ -1625,7 +1625,7 @@ class Connection :
             result
     #end send_with_reply_and_block
 
-    async def send_await_reply(self, message, timeout) :
+    async def send_await_reply(self, message, timeout = DBUS.TIMEOUT_USE_DEFAULT) :
         if not isinstance(message, Message) :
             raise TypeError("message must be a Message")
         #end if
@@ -1657,12 +1657,12 @@ class Connection :
         dbus.dbus_connection_flush(self._dbobj)
     #end flush
 
-    def read_write_dispatch(self, timeout) :
+    def read_write_dispatch(self, timeout = DBUS.TIMEOUT_USE_DEFAULT) :
         return \
             dbus.dbus_connection_read_write_dispatch(self._dbobj, _get_timeout(timeout)) != 0
     #end read_write_dispatch
 
-    def read_write(self, timeout) :
+    def read_write(self, timeout = DBUS.TIMEOUT_USE_DEFAULT) :
         return \
             dbus.dbus_connection_read_write(self._dbobj, _get_timeout(timeout)) != 0
     #end read_write

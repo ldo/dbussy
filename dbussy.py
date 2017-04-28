@@ -1293,6 +1293,9 @@ def _get_error(error) :
 #end _get_error
 
 def _get_timeout(timeout) :
+    # accepts a timeout in float seconds and converts it to integer milliseconds
+    # as expected by libdbus. Special-cases DBUS.TIMEOUT_INFINITE and DBUS.TIMEOUT_USE_DEFAULT,
+    # allowing these to be passed through unchanged.
     if not isinstance(timeout, int) or timeout not in (DBUS.TIMEOUT_INFINITE, DBUS.TIMEOUT_USE_DEFAULT) :
         timeout = round(timeout * 1000)
     #end if
@@ -1508,6 +1511,8 @@ class Connection :
 
     @classmethod
     def open(celf, address, private, error = None) :
+        "opens a Connection to a specified address, separate from the" \
+        " system or session buses."
         error, my_error = _get_error(error)
         result = (dbus.dbus_connection_open, dbus.dbus_connection_open_private)[private](address.encode(), error._dbobj)
         my_error.raise_if_set()
@@ -1542,6 +1547,7 @@ class Connection :
 
     @property
     def server_id(self) :
+        "asks the server at the other end for its unique id."
         c_result = dbus.dbus_connection_get_server_id(self._dbobj)
         result = ct.cast(c_result, ct.c_char_p).value.decode()
         dbus.dbus_free(c_result)
@@ -1550,6 +1556,8 @@ class Connection :
     #end server_id
 
     def can_send_type(self, type_code) :
+        "can this Connection send values of the specified TYPE_XXX code." \
+        " Mainly useful for checking if we can send TYPE_UNIX_FD values."
         return \
             dbus.dbus_connection_can_send_type(self._dbobj, type_code) != 0
     #end can_send_type
@@ -1580,6 +1588,7 @@ class Connection :
     #end send_preallocated
 
     def send(self, message) :
+        "puts a message in the outgoing queue."
         if not isinstance(message, Message) :
             raise TypeError("message must be a Message")
         #end if
@@ -1592,6 +1601,8 @@ class Connection :
     #end send
 
     def send_with_reply(self, message, timeout = DBUS.TIMEOUT_USE_DEFAULT) :
+        "puts a message in the outgoing queue and returns a PendingCall" \
+        " that you can use to obtain the reply."
         if not isinstance(message, Message) :
             raise TypeError("message must be a Message")
         #end if
@@ -1609,6 +1620,7 @@ class Connection :
     #end send_with_reply
 
     def send_with_reply_and_block(self, message, timeout = DBUS.TIMEOUT_USE_DEFAULT, error = None) :
+        "sends a message, blocks the thread until the reply is available, and returns it."
         if not isinstance(message, Message) :
             raise TypeError("message must be a Message")
         #end if
@@ -1625,6 +1637,8 @@ class Connection :
     #end send_with_reply_and_block
 
     async def send_await_reply(self, message, timeout = DBUS.TIMEOUT_USE_DEFAULT) :
+        "queues a message, suspends the coroutine (letting the event loop do" \
+        " other things) until the reply is available, and returns it."
         if not isinstance(message, Message) :
             raise TypeError("message must be a Message")
         #end if
@@ -1653,15 +1667,23 @@ class Connection :
     #end send_await_reply
 
     def flush(self) :
+        "makes sure all queued messages have been sent, blocking" \
+        " the thread until this is done."
         dbus.dbus_connection_flush(self._dbobj)
     #end flush
 
     def read_write_dispatch(self, timeout = DBUS.TIMEOUT_USE_DEFAULT) :
+        "dispatches the first available message, if any. Otherwise blocks the" \
+        " thread until it can read or write, and does so before returning. Returns" \
+        " True as long as the Connection remains connected."
         return \
             dbus.dbus_connection_read_write_dispatch(self._dbobj, _get_timeout(timeout)) != 0
     #end read_write_dispatch
 
     def read_write(self, timeout = DBUS.TIMEOUT_USE_DEFAULT) :
+        "blocks the thread until something can be read or written on the Connection," \
+        " and does so, returning True. If the Connection has been disconnected," \
+        " immediately returns False."
         return \
             dbus.dbus_connection_read_write(self._dbobj, _get_timeout(timeout)) != 0
     #end read_write
@@ -1681,6 +1703,8 @@ class Connection :
     # Message.return_borrowed and Message.steal_borrowed
 
     def pop_message(self) :
+        "returns the next available incoming Message, if any, otherwise returns None." \
+        " Note this bypasses all message filtering/dispatching on this Connection."
         message = dbus.dbus_connection_pop_message(self._dbobj)
         if message != None :
             message = Message(message)
@@ -1691,18 +1715,21 @@ class Connection :
 
     @property
     def dispatch_status(self) :
-        "returns a DISPATCH_XXX code."
+        "checks the state of the incoming message queue; returns a DISPATCH_XXX code."
         return \
             dbus.dbus_connection_get_dispatch_status(self._dbobj)
     #end dispatch_status
 
     def dispatch(self) :
-        "returns a DISPATCH_XXX code."
+        "processes any available data, adding messages into the incoming" \
+        " queue as appropriate. returns a DISPATCH_XXX code."
         return \
             dbus.dbus_connection_dispatch(self._dbobj)
     #end dispatch
 
     def set_watch_functions(self, add_function, remove_function, toggled_function, data, free_data = None) :
+        "sets the callbacks for libdbus to use to notify you of Watch objects it wants" \
+        " you to manage."
 
         def wrap_add_function(c_watch, _data) :
             return \
@@ -1742,6 +1769,8 @@ class Connection :
     #end set_watch_functions
 
     def set_timeout_functions(self, add_function, remove_function, toggled_function, data, free_data = None) :
+        "sets the callbacks for libdbus to use to notify you of Timeout objects it wants" \
+        " you to manage."
 
         def wrap_add_function(c_timeout, _data) :
             return \
@@ -1781,6 +1810,8 @@ class Connection :
     #end set_timeout_functions
 
     def set_wakeup_main_function(self, wakeup_main, data, free_data = None) :
+        "sets the callback to use for libdbus to notify you that something has" \
+        " happened requiring processing on the Connection."
 
         def wrap_wakeup_main(_data) :
             wakeup_main(data)
@@ -1805,6 +1836,8 @@ class Connection :
     #end set_wakeup_main_function
 
     def set_dispatch_status_function(self, function, data, free_data = None) :
+        "sets the callback to use for libdbus to notify you of a change in the" \
+        " dispatch status of the Connection."
 
         def wrap_dispatch_status(_conn, status, _data) :
             function(self, status, data)
@@ -1914,6 +1947,9 @@ class Connection :
     #end set_route_peer_messages
 
     def add_filter(self, function, user_data, free_data = None) :
+        "adds a filter callback that gets to look at all incoming messages" \
+        " before they get to the dispatch system. The same function can be added" \
+        " multiple times as long as the user_data is different"
 
         def wrap_function(c_conn, message, _data) :
             result = function(self, Message(dbus.dbus_message_ref(message)), user_data)
@@ -1947,6 +1983,8 @@ class Connection :
     #end add_filter
 
     def remove_filter(self, function, user_data) :
+        "removes a message filter added by add_filter. The filter is identified" \
+        " by both the function object and the user_data that was passed."
         filter_key = (function, id(user_data))
           # use id to allow non-hashable user_data
         if filter_key not in self._filters :
@@ -1959,6 +1997,8 @@ class Connection :
     #end remove_filter
 
     def register_object_path(self, path, vtable, user_data, error = None) :
+        "registers an ObjectPathVTable as a dispatch handler for a specified" \
+        " path within your object hierarchy."
         if not isinstance(vtable, ObjectPathVTable) :
             raise TypeError("vtable must be an ObjectPathVTable")
         #end if
@@ -1975,6 +2015,8 @@ class Connection :
     #end register_object_path
 
     def register_fallback(self, path, vtable, user_data, error = None) :
+        "registers an ObjectPathVTable as a dispatch handler for an entire specified" \
+        " subtree within your object hierarchy."
         if not isinstance(vtable, ObjectPathVTable) :
             raise TypeError("vtable must be an ObjectPathVTable")
         #end if
@@ -1991,6 +2033,8 @@ class Connection :
     #end register_fallback
 
     def unregister_object_path(self, path) :
+        "removes a previously-registered ObjectPathVTable handler at a specified" \
+        " point (single object or entire subtree) within your object hierarchy."
         if path not in self._object_paths :
             raise KeyError("unregistering unregistered path")
         #end if
@@ -2011,6 +2055,9 @@ class Connection :
     #end unregister_object_path
 
     def get_object_path_data(self, path) :
+        "returns the user_data you passed when previously registering an ObjectPathVTable" \
+        " that covers this path in your object hierarchy, or None if no suitable match" \
+        " could be found."
         c_data_p = ct.c_void_p()
         if not dbus.dbus_connection_get_object_path_data(self._dbobj, path.encode(), ct.byref(c_data_p)) :
             raise DBusFailure("dbus_connection_get_object_path_data failed")
@@ -2020,6 +2067,7 @@ class Connection :
     #end get_object_path_data
 
     def list_registered(self, parent_path) :
+        "lists all the object paths for which you have ObjectPathVTable handlers registered."
         child_entries = ct.POINTER(ct.c_char_p)()
         if not dbus.dbus_connection_list_registered(self._dbobj, parent_path.encode(), ct.byref(child_entries)) :
             raise DBusFailure("dbus_connection_list_registered failed")
@@ -2112,7 +2160,7 @@ class Connection :
 
     @classmethod
     def bus_get(celf, type, private, error = None) :
-        "type is a BUS_xxx value."
+        "returns a Connection to one of the predefined D-Bus buses; type is a BUS_xxx value."
         error, my_error = _get_error(error)
         result = (dbus.dbus_bus_get, dbus.dbus_bus_get_private)[private](type, error._dbobj)
         my_error.raise_if_set()
@@ -2162,8 +2210,9 @@ class Connection :
     #end bus_id
 
     def bus_request_name(self, name, flags, error = None) :
-        "flags is a combination of NAME_FLAG_xxx bits. Result will be" \
-        " a REQUEST_NAME_REPLY_xxx value or -1 on error."
+        "asks the D-Bus daemon to register the specified bus name on your behalf," \
+        " blocking the thread until the reply is received. flags is a combination of" \
+        " NAME_FLAG_xxx bits. Result will be a REQUEST_NAME_REPLY_xxx value or -1 on error."
         error, my_error = _get_error(error)
         result = dbus.dbus_bus_request_name(self._dbobj, name.encode(), flags, error._dbobj)
         my_error.raise_if_set()
@@ -2172,6 +2221,8 @@ class Connection :
     #end bus_request_name
 
     def bus_release_name(self, name, error = None) :
+        "asks the D-Bus daemon to release your registration of the specified bus name," \
+        " blocking the thread until the reply is received."
         error, my_error = _get_error(error)
         result = dbus.dbus_bus_release_name(self._dbobj, name.encode(), error._dbobj)
         my_error.raise_if_set()
@@ -2180,6 +2231,8 @@ class Connection :
     #end bus_release_name
 
     def bus_name_has_owner(self, name, error = None) :
+        "asks the D-Bus daemon if anybody has claimed the specified bus name, blocking" \
+        " the thread until the reply is received."
         error, my_error = _get_error(error)
         result = dbus.dbus_bus_name_has_owner(self._dbobj, name.encode(), error._dbobj)
         my_error.raise_if_set()
@@ -2197,12 +2250,17 @@ class Connection :
     #end bus_start_service_by_name
 
     def bus_add_match(self, rule, error = None) :
+        "adds a match rule for messages you want to receive. By default you get all" \
+        " messages addressed to your bus name(s); but you can use this, for example," \
+        " to request notification of signals indicating useful events on the system."
         error, my_error = _get_error(error)
         dbus.dbus_bus_add_match(self._dbobj, rule.encode(), error._dbobj)
         my_error.raise_if_set()
     #end bus_add_match
 
     def bus_remove_match(self, rule, error = None) :
+        "removes a previously-added match rule for messages you previously wanted" \
+        " to receive."
         error, my_error = _get_error(error)
         dbus.dbus_bus_remove_match(self._dbobj, rule.encode(), error._dbobj)
         my_error.raise_if_set()
@@ -2220,7 +2278,12 @@ class Connection :
 
 class Server :
     "wrapper around a DBusServer object. Do not instantiate directly; use" \
-    " the listen method."
+    " the listen method.\n" \
+    "\n" \
+    "You only use this if you want to use D-Bus as a communication mechanism" \
+    " separate from the system/session buses provided by the D-Bus daemon: you" \
+    " create a Server object listening on a specified address, and clients can" \
+    " use Connection.open() to connect to you on that address."
     # <https://dbus.freedesktop.org/doc/api/html/group__DBusServer.html>
 
     __slots__ = \
@@ -2323,6 +2386,9 @@ class Server :
     #end id
 
     def set_new_connection_function(self, function, data, free_data = None) :
+        "sets the callback for libdbus to notify you of a new incoming connection." \
+        " It is up to you to save the Connection object for later processing of" \
+        " messages, or close it to reject the connection attempt."
 
         def wrap_function(self, conn, _data) :
             function(self, Connection(dbus.dbus_connection_ref(conn)), data)
@@ -2344,6 +2410,8 @@ class Server :
     #end set_new_connection_function
 
     def set_watch_functions(self, add_function, remove_function, toggled_function, data, free_data = None) :
+        "sets the callbacks for libdbus to use to notify you of Watch objects it wants" \
+        " you to manage."
 
         def wrap_add_function(c_watch, _data) :
             return \
@@ -2383,6 +2451,8 @@ class Server :
     #end set_watch_functions
 
     def set_timeout_functions(self, add_function, remove_function, toggled_function, data, free_data = None) :
+        "sets the callbacks for libdbus to use to notify you of Timeout objects it wants" \
+        " you to manage."
 
         def wrap_add_function(c_timeout, _data) :
             return \
@@ -2442,7 +2512,7 @@ class Server :
         " is used.\n" \
         "\n" \
         "Note that you still need to attach a new_connection callback. This can call" \
-        " Connection.attach_asyncio() to handle events for the connection as well."
+        " Connection.attach_asyncio() to handle events for the new connection as well."
         assert self.loop == None, "already attached to an event loop"
         _loop_attach(self, loop, None)
     #end attach_asyncio
@@ -2532,7 +2602,9 @@ class Message :
 
     @classmethod
     def new(celf, type) :
-        "type is one of the MESSAGE_TYPE_xxx codes."
+        "type is one of the DBUS.MESSAGE_TYPE_xxx codes. Using one of the type-specific" \
+        " calls--new_error, new_method_call, new_method_return, new_signal--is probably" \
+        " more convenient."
         result = dbus.dbus_message_new(type)
         if result == None :
             raise DBusFailure("dbus_message_new failed")
@@ -2542,6 +2614,7 @@ class Message :
     #end new
 
     def new_error(self, name, message) :
+        "creates a new DBUS.MESSAGE_TYPE_ERROR message that is a reply to this Message."
         result = dbus.dbus_message_new_error(self._dbobj, name.encode(), (lambda : None, lambda : message.encode())[message != None]())
         if result == None :
             raise DBusFailure("dbus_message_new_error failed")
@@ -2554,6 +2627,7 @@ class Message :
 
     @classmethod
     def new_method_call(celf, destination, path, iface, method) :
+        "creates a new DBUS.MESSAGE_TYPE_METHOD_CALL message."
         result = dbus.dbus_message_new_method_call \
           (
             (lambda : None, lambda : destination.encode())[destination != None](),
@@ -2569,6 +2643,7 @@ class Message :
     #end new_method_call
 
     def new_method_return(self) :
+        "creates a new DBUS.MESSAGE_TYPE_METHOD_RETURN that is a reply to this Message."
         result = dbus.dbus_message_new_method_return(self._dbobj)
         if result == None :
             raise DBusFailure("dbus_message_new_method_return failed")
@@ -2579,6 +2654,7 @@ class Message :
 
     @classmethod
     def new_signal(celf, path, iface, name) :
+        "creates a new DBUS.MESSAGE_TYPE_SIGNAL message."
         result = dbus.dbus_message_new_signal(path.encode(), iface.encode(), name.encode())
         if result == None :
             raise DBusFailure("dbus_message_new_signal failed")
@@ -2588,6 +2664,7 @@ class Message :
     #end new_signal
 
     def copy(self) :
+        "creates a copy of this Message."
         result = dbus.dbus_message_copy(self._dbobj)
         if result == None :
             raise DBusFailure("dbus_message_copy failed")
@@ -2598,6 +2675,7 @@ class Message :
 
     @property
     def type(self) :
+        "returns the DBUS.MESSAGE_TYPE_XXX code for this Message."
         return \
             dbus.dbus_message_get_type(self._dbobj)
     #end type
@@ -2664,6 +2742,7 @@ class Message :
 
         @property
         def arg_type(self) :
+            "the type code for this argument."
             assert not self._writing, "cannot read from write iterator"
             return \
                 dbus.dbus_message_iter_get_arg_type(self._dbobj)
@@ -2671,12 +2750,14 @@ class Message :
 
         @property
         def element_type(self) :
+            "the contained element type of this argument, assuming it is of a container type."
             assert not self._writing, "cannot read from write iterator"
             return \
                 dbus.dbus_message_iter_get_element_type(self._dbobj)
         #end element_type
 
         def recurse(self) :
+            "creates a sub-iterator for recursing into a container argument."
             assert not self._writing, "cannot read from write iterator"
             subiter = type(self)(self, False)
             dbus.dbus_message_iter_recurse(self._dbobj, subiter._dbobj)
@@ -2699,6 +2780,7 @@ class Message :
 
         @property
         def basic(self) :
+            "returns the argument value, assuming it is of a non-container type."
             assert not self._writing, "cannot read from write iterator"
             argtype = self.arg_type
             c_result_type = DBUS.basic_to_ctypes[argtype]
@@ -2753,6 +2835,8 @@ class Message :
 
         @property
         def element_count(self) :
+            "returns the count of contained elements, assuming the current argument" \
+            " is of a container type."
             assert not self._writing, "cannot read from write iterator"
             return \
                 dbus.dbus_message_iter_get_element_count(self._dbobj)
@@ -2760,6 +2844,8 @@ class Message :
 
         @property
         def fixed_array(self) :
+            "returns the array elements, assuming the current argument is an array" \
+            " with a non-container element type."
             assert not self._writing, "cannot read from write iterator"
             c_element_type = DBUS.basic_to_ctypes[self.element_type]
             c_result = ct.POINTER(c_element_type)()
@@ -2780,6 +2866,7 @@ class Message :
         #end fixed_array
 
         def append_basic(self, type, value) :
+            "appends a single value of a non-container type."
             assert self._writing, "cannot write to read iterator"
             if type in DBUS.int_convert :
                 value = DBUS.int_convert[type](value)
@@ -2797,6 +2884,7 @@ class Message :
         #end append_basic
 
         def append_fixed_array(self, element_type, values) :
+            "appends an array of elements of a non-container type."
             assert self._writing, "cannot write to read iterator"
             c_elt_type = DBUS.basic_to_ctypes[element_type]
             nr_elts = len(values)
@@ -2817,6 +2905,9 @@ class Message :
         #end append_fixed_array
 
         def open_container(self, type, contained_signature) :
+            "starts appending an argument of a container type, returning a sub-iterator" \
+            " for appending the contents of the argument. Can be called recursively for" \
+            " containers of containers etc."
             assert self._writing, "cannot write to read iterator"
             if contained_signature != None :
                 c_sig = contained_signature.encode()
@@ -2832,6 +2923,8 @@ class Message :
         #end open_container
 
         def close(self) :
+            "closes a sub-iterator, indicating the completion of construction" \
+            " of a container value."
             assert self._writing, "cannot write to read iterator"
             assert self._parent != None, "cannot close top-level iterator"
             if not dbus.dbus_message_iter_close_container(self._parent._dbobj, self._dbobj) :
@@ -2842,6 +2935,9 @@ class Message :
         #end close
 
         def abandon(self) :
+            "closes a sub-iterator, indicating the abandonment of construction" \
+            " of a container value. The Message object is effectively unusable" \
+            " after this point and should be discarded."
             assert self._writing, "cannot write to read iterator"
             assert self._parent != None, "cannot abandon top-level iterator"
             dbus.dbus_message_iter_abandon_container(self._parent._dbobj, self._dbobj)
@@ -2852,6 +2948,7 @@ class Message :
     #end Iter
 
     def iter_init(self) :
+        "creates a Message.Iter for extracting the arguments of the Message."
         iter = self.Iter(None, False)
         if dbus.dbus_message_iter_init(self._dbobj, iter._dbobj) == 0 :
             iter._nulliter = True
@@ -2862,12 +2959,14 @@ class Message :
 
     @property
     def objects(self) :
+        "yields the arguments of the Message as Python objects."
         for iter in self.iter_init() :
             yield iter.object
         #end for
     #end objects
 
     def iter_init_append(self) :
+        "creates a Message.Iter for appending arguments to the Message."
         iter = self.Iter(None, True)
         dbus.dbus_message_iter_init_append(self._dbobj, iter._dbobj)
         return \
@@ -2941,6 +3040,7 @@ class Message :
 
     @property
     def no_reply(self) :
+        "whether the Message is not expecting a reply."
         return \
             dbus.dbus_message_get_no_reply(self._dbobj) != 0
     #end no_reply
@@ -2963,6 +3063,8 @@ class Message :
 
     @property
     def path(self) :
+        "the object path for a DBUS.MESSAGE_TYPE_METHOD_CALL or DBUS.DBUS.MESSAGE_TYPE_SIGNAL" \
+        " message."
         result = dbus.dbus_message_get_path(self._dbobj)
         if result != None :
             result = result.decode()
@@ -2980,6 +3082,8 @@ class Message :
 
     @property
     def path_decomposed(self) :
+        "the object path for a DBUS.MESSAGE_TYPE_METHOD_CALL or DBUS.DBUS.MESSAGE_TYPE_SIGNAL" \
+        " message, decomposed into a list of the slash-separated components without the slashes."
         path = ct.POINTER(ct.c_char_p)()
         if not dbus.dbus_message_get_path_decomposed(self._dbobj, ct.byref(path)) :
             raise DBusFailure("dbus_message_get_path_decomposed failed")
@@ -3004,6 +3108,8 @@ class Message :
 
     @property
     def interface(self) :
+        "the interface name for a DBUS.MESSAGE_TYPE_METHOD_CALL or DBUS.MESSAGE_TYPE_SIGNAL" \
+        " message."
         result = dbus.dbus_message_get_interface(self._dbobj)
         if result != None :
             result = result.decode()
@@ -3026,6 +3132,8 @@ class Message :
 
     @property
     def member(self) :
+        "the method name for a DBUS.MESSAGE_TYPE_METHOD_CALL message, the error name for" \
+        " DBUS.MESSAGE_TYPE_ERROR, or the signal name for DBUS.MESSAGE_TYPE_SIGNAL."
         result = dbus.dbus_message_get_member(self._dbobj)
         if result != None :
             result = result.decode()
@@ -3065,6 +3173,7 @@ class Message :
 
     @property
     def destination(self) :
+        "the bus name that the message is to be sent to."
         result = dbus.dbus_message_get_destination(self._dbobj)
         if result != None :
             result = result.decode()
@@ -3166,6 +3275,8 @@ class Message :
 
     @property
     def reply_serial(self) :
+        "the serial number of the original Message that that this" \
+        " DBUS.MESSAGE_TYPE_METHOD_RETURN message is a reply to."
         return \
             dbus.dbus_message_get_reply_serial(self._dbobj)
     #end reply_serial
@@ -3214,6 +3325,7 @@ class Message :
     #end type_to_string
 
     def marshal(self) :
+        "serializes this Message into the wire protocol format and returns a bytes object."
         buf = ct.POINTER(ct.c_ubyte)()
         nr_bytes = ct.c_int()
         if not dbus.dbus_message_marshal(self._dbobj, ct.byref(buf), ct.byref(nr_bytes)) :
@@ -3233,6 +3345,8 @@ class Message :
 
     @classmethod
     def demarshal(celf, buf, error = None) :
+        "deserializes a bytes or array-of-bytes object from the wire protocol" \
+        " format into a Message object."
         error, my_error = _get_error(error)
         if isinstance(buf, bytes) :
             baseadr = ct.cast(buf, ct.c_void_p).value
@@ -3254,6 +3368,8 @@ class Message :
 
     @classmethod
     def demarshal_bytes_needed(celf, buf) :
+        "the number of bytes needed to deserialize a bytes or array-of-bytes" \
+        " object from the wire protocol format."
         if isinstance(buf, bytes) :
             baseadr = ct.cast(buf, ct.c_void_p).value
         elif isinstance(buf, bytearray) :
@@ -3281,7 +3397,9 @@ class Message :
 #end Message
 
 class PendingCall :
-    "wrapper around a DBusPendingCall object."
+    "wrapper around a DBusPendingCall object. This represents a pending reply" \
+    " message that hasn’t been received yet. Do not instantiate directly; lidbus" \
+    " creates these as the result from calling send_with_reply() on a Message."
     # <https://dbus.freedesktop.org/doc/api/html/group__DBusPendingCall.html>
 
     __slots__ = ("__weakref__", "_dbobj", "_wrap_notify", "_wrap_free") # to forestall typos
@@ -3312,6 +3430,8 @@ class PendingCall :
     #end __del__
 
     def set_notify(self, function, user_data, free_user_data = None) :
+        "sets the callback for libdbus to notify you that the pending message" \
+        " has become available."
 
         def _wrap_notify(c_pending, c_user_data) :
             function(self, user_data)
@@ -3338,6 +3458,7 @@ class PendingCall :
     #end set_notify
 
     def cancel(self) :
+        "tells libdbus you no longer care about the pending incoming message."
         dbus.dbus_pending_call_cancel(self._dbobj)
     #end cancel
 
@@ -3348,6 +3469,8 @@ class PendingCall :
     #end completed
 
     def steal_reply(self) :
+        "retrieves the Message if it has become available, or None if it is" \
+        " still pending."
         result = dbus.dbus_pending_call_steal_reply(self._dbobj)
         if result != None :
             result = Message(result)
@@ -3357,6 +3480,7 @@ class PendingCall :
     #end steal_reply
 
     def block(self) :
+        "blocks the current thread until the pending message has become available."
         dbus.dbus_pending_call_block(self._dbobj)
     #end block
 

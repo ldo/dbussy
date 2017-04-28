@@ -3464,6 +3464,7 @@ class PendingCall :
 
     @property
     def completed(self) :
+        "checks where the pending message is available."
         return \
             dbus.dbus_pending_call_get_completed(self._dbobj) != 0
     #end completed
@@ -3515,33 +3516,39 @@ class Error :
     #end init
 
     def set(self, name, msg) :
+        "fills in the error name and message."
         dbus.dbus_set_error(self._dbobj, name.encode(), b"%s", msg.encode())
     #end set
 
     @property
     def is_set(self) :
+        "has the Error been filled in."
         return \
             dbus.dbus_error_is_set(self._dbobj) != 0
     #end is_set
 
     def has_name(self, name) :
+        "has the Error got the specified name."
         return \
             dbus.dbus_error_has_name(self._dbobj, name.encode()) != 0
     #end has_name
 
     @property
     def name(self) :
+        "the name of the Error, if it has been filled in."
         return \
             (lambda : None, lambda : self._dbobj.name.decode())[self._dbobj.name != None]()
     #end name
 
     @property
     def message(self) :
+        "the message string for the Error, if it has been filled in."
         return \
             (lambda : None, lambda : self._dbobj.message.decode())[self._dbobj.message != None]()
     #end message
 
     def raise_if_set(self) :
+        "raises a DBusError exception if this Error has been filled in."
         if self.is_set :
             raise DBusError(self.name, self.message)
         #end if
@@ -3561,8 +3568,8 @@ class Error :
 
 class AddressEntries :
     "wrapper for arrays of DBusAddressEntry values. Do not instantiate directly;" \
-    " get from parse. This object behaves like an array; you can obtain the number" \
-    " of elements with len(), and use array subscripting to access the elements."
+    " get from AddressEntry.parse. This object behaves like an array; you can obtain" \
+    " the number of elements with len(), and use array subscripting to access the elements."
     # <https://dbus.freedesktop.org/doc/api/html/group__DBusAddress.html>
 
     __slots__ = ("__weakref__", "_dbobj", "_nrelts") # to forestall typos

@@ -156,7 +156,7 @@ class Bus :
 
     def get_object(self, bus_name, path) :
         return \
-            Object(self, bus_name, path)
+            CObject(self, bus_name, path)
     #end get_object
 
 #end Bus
@@ -171,7 +171,12 @@ def SystemBus() :
         Bus(dbus.Connection.bus_get(DBUS.BUS_SYSTEM, private = False))
 #end SystemBus
 
-class Object :
+#+
+# Client-side proxies for server-side objects
+#-
+
+class CObject :
+    "identifies an object by a bus, a bus name and a path."
 
     __slots__ = ("bus", "name", "path")
 
@@ -184,15 +189,16 @@ class Object :
         self.path = path
     #end __init__
 
-#end Object
+#end CObject
 
-class Interface :
+class CInterface :
+    "identifies an interface for communicating synchronously with a CObject."
 
     __slots__ = ("object", "name", "timeout")
 
     def __init__(self, object, name, timeout = DBUS.TIMEOUT_USE_DEFAULT) :
-        if not isinstance(object, Object) :
-            raise TypeError("object must be an Object")
+        if not isinstance(object, CObject) :
+            raise TypeError("object must be a CObject")
         #end if
         self.object = object
         self.name = name
@@ -201,27 +207,29 @@ class Interface :
 
     def __getattr__(self, attrname) :
         return \
-            Method(self, attrname)
+            CMethod(self, attrname)
     #end __getattr__
 
-#end Interface
+#end CInterface
 
-class AsyncInterface(Interface) :
+class CAsyncInterface(CInterface) :
+    "identifies an interface for communicating asynchronously with a CObject."
 
     def __getattr__(self, attrname) :
         return \
-            AsyncMethod(self, attrname)
+            CAsyncMethod(self, attrname)
     #end __getattr__
 
-#end AsyncInterface
+#end CAsyncInterface
 
-class Method :
+class CMethod :
+    "names a method of a CInterface that is to be called synchronously."
 
     __slots__ = ("interface", "method")
 
     def __init__(self, interface, method) :
-        if not isinstance(interface, Interface) :
-            raise TypeError("interface must be a Interface")
+        if not isinstance(interface, CInterface) :
+            raise TypeError("interface must be a CInterface")
         #end if
         self.interface = interface
         self.method = method
@@ -262,9 +270,10 @@ class Method :
             self._process_reply(reply)
     #end __call__
 
-#end Method
+#end CMethod
 
-class AsyncMethod(Method) :
+class CAsyncMethod(CMethod) :
+    "names a method of a CInterface that is to be called asynchronously."
 
     async def __call__(self, *args) :
         message = self._construct_message(args)
@@ -273,4 +282,4 @@ class AsyncMethod(Method) :
             self._process_reply(reply)
     #end _call__
 
-#end AsyncMethod
+#end CAsyncMethod

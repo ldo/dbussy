@@ -542,11 +542,14 @@ class VariantType(Type) :
 #end VariantType
 
 class StructType(Type) :
-    "a sequence of arbitrary types."
+    "a sequence of one or more arbitrary types."
 
     __slots__ = ("elttypes",)
 
     def __init__(self, *types) :
+        if len(types) == 0 :
+            raise TypeError("must have at least one element type")
+        #end if
         if not all(isinstance(t, Type) for t in types) :
             raise TypeError("struct elements must be Types")
         #end if

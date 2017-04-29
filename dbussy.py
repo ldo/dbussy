@@ -495,7 +495,8 @@ class TYPE(enum.Enum) :
 #end TYPE
 
 class Type :
-    "abstract base class for all Types."
+    "base class for all Types. The “signature” property returns the fully-encoded" \
+    " signature string for the entire Type."
 
     @property
     def signature(self) :

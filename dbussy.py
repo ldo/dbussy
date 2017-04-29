@@ -3811,6 +3811,20 @@ def validate_path(path, error = None) :
         result
 #end validate_path
 
+def split_path(path) :
+    "convenience routine for splitting a path into a list of components."
+    if path == "/" :
+        result = []
+    else :
+        if not path.startswith("/") or path.endswith("/") :
+            raise DBusError(DBUS.ERROR_INVALID_ARGS, "invalid path %s" % repr(path))
+        #end if
+        result = path.split("/")[1:]
+    #end if
+    return \
+        result
+#end split_path
+
 def validate_interface(name, error = None) :
     error, my_error = _get_error(error)
     result = dbus.dbus_validate_interface(name.encode(), error._dbobj) != 0

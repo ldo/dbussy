@@ -141,6 +141,7 @@ class Bus :
         if self == None :
             self = super().__new__(celf)
             self.connection = connection
+            self.loop = None
             celf._instances[connection] = self
         #end if
         return \

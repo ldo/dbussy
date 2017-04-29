@@ -382,25 +382,39 @@ class DBUS :
     DISPATCH_NEED_MEMORY = 2 # not enough memory to continue
 
     AddWatchFunction = ct.CFUNCTYPE(bool_t, ct.c_void_p, ct.c_void_p)
+      # add_watch(DBusWatch, user_data) returns success/failure
     WatchToggledFunction = ct.CFUNCTYPE(None, ct.c_void_p, ct.c_void_p)
+      # watch_toggled(DBusWatch, user_data)
     RemoveWatchFunction = ct.CFUNCTYPE(None, ct.c_void_p, ct.c_void_p)
+      # remove_watch(DBusWatch, user_data)
 
     AddTimeoutFunction = ct.CFUNCTYPE(bool_t, ct.c_void_p, ct.c_void_p)
+      # add_timeout(DBusTimeout, user_data) returns success/failure
     TimeoutToggledFunction = ct.CFUNCTYPE(None, ct.c_void_p, ct.c_void_p)
+      # timeout_toggled(DBusTimeout, user_data)
     RemoveTimeoutFunction = ct.CFUNCTYPE(None, ct.c_void_p, ct.c_void_p)
+      # remove_timeout(DBusTimeout, user_data)
 
     DispatchStatusFunction = ct.CFUNCTYPE(None, ct.c_void_p, ct.POINTER(DispatchStatus), ct.c_void_p)
+      # dispatch_status(DBusConnection, DBusDispatchStatus, user_data)
     WakeupMainFunction = ct.CFUNCTYPE(None, ct.c_void_p)
+      # wakeup_main(user_data)
 
-    AllowUnixUserFunction = ct.CFUNCTYPE(bool_t, ct.c_void_p, ct.c_void_p, ct.c_void_p)
+    AllowUnixUserFunction = ct.CFUNCTYPE(bool_t, ct.c_void_p, ct.c_ulong, ct.c_void_p)
+      # allow_unix_user(DBusConnection, uid, user_data) returns success/failure
     AllowWindowsUserFunction = ct.CFUNCTYPE(bool_t, ct.c_void_p, ct.c_void_p, ct.c_void_p)
+      # allow_windows_user(DBusConnection, user_sid, user_data)returns success/failure
 
     PendingCallNotifyFunction = ct.CFUNCTYPE(None, ct.c_void_p, ct.c_void_p)
+      # notify(DBusPendingCall, user_data)
 
     HandleMessageFunction = ct.CFUNCTYPE(HandlerResult, ct.c_void_p, ct.c_void_p, ct.c_void_p)
+      # handle_message(DBusConnection, DBusMessage, user_data)
 
     ObjectPathUnregisterFunction = ct.CFUNCTYPE(None, ct.c_void_p, ct.c_void_p)
+      # unregister(DBusConnection, user_data)
     ObjectPathMessageFunction = ct.CFUNCTYPE(HandlerResult, ct.c_void_p, ct.c_void_p, ct.c_void_p)
+      # handle_message(DBusConnection, DBusMessage, user_data)
 
     class ObjectPathVTable(ct.Structure) :
         pass
@@ -445,6 +459,7 @@ class DBUS :
 
     # from dbus-server.h:
     NewConnectionFunction = ct.CFUNCTYPE(None, ct.c_void_p, ct.c_void_p, ct.c_void_p)
+      # new_connection(DBusServer, DBusConnection, user_data)
 
     # from dbus-signature.h:
     class SignatureIter(ct.Structure) :

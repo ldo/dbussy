@@ -12,6 +12,7 @@ asyncio module.
 
 import array
 import types
+import enum
 import ctypes as ct
 from weakref import \
     ref as weak_ref, \
@@ -460,6 +461,145 @@ class DBUS :
     SignatureIterPtr = ct.POINTER(SignatureIter)
 
 #end DBUS
+
+#+
+# Higher-level interface to type system
+#-
+
+class TYPE(enum.Enum) :
+
+    BYTE = ord('y') # 8-bit unsigned integer
+    BOOLEAN = ord('b') # boolean
+    INT16 = ord('n') # 16-bit signed integer
+    UINT16 = ord('q') # 16-bit unsigned integer
+    INT32 = ord('i') # 32-bit signed integer
+    UINT32 = ord('u') # 32-bit unsigned integer
+    INT64 = ord('x') # 64-bit signed integer
+    UINT64 = ord('t') # 64-bit unsigned integer
+    DOUBLE = ord('d') # 8-byte double in IEEE 754 format
+    STRING = ord('s') # UTF-8 encoded, nul-terminated Unicode string
+    OBJECT_PATH = ord('o') # D-Bus object path
+    SIGNATURE = ord('g') # D-Bus type signature
+    UNIX_FD = ord('h') # unix file descriptor
+
+    ARRAY = ord('a') # array of elements all of same type, or possibly dict
+    STRUCT = ord('r') # sequence of elements of arbitrary types
+    VARIANT = ord('v') # a single element of dynamic type
+
+    @property
+    def is_basic(self) :
+        return \
+            self.value in DBUS.basic_to_ctypes
+    #end is_basic
+
+#end TYPE
+
+class Type :
+    "abstract base class for all Types."
+
+    @property
+    def signature(self) :
+        raise NotImplementedError("subclass forgot to override signature property")
+    #end signature
+
+    def __repr__(self) :
+        return \
+            "%s(sig = %s)" % (type(self).__name__, repr(self.signature))
+    #end __repr__
+
+#end Type
+
+class BasicType(Type) :
+    "a basic (non-container) type."
+
+    __slots__ = ("code",)
+
+    def __init__(self, code) :
+        if not isinstance(code, TYPE) or not code.is_basic :
+            raise TypeError("only basic TYPE.xxx values allowed")
+        #end if
+        self.code = code
+    #end __init__
+
+    @property
+    def signature(self) :
+        return \
+            chr(self.code.value)
+    #end signature
+
+#end BasicType
+
+class VariantType(Type) :
+    "the variant type--a single element of a type determined at run-time."
+
+    @property
+    def signature(self) :
+        return \
+            chr(TYPE.VARIANT.value)
+    #end signature
+
+#end VariantType
+
+class StructType(Type) :
+    "a sequence of arbitrary types."
+
+    __slots__ = ("elttypes",)
+
+    def __init__(self, *types) :
+        if not all(isinstance(t, Type) for t in types) :
+            raise TypeError("struct elements must be Types")
+        #end if
+        self.elttypes = tuple(types)
+    #end __init__
+
+    @property
+    def signature(self) :
+        return \
+            "(%s)" % "".join(t.signature for t in self.elttypes)
+    #end signature
+
+#end StructType
+
+class ArrayType(Type) :
+    "an array of elements all of the same type."
+
+    __slots__ = ("elttype",)
+
+    def __init__(self, elttype) :
+        if not isinstance(elttype, Type) :
+            raise TypeError("invalid array element type")
+        #end if
+        self.elttype = elttype
+    #end __init__
+
+    @property
+    def signature(self) :
+        return \
+            chr(TYPE.ARRAY.value) + self.elttype.signature
+    #end signature
+
+#end ArrayType
+
+class DictType(Type) :
+    "a dictionary mapping keys to values."
+
+    __slots__ = ("keytype", "valuetype")
+
+    def __init__(self, keytype, valuetype) :
+        if not isinstance(keytype, BasicType) or not isinstance(valuetype, Type) :
+            raise TypeError("invalid dict key/value type")
+        #end if
+        self.keytype = keytype
+        self.valuetype = valuetype
+    #end keytype
+
+    @property
+    def signature(self) :
+        return \
+            "%s{%s%s}" % (chr(TYPE.ARRAY.value), self.keytype.signature, self.valuetype.signature)
+    #end signature
+
+#end DictType
 
 #+
 # Library prototypes
@@ -3771,6 +3911,52 @@ def signature_validate(signature, error = None) :
     return \
         result
 #end signature_validate
+
+def parse_signature(signature) :
+    "convenience routine for parsing a signature string into a list of Type()" \
+    " instances."
+    signature_validate(signature)
+
+    def process_subsig(sigelt) :
+        elttype = sigelt.current_type
+        if elttype in DBUS.basic_to_ctypes :
+            result = BasicType(TYPE(elttype))
+        elif elttype == DBUS.TYPE_ARRAY :
+            if sigelt.element_type == DBUS.TYPE_DICT_ENTRY :
+                subsig = sigelt.recurse()
+                subsubsig = subsig.recurse()
+                keytype = process_subsig(next(subsubsig))
+                valuetype = process_subsig(next(subsubsig))
+                result = DictType(keytype, valuetype)
+            else :
+                subsig = sigelt.recurse()
+                result = ArrayType(process_subsig(next(subsig)))
+            #end if
+        elif elttype == DBUS.TYPE_STRUCT :
+            result = []
+            subsig = sigelt.recurse()
+            for subelt in subsig :
+                result.append(process_subsig(subelt))
+            #end for
+            result = StructType(*result)
+        elif elttype == DBUS.TYPE_VARIANT :
+            result = VariantType()
+        else :
+            raise RuntimeError("unrecognized type %s" % bytes((elttype,)))
+        #end if
+        return \
+            result
+    #end process_subsig
+
+#begin parse_signature
+    result = []
+    sigiter = SignatureIter.init(signature)
+    for elt in sigiter :
+        result.append(process_subsig(elt))
+    #end for
+    return \
+        result
+#end parse_signature
 
 def signature_validate_single(signature, error = None) :
     "is signature a single valid type."

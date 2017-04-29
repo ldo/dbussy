@@ -1,6 +1,6 @@
 """
 Simplified higher-level Python binding for D-Bus, implementing proxy
-Python objects to represent D-Bus objects. The API is consciously
+Python objects to represent D-Bus objects. The API is vaguely
 modelled on dbus-python <http://dbus.freedesktop.org/doc/dbus-python/>.
 """
 #+
@@ -148,6 +148,9 @@ class Bus :
     #end __new__
 
     def attach_asyncio(self, loop = None) :
+        "attaches this Bus object to an asyncio event loop. If none is" \
+        " specified, the default event loop (as returned from asyncio.get_event_loop()" \
+        " is used."
         self.connection.attach_asyncio(loop)
         self.loop = self.connection.loop
         return \
@@ -155,6 +158,10 @@ class Bus :
     #end attach_asyncio
 
     def get_object(self, bus_name, path) :
+        "for client-side use; returns a CObject instance for communicating" \
+        " with a specified server object. Pass the result, along with the interface" \
+        " name, to CInterface to create an object that can be used to call any" \
+        " method defined on the server by that interface."
         return \
             CObject(self, bus_name, path)
     #end get_object
@@ -162,11 +169,13 @@ class Bus :
 #end Bus
 
 def SessionBus() :
+    "returns a Bus object for the current D-Bus session bus."
     return \
         Bus(dbus.Connection.bus_get(DBUS.BUS_SESSION, private = False))
 #end SessionBus
 
 def SystemBus() :
+    "returns a Bus object for the D-Bus system bus."
     return \
         Bus(dbus.Connection.bus_get(DBUS.BUS_SYSTEM, private = False))
 #end SystemBus
@@ -213,7 +222,8 @@ class CInterface :
 #end CInterface
 
 class CAsyncInterface(CInterface) :
-    "identifies an interface for communicating asynchronously with a CObject."
+    "identifies an interface for communicating asynchronously with a CObject." \
+    " Methods can be called, for example in “await” expressions."
 
     def __getattr__(self, attrname) :
         return \
@@ -223,7 +233,9 @@ class CAsyncInterface(CInterface) :
 #end CAsyncInterface
 
 class CMethod :
-    "names a method of a CInterface that is to be called synchronously."
+    "names a method of a CInterface that is to be called synchronously. The" \
+    " calling thread is blocked until the reply is received. Do not instantiate" \
+    " directly; call the appropriate method name on the parent CInterface."
 
     __slots__ = ("interface", "method")
 
@@ -273,7 +285,9 @@ class CMethod :
 #end CMethod
 
 class CAsyncMethod(CMethod) :
-    "names a method of a CInterface that is to be called asynchronously."
+    "names a method of a CInterface that is to be called asynchronously," \
+    " for example in an “await” expression. Do not instantiate directly;" \
+    " call the appropriate method name on the parent CAsyncInterface."
 
     async def __call__(self, *args) :
         message = self._construct_message(args)

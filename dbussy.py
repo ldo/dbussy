@@ -1487,7 +1487,14 @@ def _loop_attach(self, loop, dispatch) :
     def add_remove_watch(watch, add) :
 
         def handle_watch_event(flags) :
+            # seems I need to remove the watch and add it again to
+            # avoid an endless stream of notifications that cause
+            # excessive CPU usage -- asyncio bug?
+            add_remove_watch(watch, False)
             watch.handle(flags)
+            if watch.enabled :
+                add_remove_watch(watch, True)
+             #end if
             if dispatch != None :
                 call_dispatch()
             #end if

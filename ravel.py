@@ -8,6 +8,7 @@ modelled on dbus-python <http://dbus.freedesktop.org/doc/dbus-python/>.
 # Licensed under the GNU Lesser General Public License v2.1 or later.
 #-
 
+import types
 from weakref import \
     WeakValueDictionary
 import asyncio
@@ -128,7 +129,7 @@ def guess_signature(obj) :
 
 class Bus :
 
-    __slots__ = ("__weakref__", "connection", "loop") # to forestall typos
+    __slots__ = ("__weakref__", "connection", "loop", "_dispatch") # to forestall typos
 
     _instances = WeakValueDictionary()
 
@@ -142,6 +143,7 @@ class Bus :
             self = super().__new__(celf)
             self.connection = connection
             self.loop = None
+            self._dispatch = None # only used server-side
             celf._instances[connection] = self
         #end if
         return \
@@ -158,6 +160,26 @@ class Bus :
             self
     #end attach_asyncio
 
+    class Name :
+        __slots__ = ("bus", "name")
+
+        def __init__(self, bus, name) :
+            self.bus = bus
+            self.name = name
+        #end __init__
+
+        def __del__(self) :
+            self.bus.connection.bus_release_name(self.name)
+        #end __del__
+
+    #end Name
+
+    def request_name(self, bus_name, flags) :
+        self.connection.bus_request_name(bus_name, flags)
+        return \
+            type(self).Name(self, bus_name)
+    #end request_name
+
     def get_object(self, bus_name, path) :
         "for client-side use; returns a CObject instance for communicating" \
         " with a specified server object. Pass the result, along with the interface" \
@@ -166,6 +188,105 @@ class Bus :
         return \
             CObject(self, bus_name, path)
     #end get_object
+
+    def register(self, path, subdir, interface, user_data) :
+        "for server-side use; registers an instance of the specified SInterface" \
+        " for handling method calls on the specified path, and also on subpaths" \
+        " if subdir."
+        if not issubclass(interface, SInterface) :
+            raise TypeError("interface must be an SInterface subclass")
+        #end if
+        if self._dispatch == None :
+            self._dispatch = {}
+            self.connection.add_filter(_message_sinterface_dispatch, self)
+        #end if
+        level = self._dispatch
+        for component in dbus.split_path(path) :
+            if not "subdir" in level :
+                level["subdir"] = {}
+            #end if
+            if component not in level["subdir"] :
+                level["subdir"][component] = {}
+            #end if
+            level = level["subdir"][component]
+        #end for
+        if "dispatch" not in level :
+            level["dispatch"] = {}
+        #end if
+        interface_name = interface._sinterface_name
+        if interface_name in level["dispatch"] :
+            raise KeyError("already registered an interface named “%s”" % interface_name)
+        #end if
+        level["dispatch"][interface_name] = {"interface" : interface(user_data), "subdir" : bool(subdir)}
+    #end register
+
+    def unregister(self, path, subdir, interface = None) :
+        "for server-side use; unregisters the specified SInterface (or all registered" \
+        " SInterfaces, if None) from handling method calls on path, and also on" \
+        " subpaths if subdir."
+        if interface != None and not issubclass(interface, SInterface) :
+            raise TypeError("interface must be None or an SInterface subclass")
+        #end if
+        if self._dispatch != None :
+            level = self._dispatch
+            levels = iter(dbus.split_path(path))
+            while True :
+                component = next(levels, None)
+                if component == None :
+                    if "dispatch" in level :
+                        if interface != None :
+                            level["dispatch"].pop(interface._sinterface_name, None)
+                        else :
+                            level["dispatch"].clear() # wipe it all out
+                        #end if
+                    #end if
+                    break
+                #end if
+                if "subdir" not in level or component not in level["subdir"] :
+                    break
+                level = level["subdir"][component]
+            #end while
+        #end if
+    #end unregister
+
+    def defsignal(self, interface, name, docstring = None, signature = None) :
+        "for server-side use; returns a function that, when called like this:\n" \
+        "\n" \
+        "    signal(path, *args)\n" \
+        "\n" \
+        " will send a signal with the specified path, interface and name on" \
+        " the bus. docstring is an optional docstring for the generated" \
+        " function."
+
+        def gen_signal(path, *args) :
+            message = dbus.Message.new_signal \
+              (
+                path = path,
+                iface = interface._sinterface_name,
+                name = name
+              )
+            if len(args) != 0 :
+                # fixme: if signature is not None, args should be required?
+                message.append_objects \
+                  (
+                    (lambda : guess_signature(args), lambda : signature)[signature != None](),
+                    args
+                  )
+            #end if
+            self.connection.send(message)
+        #end gen_signal
+
+    #begin defsignal
+        if not (isinstance(interface, type) and issubclass(interface, SInterface)) and not isinstance(interface, SInterface) :
+            raise TypeError("interface must be an SInterface subclass or instance")
+        #end if
+        gen_signal.__name__ = name
+        if docstring != None :
+            gen_signal.__doc__ = docstring
+        #end if
+        return \
+            gen_signal
+    #end defsignal
 
 #end Bus
 
@@ -298,3 +419,135 @@ class CAsyncMethod(CMethod) :
     #end _call__
 
 #end CAsyncMethod
+
+#+
+# Server-side utilities
+#-
+
+def _message_sinterface_dispatch(connection, message, bus) :
+    result = DBUS.HANDLER_RESULT_NOT_YET_HANDLED # to begin with
+    if message.type == DBUS.MESSAGE_TYPE_METHOD_CALL :
+        fallback = None # to begin with
+        level = bus._dispatch
+        levels = iter(message.path_decomposed)
+        interface_name = message.interface
+        while True :
+            component = next(levels, None)
+            iface = None # to begin with
+            if component == None :
+                if "dispatch" in level and interface_name in level["dispatch"] :
+                    iface = level["dispatch"][interface_name]["interface"]
+                #end if
+            #end if
+            if (
+                    component == None
+                      # reached bottom of path
+                or
+                    "subdir" not in level
+                or
+                    component not in level["subdir"]
+                      # no handlers to be found further down path
+            ) :
+                if iface == None :
+                    iface = fallback
+                #end if
+                if iface != None :
+                    method_name = message.member
+                    if method_name in iface._sinterface_methods :
+                        method = iface._sinterface_methods[method_name]
+                        args = list(message.objects)
+                          # fixme: should I pay any attention to method._smethod_info["signature"]?
+                        result = method(iface, connection, message, *args)
+                        if isinstance(result, types.CoroutineType) :
+                            assert bus.loop != None, "no event loop to attach coroutine to"
+                            bus.loop.create_task(result)
+                            result = DBUS.HANDLER_RESULT_HANDLED
+                        #end if
+                    #end if
+                #end if
+                break
+            #end if
+            if (
+                    "dispatch" in level
+                and
+                    interface_name in level["dispatch"]
+                and
+                    level["dispatch"][interface_name]["subdir"]
+            ) :
+                # find a fallback as far down the path as I can
+                fallback = level["dispatch"][interface_name]["interface"]
+            #end if
+            level = level["subdir"][component]
+              # search another step down the path
+        #end while
+    #end if
+    return \
+         result
+#end _message_sinterface_dispatch
+
+class _SInterface_Meta(type) :
+    # metaclass for SInterface and its subclasses. Collects methods
+    # identified by @smethod() decorator calls into a dispatch
+    # table for easy lookup.
+
+    def __init__(self, *args, **kwargs) :
+        # needed to prevent passing kwargs to type.__init__
+        pass
+    #end __init__
+
+    def __new__(celf, name, bases, namespace, **kwargs) :
+        self = type.__new__(celf, name, bases, namespace)
+        if len(bases) != 0 : # ignore SInterface base class itself
+            assert SInterface in bases
+            self._sinterface_name = kwargs["iface_name"]
+            self._sinterface_methods = \
+                dict \
+                  (
+                    (f._smethod_info["name"], f)
+                    for f in namespace.values()
+                    if hasattr(f, "_smethod_info")
+                  )
+        #end if
+        return \
+            self
+    #end __new__
+
+#end _SInterface_Meta
+
+class SInterface(metaclass = _SInterface_Meta) :
+    "base class for defining server-side interfaces. The class definition should" \
+    " specify an “iface_name” keyword argument giving the interface name. Interface methods" \
+    " should be invocable as\n" \
+    "\n" \
+    "    method(self, path, *message_args)\n" \
+    "\n" \
+    " and definitions should call the “@smethod()” decorator to identify them."
+
+    __slots__ = ("user_data",)
+
+    def __init__(self, user_data) :
+        self.user_data = user_data
+    #end __init__
+
+#end SInterface
+
+def smethod(name = None, signature = None) :
+    "put a call to this function as a decorator for each method of an SInterface" \
+    " subclass that is to be registered as a method of the interface. “name” is the" \
+    " name of the method as specified in the D-Bus message; if omitted, it defaults" \
+    " to the name of the function."
+
+    def decorate(func) :
+        nonlocal name
+        if name == None :
+            name = func.__name__
+        #end if
+        func._smethod_info = {"name" : name, "signature" : signature}
+        return \
+            func
+    #end decorate
+
+#begin smethod
+    return \
+        decorate
+#end smethod

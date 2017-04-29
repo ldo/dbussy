@@ -3919,7 +3919,6 @@ def signature_validate(signature, error = None) :
 def parse_signature(signature) :
     "convenience routine for parsing a signature string into a list of Type()" \
     " instances."
-    signature_validate(signature)
 
     def process_subsig(sigelt) :
         elttype = sigelt.current_type
@@ -3953,11 +3952,21 @@ def parse_signature(signature) :
     #end process_subsig
 
 #begin parse_signature
-    result = []
-    sigiter = SignatureIter.init(signature)
-    for elt in sigiter :
-        result.append(process_subsig(elt))
-    #end for
+    if isinstance(signature, (tuple, list)) :
+        if not all(isinstance(t, Type) for t in signature) :
+            raise TypeError("signature is list containing non-Type objects")
+        #end if
+        result = signature
+    elif isinstance(signature, str) :
+        signature_validate(signature)
+        result = []
+        sigiter = SignatureIter.init(signature)
+        for elt in sigiter :
+            result.append(process_subsig(elt))
+        #end for
+    else :
+        raise TypeError("signature must be list or str")
+    #end if
     return \
         result
 #end parse_signature

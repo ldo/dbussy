@@ -130,6 +130,14 @@ coroutine can then go on to handle the actual processing of the
 request, and return the reply at some later stage.
 
 
+DBussy Examples
+===============
+
+Sample code illustrating how to use DBussy is available in my
+dbussy_examples repo on GitLab <https://gitlab.com/ldo/dbussy_examples>
+and GitHub <https://github.com/ldo/dbussy_examples>.
+
+
 How Do You Pronounce “DBussy”?
 ==============================
 

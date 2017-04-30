@@ -1777,7 +1777,7 @@ class Connection :
             raise DBusFailure("dbus_connection_send_with_reply failed")
         #end if
         if pending_call.value != None :
-            result = PendingCall(pending_call.value)
+            result = PendingCall(pending_call.value, self)
         else :
             result = None
         #end if
@@ -1808,25 +1808,19 @@ class Connection :
         if not isinstance(message, Message) :
             raise TypeError("message must be a Message")
         #end if
+        assert self.loop != None, "no event loop to attach coroutine to"
         pending_call = ct.c_void_p()
         if not dbus.dbus_connection_send_with_reply(self._dbobj, message._dbobj, ct.byref(pending_call), _get_timeout(timeout)) :
             raise DBusFailure("dbus_connection_send_with_reply failed")
         #end if
         if pending_call.value != None :
-            pending = PendingCall(pending_call.value)
+            pending = PendingCall(pending_call.value, self)
         else :
             pending = None
         #end if
         reply = None # to begin with
         if pending != None :
-            done = self.loop.create_future()
-
-            def pending_done(pending, _) :
-                done.set_result(pending.steal_reply())
-            #end pending_done
-
-            pending.set_notify(pending_done, None)
-            reply = await done
+            reply = await pending.await_reply()
         #end if
         return \
             reply
@@ -3568,15 +3562,16 @@ class PendingCall :
     " creates these as the result from calling send_with_reply() on a Message."
     # <https://dbus.freedesktop.org/doc/api/html/group__DBusPendingCall.html>
 
-    __slots__ = ("__weakref__", "_dbobj", "_wrap_notify", "_wrap_free") # to forestall typos
+    __slots__ = ("__weakref__", "_dbobj", "_conn", "_wrap_notify", "_wrap_free") # to forestall typos
 
     _instances = WeakValueDictionary()
 
-    def __new__(celf, _dbobj) :
+    def __new__(celf, _dbobj, _conn) :
         self = celf._instances.get(_dbobj)
         if self == None :
             self = super().__new__(celf)
             self._dbobj = _dbobj
+            self._conn = _conn
             self._wrap_notify = None
             self._wrap_free = None
             celf._instances[_dbobj] = self
@@ -3645,6 +3640,23 @@ class PendingCall :
         return \
             result
     #end steal_reply
+
+    async def await_reply(self) :
+        "retrieves the Message. If it is not yet available, suspends the" \
+        " coroutine (letting the event loop do other things) until it becomes" \
+        " available."
+        assert self._conn.loop != None, "no event loop on parent Connection to attach coroutine to"
+        done = self._conn.loop.create_future()
+
+        def pending_done(pending, _) :
+            done.set_result(self.steal_reply())
+        #end pending_done
+
+        self.set_notify(pending_done, None)
+        reply = await done
+        return \
+            reply
+    #end await_reply
 
     def block(self) :
         "blocks the current thread until the pending message has become available."

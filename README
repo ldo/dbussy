@@ -12,11 +12,12 @@ seem to be based around GLib. However, Python now has its own
 Python 3.4, but as of 3.5, you now have full-fledged coroutines
 (“async def” and “await”) as a language feature.
 
-As I understand it, asyncio is not meant to *replace* event loops
-provided by other toolkits; while it includes its own default loop as
-standard, I believe it is also possible to hook the whole asyncio
-mechanism into other event loops. Thus, code written to work with
-asyncio becomes event-loop-agnostic.
+Every GUI toolkit already provides its own event loop; so why did
+the Python developers decide to add yet another one? The answer
+seems clear: to provide a language-standard API for event loops,
+and a reference implementation for this API. It should be possible
+to adapt other event loops to this same API, and then Python
+code written to work with asyncio becomes event-loop agnostic.
 
 DBussy allows you to take advantage of asyncio, but it doesn’t force
 you to use it. DBussy is meant to give you access to (nearly) all the
@@ -72,4 +73,4 @@ it.
 
 
 Lawrence D'Oliveiro <ldo@geek-central.gen.nz>
-2017 April 27
+2017 April 30

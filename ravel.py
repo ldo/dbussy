@@ -127,6 +127,16 @@ def guess_signature(obj) :
         signature
 #end guess_signature
 
+def guess_sequence_signature(args) :
+    if isinstance(args, (tuple, list)) :
+        result = "".join(guess_signature(a) for a in args)
+    else :
+        result = guess_signature(args)
+    #end if
+    return \
+        result
+#end guess_sequence_signature
+
 class Bus :
 
     __slots__ = ("__weakref__", "connection", "loop", "_dispatch") # to forestall typos
@@ -269,7 +279,7 @@ class Bus :
                 # fixme: if signature is not None, args should be required?
                 message.append_objects \
                   (
-                    (lambda : guess_signature(args), lambda : signature)[signature != None](),
+                    (lambda : guess_sequence_signature(args), lambda : signature)[signature != None](),
                     args
                   )
             #end if
@@ -378,8 +388,8 @@ class CMethod :
             method = self.method
           )
         if len(args) != 0 :
-            #print("guess signature for %s = %s" % (repr(args), repr(guess_signature(args)))) # debug
-            message.append_objects(guess_signature(args), args)
+            #print("guess signature for %s = %s" % (repr(args), repr(guess_sequence_signature(args)))) # debug
+            message.append_objects(guess_sequence_signature(args), args)
         #end if
         return \
             message

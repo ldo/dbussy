@@ -19,6 +19,73 @@ and a reference implementation for this API. It should be possible
 to adapt other event loops to this same API, and then Python
 code written to work with asyncio becomes event-loop agnostic.
 
+
+What Is D-Bus?
+==============
+
+D-Bus is a high-level interprocess communication protocol. It also
+provides a standard daemon, that is included with the main Linux
+desktop environments, that implements a set of standard “buses”: a
+“system” bus that is created at system boot time, and a “session” bus
+that belongs to each user who logs into one of these desktop
+environments.
+
+Processes can register their services on one of these buses--the
+system bus for systemwide access, or the session bus for per-user
+access--where other processes can find them by name and connect to
+them. Or they can accept connections on entirely separate networking
+sockets, without any dependency on the D-Bus daemon. libdbus, the
+reference implementation for the low-level D-Bus protocol, supports
+both modes of operation.
+
+D-Bus is based around the concept of passing messages conforming to
+a standard, extensible format. Messages are of four types:
+  * a “method call”
+  * a “method return” (normal response to a method call)
+  * an “error” (abnormal response to a method call)
+  * a “signal” notification
+
+A method-call message is how one process requests a service of another
+process via D-Bus; the usual response would be a method-return message
+in the other direction indicating the completion status of the service
+being performed; it is also possible to send method-call messages
+without expecting a reply. If there was something wrong with the
+method-call message (e.g. inappropriate parameters, lack of
+permissions), then the response would be an error message. One could
+also send a method-return with information indicating a failure to
+perform the requested service; presumably the choice between the types
+of response is that an error return indicates a condition that is not
+supposed to happen--a bug in the requesting program.
+
+Signal messages are sent as notifications of interesting events
+pertaining to the current session (for the session bus) or the entire
+system (for the system bus). They are usually not sent to a specific
+destination, but can be picked up by all interested processes on the
+bus. There are no replies to signals; if the receiving process cannot
+or will not process a particular message, it simply ignores it.
+
+D-Bus also includes an extensive type system for encoding data in a
+message. A message contains a sequence of 0, 1 or more parameters,
+each of which can be of various types: “basic” types (e.g. integer,
+float, string) or “container” types (structs, arrays, dictionaries)
+which in turn contain more values, each of which in turn can be of a
+basic or (recursively) another container type. A “signature” is a
+string encoding the type of a value, or sequence of values; there is
+also a “variant” type, which means the type of the value is encoded
+dynamically with the value itself, separate from the signature.
+
+The importance of type signatures is really up to the particular
+programs that are trying to communicate: some might insist on values
+exactly matching the expected type signature, whereas others might be
+more lenient. For example, while the D-Bus type system specifies
+different basic types for different sizes of integers of signed or
+unsigned varieties, most Python code will probably not care about the
+specific distinctions, and treat all these values as of type “int”.
+
+
+Enter DBussy
+============
+
 DBussy allows you to take advantage of asyncio, but it doesn’t force
 you to use it. DBussy is meant to give you access to (nearly) all the
 functionality of the underlying libdbus library

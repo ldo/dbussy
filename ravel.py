@@ -439,7 +439,7 @@ class CAsyncMethod(CMethod) :
 
 def _message_sinterface_dispatch(connection, message, bus) :
     result = DBUS.HANDLER_RESULT_NOT_YET_HANDLED # to begin with
-    if message.type == DBUS.MESSAGE_TYPE_METHOD_CALL :
+    if message.type in (DBUS.MESSAGE_TYPE_METHOD_CALL, DBUS.MESSAGE_TYPE_SIGNAL) :
         fallback = None # to begin with
         level = bus._dispatch
         levels = iter(message.path_decomposed)
@@ -466,8 +466,9 @@ def _message_sinterface_dispatch(connection, message, bus) :
                 #end if
                 if iface != None :
                     method_name = message.member
-                    if method_name in iface._sinterface_methods :
-                        method = iface._sinterface_methods[method_name]
+                    methods = {DBUS.MESSAGE_TYPE_METHOD_CALL : iface._sinterface_methods, DBUS.MESSAGE_TYPE_SIGNAL : iface._sinterface_signals}[message.type]
+                    if method_name in methods :
+                        method = methods[method_name]
                         args = list(message.objects)
                           # fixme: should I pay any attention to method._smethod_info["signature"]?
                         result = method(iface, connection, message, *args)
@@ -500,8 +501,8 @@ def _message_sinterface_dispatch(connection, message, bus) :
 
 class _SInterface_Meta(type) :
     # metaclass for SInterface and its subclasses. Collects methods
-    # identified by @smethod() decorator calls into a dispatch
-    # table for easy lookup.
+    # identified by @smethod() and @ssignal() decorator calls into a
+    # dispatch table for easy lookup.
 
     def __init__(self, *args, **kwargs) :
         # needed to prevent passing kwargs to type.__init__
@@ -520,6 +521,13 @@ class _SInterface_Meta(type) :
                     for f in namespace.values()
                     if hasattr(f, "_smethod_info")
                   )
+            self._sinterface_signals = \
+                dict \
+                  (
+                    (f._ssignal_info["name"], f)
+                    for f in namespace.values()
+                    if hasattr(f, "_ssignal_info")
+                  )
         #end if
         return \
             self
@@ -530,11 +538,12 @@ class _SInterface_Meta(type) :
 class SInterface(metaclass = _SInterface_Meta) :
     "base class for defining server-side interfaces. The class definition should" \
     " specify an “iface_name” keyword argument giving the interface name. Interface methods" \
-    " should be invocable as\n" \
+    " and signals should be invocable as\n" \
     "\n" \
     "    method(self, path, *message_args)\n" \
     "\n" \
-    " and definitions should call the “@smethod()” decorator to identify them."
+    " and definitions should call the “@smethod()” or “@ssignal()” decorator" \
+    " to identify them."
 
     __slots__ = ("user_data",)
 
@@ -564,6 +573,27 @@ def smethod(name = None, signature = None) :
     return \
         decorate
 #end smethod
+
+def ssignal(name = None, signature = None) :
+    "put a call to this function as a decorator for each method of an SInterface" \
+    " subclass that is to be registered as a signal of the interface. “name” is the" \
+    " name of the signal as specified in the D-Bus message; if omitted, it defaults" \
+    " to the name of the function."
+
+    def decorate(func) :
+        nonlocal name
+        if name == None :
+            name = func.__name__
+        #end if
+        func._ssignal_info = {"name" : name, "signature" : signature}
+        return \
+            func
+    #end decorate
+
+#begin ssignal
+    return \
+        decorate
+#end ssignal
 
 class Server :
     "listens for connections on a particular socket address, separate from" \

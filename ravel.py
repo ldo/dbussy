@@ -619,7 +619,7 @@ class Server :
         self.server.disconnect()
     #end __del__
 
-    async def await_connection(self, timeout = DBUS.TIMEOUT_INFINITE) :
+    async def await_new_connection(self, timeout = DBUS.TIMEOUT_INFINITE) :
         "waits for a new connection attempt and returns a wrapping Bus object." \
         " If no connection appears within the specified timeout, returns None."
         conn = await self.server.await_new_connection(timeout)
@@ -630,6 +630,6 @@ class Server :
         #end if
         return \
             result
-    #end await_connection
+    #end await_new_connection
 
 #end Server

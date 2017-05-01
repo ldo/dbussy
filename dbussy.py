@@ -4077,6 +4077,13 @@ def parse_signature(signature) :
         result
 #end parse_signature
 
+def unparse_signature(signature) :
+    "converts a signature from parsed form to string form."
+    signature = parse_signature(signature)
+    return \
+        DBUS.Signature("".join(t.signature for t in signature))
+#end unparse_signature
+
 def signature_validate_single(signature, error = None) :
     "is signature a single valid type."
     error, my_error = _get_error(error)

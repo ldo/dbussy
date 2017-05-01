@@ -564,3 +564,33 @@ def smethod(name = None, signature = None) :
     return \
         decorate
 #end smethod
+
+class Server :
+    "listens for connections on a particular socket address, separate from" \
+    " the D-Bus daemon. Requires asyncio."
+
+    __slots__ = ("server",)
+
+    def __init__(self, address, loop = None) :
+        self.server = dbus.Server.listen(address)
+        self.server.attach_asyncio(loop)
+    #end __init__
+
+    def __del__(self) :
+        self.server.disconnect()
+    #end __del__
+
+    async def await_connection(self, timeout = DBUS.TIMEOUT_INFINITE) :
+        "waits for a new connection attempt and returns a wrapping Bus object." \
+        " If no connection appears within the specified timeout, returns None."
+        conn = await self.server.await_new_connection(timeout)
+        if conn != None :
+            result = Bus(conn)
+        else :
+            result = None
+        #end if
+        return \
+            result
+    #end await_connection
+
+#end Server

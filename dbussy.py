@@ -2459,7 +2459,7 @@ class Server :
         "_dbobj",
         "loop",
         "_new_connections",
-        "_await_new_connection",
+        "_await_new_connections",
         "max_new_connections",
         "autoattach_new_connections",
         # need to keep references to ctypes-wrapped functions
@@ -2485,7 +2485,7 @@ class Server :
             self._dbobj = _dbobj
             self.loop = None
             self._new_connections = None
-            self._await_new_connection = None
+            self._await_new_connections = None
             self.max_new_connections = None
             self.autoattach_new_connections = True
             self._new_connection_function = None
@@ -2692,11 +2692,25 @@ class Server :
         " to call Connection.attach_asyncio() to handle events for the new connection."
 
         def new_connection(self, conn, user_data) :
-            if self._await_new_connection != None :
-                self._await_new_connection.set_result(conn)
-                self._await_new_connection = None
-            else :
-                if self.max_new_connections != None and len(self._new_connections) >= self.max_new_connections :
+            while True :
+                if len(self._await_new_connections) == 0 :
+                    processed = False
+                    break
+                #end if
+                awaiting = self._await_new_connections.pop(0)
+                if not awaiting.cancelled() :
+                    awaiting.set_result(conn)
+                    processed = True
+                    break
+                #end if
+            #end while
+            if not processed :
+                # put it in _new_connections queue
+                if (
+                        self.max_new_connections != None
+                    and
+                        len(self._new_connections) >= self.max_new_connections
+                ) :
                     # too many connections pending, reject
                     conn.close()
                 else :
@@ -2709,6 +2723,7 @@ class Server :
         assert self.loop == None, "already attached to an event loop"
         assert self._new_connection_function == None, "already set a new-connection function"
         self._new_connections = []
+        self._await_new_connections = []
         self.set_new_connection_function(new_connection, None)
         _loop_attach(self, loop, None)
     #end attach_asyncio
@@ -2721,16 +2736,16 @@ class Server :
         if len(self._new_connections) != 0 :
             result = self._new_connections.pop(0)
         else :
-            if self._await_new_connection == None :
-                self._await_new_connection = self.loop.create_future()
-            #end if
-            awaiting = self._await_new_connection
+            awaiting = self.loop.create_future()
+            self._await_new_connections.append(awaiting)
             if timeout == DBUS.TIMEOUT_INFINITE :
                 timeout = None
             else :
                 if timeout == DBUS.TIMEOUT_USE_DEFAULT :
                     timeout = DBUS.DEFAULT_TIMEOUT
                 #end if
+                start_time = self.loop.time()
+                end_time = start_time + timeout
             #end if
             await asyncio.wait \
               (
@@ -2742,8 +2757,8 @@ class Server :
                 # don’t match up with future I’m waiting for
             if awaiting.done() :
                 result = awaiting.result()
-                # self._await_new_connection = None # done by new_connection callback (above)
             else :
+                awaiting.cancel()
                 result = None
             #end if
         #end if

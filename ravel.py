@@ -312,6 +312,13 @@ def system_bus() :
         Bus(dbus.Connection.bus_get(DBUS.BUS_SYSTEM, private = False))
 #end system_bus
 
+def connect_server(address) :
+    "opens a connection to a server at the specified network address and" \
+    " returns a Bus object for the connection."
+    return \
+        Bus(dbus.Connection.open(address, private = False))
+#end connect_server
+
 #+
 # Client-side proxies for server-side objects
 #-

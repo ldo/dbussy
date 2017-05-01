@@ -64,9 +64,39 @@ destination, but can be picked up by all interested processes on the
 bus. There are no replies to signals; if the receiving process cannot
 or will not process a particular message, it simply ignores it.
 
+Messages optionally include the following information:
+  * a destination “bus name” indicating the process that is to
+    receive the message (this is not the name of the bus, but the
+    name of a process on the bus)
+  * an “object path” which looks like a POSIX absolute file name
+    (always beginning with a slash and never ending with a slash);
+    the meaning of this is up to the receiving process, but it is
+    intended to indicate some object within the hierarchy exposed
+    by the process
+  * an “interface name” which identifies the particular message
+    protocol
+  * a “method name” which identifies the particular function to be
+    performed within that interface.
+
+Bus names and interface names look like domain names with the components
+reversed, so the top level is at the beginning. If you are familiar with
+package names in Java, they take the same form, and with the same
+intent: to reduce the chance of name conflicts.
+
+D-Bus defines some standard interfaces which are meant to be
+understood by most if not all services. For example, the
+“org.freedesktop.DBus.Introspectable” interface defines an
+“Introspect” method; the expected response to this is an XML string
+that describes all the interfaces understood by the object identified
+by the object path, as well as listing all the available child objects
+that can be accessed by appending a slash and the child name to the
+parent object path, if any.
+
 D-Bus also includes an extensive type system for encoding data in a
-message. A message contains a sequence of 0, 1 or more parameters,
-each of which can be of various types: “basic” types (e.g. integer,
+message. This data represents arguments to the method call or signal,
+return results for a method return or the error name and message for
+an error. A message contains a sequence of 0, 1 or more items of such
+data, each of which can be of various types: “basic” types (e.g. integer,
 float, string) or “container” types (structs, arrays, dictionaries)
 which in turn contain more values, each of which in turn can be of a
 basic or (recursively) another container type. A “signature” is a

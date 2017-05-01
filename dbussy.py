@@ -4069,7 +4069,7 @@ def parse_signature(signature) :
         #end if
         result = signature
     elif isinstance(signature, Type) :
-        result = signature
+        result = [signature]
     elif isinstance(signature, str) :
         signature_validate(signature)
         result = []
@@ -4491,6 +4491,111 @@ class Introspection :
     #end unparse
 
 #end Introspection
+
+standard_interfaces = \
+    {
+        DBUS.INTERFACE_INTROSPECTABLE :
+            Introspection.Interface
+              (
+                name = DBUS.INTERFACE_INTROSPECTABLE,
+                methods =
+                    [
+                        Introspection.Interface.Method(name = "Introspect"),
+                    ],
+              ),
+        DBUS.INTERFACE_PROPERTIES :
+            Introspection.Interface
+              (
+                name = DBUS.INTERFACE_PROPERTIES,
+                methods =
+                    [
+                        Introspection.Interface.Method
+                          (
+                            name = "Get",
+                            args =
+                                [
+                                    Introspection.Interface.Method.Arg
+                                      (
+                                        type = BasicType(TYPE.STRING),
+                                        direction = Introspection.DIRECTION.IN,
+                                      ), # interface_name
+                                    Introspection.Interface.Method.Arg
+                                      (
+                                        type = BasicType(TYPE.STRING),
+                                        direction = Introspection.DIRECTION.IN,
+                                      ), # property_name
+                                    Introspection.Interface.Method.Arg
+                                      (
+                                        type = VariantType(),
+                                        direction = Introspection.DIRECTION.OUT,
+                                      ), # value
+                                ],
+                          ),
+                        Introspection.Interface.Method
+                          (
+                            name = "Set",
+                            args =
+                                [
+                                    Introspection.Interface.Method.Arg
+                                      (
+                                        type = BasicType(TYPE.STRING),
+                                        direction = Introspection.DIRECTION.IN,
+                                      ), # interface_name
+                                    Introspection.Interface.Method.Arg
+                                      (
+                                        type = BasicType(TYPE.STRING),
+                                        direction = Introspection.DIRECTION.IN,
+                                      ), # property_name
+                                    Introspection.Interface.Method.Arg
+                                      (
+                                        type = VariantType(),
+                                        direction = Introspection.DIRECTION.IN,
+                                      ), # value
+                                ],
+                          ),
+                        Introspection.Interface.Method
+                          (
+                            name = "GetAll",
+                            args =
+                                [
+                                    Introspection.Interface.Method.Arg
+                                      (
+                                        type = BasicType(TYPE.STRING),
+                                        direction = Introspection.DIRECTION.IN,
+                                      ), # interface_name
+                                    Introspection.Interface.Method.Arg
+                                      (
+                                        type = DictType(BasicType(TYPE.STRING), VariantType()),
+                                        direction = Introspection.DIRECTION.OUT,
+                                      ), # values
+                                ],
+                          ),
+                    ],
+                signals =
+                    [
+                        Introspection.Interface.Signal
+                          (
+                            name = "PropertiesChanged",
+                            args =
+                                [
+                                    Introspection.Interface.Signal.Arg
+                                      (
+                                        type = BasicType(TYPE.STRING),
+                                      ), # interface_name
+                                    Introspection.Interface.Signal.Arg
+                                      (
+                                        type = DictType(BasicType(TYPE.STRING), VariantType()),
+                                      ), # changed_properties
+                                    Introspection.Interface.Signal.Arg
+                                      (
+                                        type = ArrayType(BasicType(TYPE.STRING)),
+                                      ), # invalidated_properties
+                                ],
+                          ),
+                    ]
+              ),
+    # could add more
+    }
 
 #+
 # Cleanup

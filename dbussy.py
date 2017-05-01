@@ -17,8 +17,13 @@ import ctypes as ct
 from weakref import \
     ref as weak_ref, \
     WeakValueDictionary
+import io
 import atexit
 import asyncio
+from xml.etree import \
+    ElementTree as XMLElementTree
+from xml.sax.saxutils import \
+    escape as xml_escape
 
 dbus = ct.cdll.LoadLibrary("libdbus-1.so.3")
 
@@ -4063,6 +4068,8 @@ def parse_signature(signature) :
             raise TypeError("signature is list containing non-Type objects")
         #end if
         result = signature
+    elif isinstance(signature, Type) :
+        result = signature
     elif isinstance(signature, str) :
         signature_validate(signature)
         result = []
@@ -4077,9 +4084,21 @@ def parse_signature(signature) :
         result
 #end parse_signature
 
+def parse_single_signature(signature) :
+    result = parse_signature(signature)
+    if len(result) != 1 :
+        raise ValueError("only single type expected")
+    #end if
+    return \
+        result[0]
+#end parse_single_signature
+
 def unparse_signature(signature) :
     "converts a signature from parsed form to string form."
     signature = parse_signature(signature)
+    if not isinstance(signature, (tuple, list)) :
+        signature = [signature]
+    #end if
     return \
         DBUS.Signature("".join(t.signature for t in signature))
 #end unparse_signature
@@ -4177,6 +4196,301 @@ def validate_utf8(alleged_utf8, error = None) :
     return \
         result
 #end validate_utf8
+
+#+
+# Standard interfaces
+#-
+
+class Introspection :
+    "high-level wrapper for the DBUS.INTERFACE_INTROSPECTABLE interface."
+
+    __slots__ = ("interfaces", "nodes", "annotations")
+
+    class DIRECTION(enum.Enum) :
+        "argument direction."
+        IN = "in" # client to server
+        OUT = "out" # server to client
+    #end DIRECTION
+
+    class ACCESS(enum.Enum) :
+        "property access."
+        READ = "read"
+        WRITE = "write"
+        READWRITE = "readwrite"
+    #end ACCESS
+
+    class Annotation :
+        # TODO: actually include these
+
+        __slots__ = ("name", "value")
+        tag_name = "annotation"
+        tag_attrs = ("name", "value")
+        tag_elts = {}
+
+        def __init__(self, name, value) :
+            self.name = name
+            self.value = value
+        #end __init__
+
+    #end Annotation
+
+    class Interface :
+
+        __slots__ = ("name", "methods", "signals", "properties", "annotations")
+        tag_name = "interface"
+        tag_attrs = ("name",)
+
+        class Method :
+
+            __slots__ = ("name", "args", "annotations")
+            tag_name = "method"
+            tag_attrs = ("name",)
+
+            class Arg :
+
+                __slots__ = ("type", "direction", "annotations")
+                tag_name = "arg"
+                tag_attrs = ("type", "direction")
+                tag_elts = {}
+                attr_convert = {} # {"direction" : Introspection.DIRECTION} assigned below
+
+                def __init__(self, type, direction, annotations = ()) :
+                    if not isinstance(direction, Introspection.DIRECTION) :
+                        raise TypeError("direction must be an Introspection.DIRECTION.xxx enum")
+                    #end if
+                    self.type = parse_single_signature(type)
+                    self.direction = direction
+                    self.annotations = annotations # TBD validate
+                #end __init__
+
+            #end Arg
+
+            tag_elts = {"args" : Arg}
+
+            def __init__(self, name, args = (), annotations = ()) :
+                if not all(isinstance(a, self.Arg) for a in args) :
+                    raise TypeError("args must be Arg instances")
+                #end if
+                self.name = name
+                self.args = tuple(args)
+                self.annotations = annotations # TBD validate
+            #end __init__
+
+        #end Method
+
+        class Signal :
+
+            __slots__ = ("name", "args", "annotations")
+            tag_name = "signal"
+            tag_attrs = ("name",)
+
+            class Arg :
+
+                __slots__ = ("type", "annotations")
+                tag_name = "arg"
+                tag_attrs = ("type",)
+                tag_elts = {}
+
+                def __init__(self, type, annotations = ()) :
+                    self.type = parse_single_signature(type)
+                    self.annotations = annotations # TBD validate
+                #end __init__
+
+            #end Arg
+
+            tag_elts = {"args" : Arg}
+
+            def __init__(self, name, args = (), annotations = ()) :
+                if not all(isinstance(a, self.Arg) for a in args) :
+                    raise TypeError("args must be Arg instances")
+                #end if
+                self.name = name
+                self.args = tuple(args)
+                self.annotations = annotations # TBD validate
+            #end __init__
+
+        #end Signal
+
+        class Property :
+
+            __slots__ = ("name", "type", "access", "annotations")
+            tag_name = "property"
+            tag_attrs = ("name", "type", "access")
+            tag_elts = {}
+            attr_convert = {} # {"access" : Introspection.ACCESS} assigned below
+
+            def __init__(self, name, type, access, annotations = ()) :
+                if not isinstance(access, Introspection.ACCESS) :
+                    raise TypeError("access must be an Introspection.ACCESS.xxx enum")
+                #end if
+                self.name = name
+                self.type = parse_single_signature(type)
+                self.access = access
+                self.annotations = annotations # TBD validate
+            #end __init__
+
+        #end Property
+
+        tag_elts = {"methods" : Method, "signals" : Signal, "properties" : Property}
+
+        def __init__(self, name, methods = (), signals = (), properties = (), annotations = ()) :
+            if not all(isinstance(m, self.Method) for m in methods) :
+                raise TypeError("methods must be Method instances")
+            #end if
+            if not all(isinstance(s, self.Signal) for s in signals) :
+                raise TypeError("signals must be Signal instances")
+            #end if
+            if not all(isinstance(p, self.Property) for p in properties) :
+                raise TypeError("properties must be Property instances")
+            #end if
+            self.name = name
+            self.methods = tuple(methods)
+            self.signals = tuple(signals)
+            self.properties = tuple(properties)
+            self.annotations = annotations # TBD validate
+        #end __init__
+
+    #end Interface
+    Interface.Method.Arg.attr_convert["direction"] = DIRECTION
+    Interface.Property.attr_convert["access"] = ACCESS
+
+    class Node :
+
+        __slots__ = ("name", "annotations")
+        tag_name = "node"
+        tag_attrs = ("name",)
+        tag_elts = {}
+
+        def __init__(self, name, annotations = ()) :
+            self.name = name
+            self.annotations = annotations # TBD validate
+        #end __init__
+
+    #end Node
+
+    tag_elts = {"interfaces" : Interface, "nodes" : Node}
+
+    def __init__(self, interfaces = (), nodes = (), annotations = ()) :
+        if not all(isinstance(i, self.Interface) for i in interfaces) :
+            raise TypeError("interfaces must be Interface instances")
+        #end if
+        if not all(isinstance(n, self.Node) for n in nodes) :
+            raise TypeError("nodes must be Node instances")
+        #end if
+        self.interfaces = tuple(interfaces)
+        self.nodes = tuple(nodes)
+        self.annotations = annotations # TBD validate
+    #end __init__
+
+    @classmethod
+    def parse(celf, s) :
+
+        def from_string_elts(celf, attrs, tree) :
+            elts = dict((k, attrs[k]) for k in attrs)
+            child_tags = dict \
+              (
+                (childclass.tag_name, childclass)
+                for childclass in tuple(celf.tag_elts.values()) + (Introspection.Annotation,)
+              )
+            children = []
+            for child in tree :
+                if child.tag not in child_tags :
+                    raise KeyError("unrecognized tag %s" % child.tag)
+                #end if
+                childclass = child_tags[child.tag]
+                childattrs = dict((attrname, child.attrib[attrname]) for attrname in childclass.tag_attrs)
+                if hasattr(childclass, "attr_convert") :
+                    for attr in childclass.attr_convert :
+                        if attr in childattrs :
+                            childattrs[attr] = childclass.attr_convert[attr](childattrs[attr])
+                        #end if
+                    #end for
+                #end if
+                children.append(from_string_elts(childclass, childattrs, child))
+            #end for
+            for child_tag, childclass in celf.tag_elts.items() :
+                for child in children :
+                    if isinstance(child, childclass) :
+                        if child_tag not in elts :
+                            elts[child_tag] = []
+                        #end if
+                        elts[child_tag].append(child)
+                    #end if
+                #end for
+            #end for
+            return \
+                celf(**elts)
+        #end from_string_elts
+
+    #begin parse
+        tree = XMLElementTree.fromstring(s)
+        assert tree.tag == "node", "root of introspection tree must be <node> tag"
+        return \
+            from_string_elts(Introspection, {}, tree)
+    #end parse
+
+    def unparse(self, indent_step = 4, max_linelen = 72) :
+
+        out = io.StringIO()
+
+        def to_string(obj, indent) :
+            tag_name = obj.tag_name
+            attrs = []
+            for attrname in obj.tag_attrs :
+                attr = getattr(obj, attrname)
+                if isinstance(attr, enum.Enum) :
+                    attr = attr.value
+                elif isinstance(attr, Type) :
+                    attr = unparse_signature(attr)
+                elif not isinstance(attr, str) :
+                    raise TypeError("unexpected attribute type %s for %s" % (type(attr).__name__, repr(attr)))
+                #end if
+                attrs.append("%s=\"%s\"" % (attrname, xml_escape(attr)))
+            #end for
+            has_elts = sum(len(getattr(obj, attrname)) for attrname in tuple(obj.tag_elts.keys()) + ("annotations",)) != 0
+            out.write(" " * indent + "<" + tag_name)
+            if len(tag_name) + sum(len(s) for s in attrs) + 2 + int(has_elts) > max_linelen :
+                out.write("\n")
+                for attr in attrs :
+                    out.write(" " * (indent + indent_step))
+                    out.write(attr)
+                    out.write("\n")
+                #end for
+            else :
+                for attr in attrs :
+                    out.write(" ")
+                    out.write(attr)
+                #end for
+            #end if
+            if not has_elts :
+                out.write("/")
+            #end if
+            out.write(">\n")
+            if has_elts :
+                for attrname in obj.tag_elts :
+                    for elt in getattr(obj, attrname) :
+                        to_string(elt, indent + indent_step)
+                    #end for
+                #end for
+                out.write(" " * indent + "</" + tag_name + ">\n")
+            #end if
+        #end to_string
+
+    #begin unparse
+        out.write(DBUS.INTROSPECT_1_0_XML_DOCTYPE_DECL_NODE)
+        out.write("<node>\n")
+        for elt in self.interfaces :
+            to_string(elt, 1 * indent_step)
+        #end for
+        for elt in self.nodes :
+            to_string(elt, 1 * indent_step)
+        #end for
+        out.write("</node>\n")
+        return \
+            out.getvalue()
+    #end unparse
+
+#end Introspection
 
 #+
 # Cleanup

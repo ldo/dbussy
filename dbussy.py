@@ -434,6 +434,8 @@ class DBUS :
     TIMEOUT_INFINITE = 0x7fffffff
     TIMEOUT_USE_DEFAULT = -1
 
+    DEFAULT_TIMEOUT = 25 # seconds, from dbus-connection-internal.h in libdbus source
+
     # from dbus-message.h:
     class MessageIter(ct.Structure) :
         "contains no public fields."
@@ -2451,6 +2453,10 @@ class Server :
         "__weakref__",
         "_dbobj",
         "loop",
+        "_new_connections",
+        "_await_new_connection",
+        "max_new_connections",
+        "autoattach_new_connections",
         # need to keep references to ctypes-wrapped functions
         # so they don't disappear prematurely:
         "_new_connection_function",
@@ -2473,6 +2479,10 @@ class Server :
             self = super().__new__(celf)
             self._dbobj = _dbobj
             self.loop = None
+            self._new_connections = None
+            self._await_new_connection = None
+            self.max_new_connections = None
+            self.autoattach_new_connections = True
             self._new_connection_function = None
             self._free_new_connection_data = None
             self._add_watch_function = None
@@ -2550,8 +2560,8 @@ class Server :
         " It is up to you to save the Connection object for later processing of" \
         " messages, or close it to reject the connection attempt."
 
-        def wrap_function(self, conn, _data) :
-            function(self, Connection(dbus.dbus_connection_ref(conn)), data)
+        def wrap_function(c_self, c_conn, _data) :
+            function(self, Connection(dbus.dbus_connection_ref(c_conn)), data)
               # even though this is a new connection, I still have to reference it
         #end wrap_function
 
@@ -2560,6 +2570,7 @@ class Server :
         #end wrap_free_data
 
     #begin set_new_connection_function
+        assert self.loop == None, "new connections are being managed by an event loop"
         self._new_connection_function = DBUS.NewConnectionFunction(wrap_function)
         if free_data != None :
             self._free_new_connection_data = DBUS.FreeFunction(wrap_free_data)
@@ -2671,11 +2682,72 @@ class Server :
         " specified, the default event loop (as returned from asyncio.get_event_loop()" \
         " is used.\n" \
         "\n" \
-        "Note that you still need to attach a new_connection callback. This can call" \
-        " Connection.attach_asyncio() to handle events for the new connection as well."
+        "This call will also automatically attach a new_connection callback. You then use" \
+        " the await_new_connection coroutine to obtain new connections. It is up to you" \
+        " to call Connection.attach_asyncio() to handle events for the new connection."
+
+        def new_connection(self, conn, user_data) :
+            if self._await_new_connection != None :
+                self._await_new_connection.set_result(conn)
+                self._await_new_connection = None
+            else :
+                if self.max_new_connections != None and len(self._new_connections) >= self.max_new_connections :
+                    # too many connections pending, reject
+                    conn.close()
+                else :
+                    self._new_connections.append(conn)
+                #end if
+            #end if
+        #end new_connection
+
+    #begin attach_asyncio
         assert self.loop == None, "already attached to an event loop"
+        assert self._new_connection_function == None, "already set a new-connection function"
+        self._new_connections = []
+        self.set_new_connection_function(new_connection, None)
         _loop_attach(self, loop, None)
     #end attach_asyncio
+
+    async def await_new_connection(self, timeout = DBUS.TIMEOUT_INFINITE) :
+        "retrieves the next new Connection, if there is one available, otherwise" \
+        " suspends the current coroutine for up to the specified timeout duration" \
+        " while waiting for one to appear. Returns None if there is no new connection" \
+        " within that time."
+        if len(self._new_connections) != 0 :
+            result = self._new_connections.pop(0)
+        else :
+            if self._await_new_connection == None :
+                self._await_new_connection = self.loop.create_future()
+            #end if
+            awaiting = self._await_new_connection
+            if timeout == DBUS.TIMEOUT_INFINITE :
+                timeout = None
+            else :
+                if timeout == DBUS.TIMEOUT_USE_DEFAULT :
+                    timeout = DBUS.DEFAULT_TIMEOUT
+                #end if
+            #end if
+            await asyncio.wait \
+              (
+                (awaiting,),
+                loop = self.loop,
+                timeout = timeout
+              )
+                # ignore done & pending results because they
+                # don’t match up with future I’m waiting for
+            if awaiting.done() :
+                result = awaiting.result()
+                # self._await_new_connection = None # done by new_connection callback (above)
+            else :
+                result = None
+            #end if
+        #end if
+        if result != None and self.autoattach_new_connections :
+            result.attach_asyncio()
+        #end if
+        return \
+            result
+    #end await_new_connection
 
 #end Server
 

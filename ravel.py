@@ -300,17 +300,17 @@ class Bus :
 
 #end Bus
 
-def SessionBus() :
+def session_bus() :
     "returns a Bus object for the current D-Bus session bus."
     return \
         Bus(dbus.Connection.bus_get(DBUS.BUS_SESSION, private = False))
-#end SessionBus
+#end session_bus
 
-def SystemBus() :
+def system_bus() :
     "returns a Bus object for the D-Bus system bus."
     return \
         Bus(dbus.Connection.bus_get(DBUS.BUS_SYSTEM, private = False))
-#end SystemBus
+#end system_bus
 
 #+
 # Client-side proxies for server-side objects

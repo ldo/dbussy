@@ -4456,6 +4456,7 @@ class Introspection :
                     out.write(attr)
                     out.write("\n")
                 #end for
+                out.write(" " * indent)
             else :
                 for attr in attrs :
                     out.write(" ")

@@ -537,13 +537,15 @@ class _SInterface_Meta(type) :
 
 class SInterface(metaclass = _SInterface_Meta) :
     "base class for defining server-side interfaces. The class definition should" \
-    " specify an “iface_name” keyword argument giving the interface name. Interface methods" \
-    " and signals should be invocable as\n" \
+    " specify an “iface_name” keyword argument giving the interface name. Interface" \
+    " methods and signals should be invocable as\n" \
     "\n" \
-    "    method(self, path, *message_args)\n" \
+    "    method(self, connection, message, *message_args)\n" \
     "\n" \
     " and definitions should call the “@smethod()” or “@ssignal()” decorator" \
-    " to identify them."
+    " to identify them. The return result should be a DBUS.HANDLER_RESULT_xxx code," \
+    " or a coroutine to queue for execution after indicating that the message has" \
+    " been handled."
 
     __slots__ = ("user_data",)
 

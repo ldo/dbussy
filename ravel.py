@@ -543,14 +543,16 @@ def sinterface(*, name) :
             dict \
               (
                 (f._smethod_info["name"], f)
-                for f in dir(celf)
+                for fname in dir(celf)
+                for f in (getattr(celf, fname),)
                 if hasattr(f, "_smethod_info")
               )
         celf._sinterface_signals = \
             dict \
               (
                 (f._ssignal_info["name"], f)
-                for f in dir(celf)
+                for fname in dir(celf)
+                for f in (getattr(celf, fname),)
                 if hasattr(f, "_ssignal_info")
               )
         return \

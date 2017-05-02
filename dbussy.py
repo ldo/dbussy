@@ -3208,6 +3208,13 @@ class Message :
         #end for
     #end objects
 
+    @property
+    def all_objects(self) :
+        "all the arguments of the Message as a list of Python objects."
+        return \
+            list(self.all_objects)
+    #end all_objects
+
     def iter_init_append(self) :
         "creates a Message.Iter for appending arguments to the Message."
         iter = self.Iter(None, True)

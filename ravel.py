@@ -278,7 +278,7 @@ class Bus :
             message = dbus.Message.new_signal \
               (
                 path = path,
-                iface = interface._sinterface_name,
+                iface = interface,
                 name = name
               )
             if len(args) != 0 :
@@ -293,9 +293,6 @@ class Bus :
         #end gen_signal
 
     #begin defsignal
-        if not is_sinterface(interface) :
-            raise TypeError("interface must be an @sinterface() class")
-        #end if
         gen_signal.__name__ = name
         if docstring != None :
             gen_signal.__doc__ = docstring

@@ -2692,19 +2692,10 @@ class Server :
         " to call Connection.attach_asyncio() to handle events for the new connection."
 
         def new_connection(self, conn, user_data) :
-            while True :
-                if len(self._await_new_connections) == 0 :
-                    processed = False
-                    break
-                #end if
+            if len(self._await_new_connections) != 0 :
                 awaiting = self._await_new_connections.pop(0)
-                if not awaiting.cancelled() :
-                    awaiting.set_result(conn)
-                    processed = True
-                    break
-                #end if
-            #end while
-            if not processed :
+                awaiting.set_result(conn)
+            else :
                 # put it in _new_connections queue
                 if (
                         self.max_new_connections != None
@@ -2758,7 +2749,7 @@ class Server :
             if awaiting.done() :
                 result = awaiting.result()
             else :
-                awaiting.cancel()
+                self._await_new_connections.pop(self._await_new_connections.index(awaiting))
                 result = None
             #end if
         #end if

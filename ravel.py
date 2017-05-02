@@ -462,10 +462,8 @@ def _message_sinterface_dispatch(connection, message, bus) :
         while True :
             component = next(levels, None)
             iface = None # to begin with
-            if component == None :
-                if "dispatch" in level and interface_name in level["dispatch"] :
-                    iface = level["dispatch"][interface_name]["interface"]
-                #end if
+            if "dispatch" in level and interface_name in level["dispatch"] and (level["dispatch"][interface_name]["subdir"] or component == None) :
+                iface = level["dispatch"][interface_name]["interface"]
             #end if
             if (
                     component == None
@@ -500,16 +498,7 @@ def _message_sinterface_dispatch(connection, message, bus) :
                 #end if
                 break
             #end if
-            if (
-                    "dispatch" in level
-                and
-                    interface_name in level["dispatch"]
-                and
-                    level["dispatch"][interface_name]["subdir"]
-            ) :
-                # find a fallback as far down the path as I can
-                fallback = level["dispatch"][interface_name]["interface"]
-            #end if
+            fallback = iface
             level = level["subdir"][component]
               # search another step down the path
         #end while

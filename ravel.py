@@ -410,12 +410,12 @@ class CMethod :
 
     def _process_reply(self, reply) :
         if reply.type == DBUS.MESSAGE_TYPE_METHOD_RETURN :
-            result = list(reply.objects)
+            result = reply.all_objects
             if len(result) == 1 :
                 result = result[0]
             #end if
         elif reply.type == DBUS.MESSAGE_TYPE_ERROR :
-            raise dbus.DBusError(reply.member, list(reply.objects)[0])
+            raise dbus.DBusError(reply.member, reply.all_objects[0])
         else :
             raise ValueError("unexpected reply type %d" % reply.type)
         #end if

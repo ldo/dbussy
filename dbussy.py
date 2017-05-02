@@ -3212,7 +3212,7 @@ class Message :
     def all_objects(self) :
         "all the arguments of the Message as a list of Python objects."
         return \
-            list(self.all_objects)
+            list(self.objects)
     #end all_objects
 
     def iter_init_append(self) :

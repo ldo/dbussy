@@ -1121,7 +1121,8 @@ dbus.dbus_server_set_data.argtypes = (ct.c_void_p, ct.c_int, ct.c_void_p, ct.c_v
 dbus.dbus_server_set_data.restype = ct.c_void_p
 dbus.dbus_server_set_data.argtypes = (ct.c_void_p, ct.c_int)
 
-# TODO: dbus-threads.h <https://dbus.freedesktop.org/doc/api/html/group__DBusThreads.html>
+# TODO dbus-threads.h <https://dbus.freedesktop.org/doc/api/html/group__DBusThreads.html>
+# Seems like the only call worth making is dbus_threads_init_default.
 
 #+
 # High-level stuff follows

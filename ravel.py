@@ -199,12 +199,12 @@ class Bus :
             CObject(self, bus_name, path)
     #end get_object
 
-    def register(self, path, subdir, interface, user_data) :
-        "for server-side use; registers an instance of the specified SInterface" \
-        " for handling method calls on the specified path, and also on subpaths" \
+    def register(self, path, subdir, interface, args = None, kwargs = None) :
+        "for server-side use; registers an instance of the specified interface" \
+        " class for handling method calls on the specified path, and also on subpaths" \
         " if subdir."
-        if not issubclass(interface, SInterface) :
-            raise TypeError("interface must be an SInterface subclass")
+        if not is_sinterface(interface) :
+            raise TypeError("interface must be an @sinterface() class")
         #end if
         if self._dispatch == None :
             self._dispatch = {}
@@ -227,15 +227,21 @@ class Bus :
         if interface_name in level["dispatch"] :
             raise KeyError("already registered an interface named “%s”" % interface_name)
         #end if
-        level["dispatch"][interface_name] = {"interface" : interface(user_data), "subdir" : bool(subdir)}
+        if args == None :
+            args = ()
+        #end if
+        if kwargs == None :
+            kwargs = {}
+        #end if
+        level["dispatch"][interface_name] = {"interface" : interface(*args, **kwargs), "subdir" : bool(subdir)}
     #end register
 
     def unregister(self, path, subdir, interface = None) :
-        "for server-side use; unregisters the specified SInterface (or all registered" \
-        " SInterfaces, if None) from handling method calls on path, and also on" \
-        " subpaths if subdir."
-        if interface != None and not issubclass(interface, SInterface) :
-            raise TypeError("interface must be None or an SInterface subclass")
+        "for server-side use; unregisters the specified interface class (or all" \
+        " registered interface classes, if None) from handling method calls on path," \
+        " and also on subpaths if subdir."
+        if interface != None and not is_sinterface(interface) :
+            raise TypeError("interface must be None or an @sinterface() class")
         #end if
         if self._dispatch != None :
             level = self._dispatch
@@ -287,8 +293,8 @@ class Bus :
         #end gen_signal
 
     #begin defsignal
-        if not (isinstance(interface, type) and issubclass(interface, SInterface)) and not isinstance(interface, SInterface) :
-            raise TypeError("interface must be an SInterface subclass or instance")
+        if not is_sinterface(interface) :
+            raise TypeError("interface must be an @sinterface() class")
         #end if
         gen_signal.__name__ = name
         if docstring != None :
@@ -445,6 +451,8 @@ class CAsyncMethod(CMethod) :
 #-
 
 def _message_sinterface_dispatch(connection, message, bus) :
+    # installed as message filter on a connection to handle dispatch
+    # to registered @sinterface() classes.
     result = DBUS.HANDLER_RESULT_NOT_YET_HANDLED # to begin with
     if message.type in (DBUS.MESSAGE_TYPE_METHOD_CALL, DBUS.MESSAGE_TYPE_SIGNAL) :
         fallback = None # to begin with
@@ -473,7 +481,11 @@ def _message_sinterface_dispatch(connection, message, bus) :
                 #end if
                 if iface != None :
                     method_name = message.member
-                    methods = {DBUS.MESSAGE_TYPE_METHOD_CALL : iface._sinterface_methods, DBUS.MESSAGE_TYPE_SIGNAL : iface._sinterface_signals}[message.type]
+                    methods = \
+                        {
+                            DBUS.MESSAGE_TYPE_METHOD_CALL : iface._sinterface_methods,
+                            DBUS.MESSAGE_TYPE_SIGNAL : iface._sinterface_signals,
+                        }[message.type]
                     if method_name in methods :
                         method = methods[method_name]
                         args = list(message.objects)
@@ -506,69 +518,66 @@ def _message_sinterface_dispatch(connection, message, bus) :
          result
 #end _message_sinterface_dispatch
 
-class _SInterface_Meta(type) :
-    # metaclass for SInterface and its subclasses. Collects methods
-    # identified by @smethod() and @ssignal() decorator calls into a
-    # dispatch table for easy lookup.
-
-    def __init__(self, *args, **kwargs) :
-        # needed to prevent passing kwargs to type.__init__
-        pass
-    #end __init__
-
-    def __new__(celf, name, bases, namespace, **kwargs) :
-        self = type.__new__(celf, name, bases, namespace)
-        if len(bases) != 0 : # ignore SInterface base class itself
-            assert SInterface in bases
-            self._sinterface_name = kwargs["iface_name"]
-            self._sinterface_methods = \
-                dict \
-                  (
-                    (f._smethod_info["name"], f)
-                    for f in namespace.values()
-                    if hasattr(f, "_smethod_info")
-                  )
-            self._sinterface_signals = \
-                dict \
-                  (
-                    (f._ssignal_info["name"], f)
-                    for f in namespace.values()
-                    if hasattr(f, "_ssignal_info")
-                  )
-        #end if
-        return \
-            self
-    #end __new__
-
-#end _SInterface_Meta
-
-class SInterface(metaclass = _SInterface_Meta) :
-    "base class for defining server-side interfaces. The class definition should" \
-    " specify an “iface_name” keyword argument giving the interface name. Interface" \
-    " methods and signals should be invocable as\n" \
+def sinterface(*, name) :
+    "class decorator creator for defining server-side interfaces. “name” (required)" \
+    " is the interface name that will be known to D-Bus. Interface methods and" \
+    " signals should be invocable as\n" \
     "\n" \
     "    method(self, connection, message, *message_args)\n" \
     "\n" \
-    " and definitions should call the “@smethod()” or “@ssignal()” decorator" \
-    " to identify them. The return result should be a DBUS.HANDLER_RESULT_xxx code," \
-    " or a coroutine to queue for execution after indicating that the message has" \
-    " been handled."
+    " and definitions should be prefixed with calls to the “@smethod()” or “@ssignal()”" \
+    " decorator to identify them. The return result should be a DBUS.HANDLER_RESULT_xxx" \
+    " code, or a coroutine to queue for execution after indicating that the" \
+    " message has been handled. Note that if you declare the method with “async def”," \
+    " then the return result seen will be such a coroutine."
 
-    __slots__ = ("user_data",)
+    def decorate(celf) :
+        if not isinstance(celf, type) :
+            raise TypeError("only apply decorator to classes.")
+        #end if
+        if not isinstance(name, str) :
+            raise ValueError("name is required")
+        #end if
+        celf._sinterface_name = name
+        celf._sinterface_methods = \
+            dict \
+              (
+                (f._smethod_info["name"], f)
+                for f in dir(celf)
+                if hasattr(f, "_smethod_info")
+              )
+        celf._sinterface_signals = \
+            dict \
+              (
+                (f._ssignal_info["name"], f)
+                for f in dir(celf)
+                if hasattr(f, "_ssignal_info")
+              )
+        return \
+            celf
+    #end decorate
 
-    def __init__(self, user_data) :
-        self.user_data = user_data
-    #end __init__
+#begin sinterface
+    return \
+        decorate
+#end sinterface
 
-#end SInterface
+def is_sinterface(cłass) :
+    "is cłass defined as an sinterface class."
+    return \
+        isinstance(cłass, type) and hasattr(cłass, "_sinterface_name")
+#end is_sinterface
 
-def smethod(name = None, signature = None) :
-    "put a call to this function as a decorator for each method of an SInterface" \
-    " subclass that is to be registered as a method of the interface. “name” is the" \
+def smethod(*, name = None, signature = None) :
+    "put a call to this function as a decorator for each method of an @sinterface()" \
+    " class that is to be registered as a method of the interface. “name” is the" \
     " name of the method as specified in the D-Bus message; if omitted, it defaults" \
     " to the name of the function."
 
     def decorate(func) :
+        if not isinstance(func, types.FunctionType) :
+            raise TypeError("only apply decorator to functions.")
+        #end if
         nonlocal name
         if name == None :
             name = func.__name__
@@ -583,13 +592,16 @@ def smethod(name = None, signature = None) :
         decorate
 #end smethod
 
-def ssignal(name = None, signature = None) :
-    "put a call to this function as a decorator for each method of an SInterface" \
-    " subclass that is to be registered as a signal of the interface. “name” is the" \
+def ssignal(*, name = None, signature = None) :
+    "put a call to this function as a decorator for each method of an @sinterface()" \
+    " class that is to be registered as a signal of the interface. “name” is the" \
     " name of the signal as specified in the D-Bus message; if omitted, it defaults" \
     " to the name of the function."
 
     def decorate(func) :
+        if not isinstance(func, types.FunctionType) :
+            raise TypeError("only apply decorator to functions.")
+        #end if
         nonlocal name
         if name == None :
             name = func.__name__

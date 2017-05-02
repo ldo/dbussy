@@ -486,7 +486,7 @@ def _message_sinterface_dispatch(connection, message, bus) :
                         }[message.type]
                     if method_name in methods :
                         method = methods[method_name]
-                        args = list(message.objects)
+                        args = message.all_objects
                           # fixme: should I pay any attention to method._smethod_info["signature"]?
                         result = method(iface, connection, message, *args)
                         if isinstance(result, types.CoroutineType) :

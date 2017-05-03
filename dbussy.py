@@ -625,6 +625,13 @@ class DictType(Type) :
             "%s{%s%s}" % (chr(TYPE.ARRAY.value), self.keytype.signature, self.valuetype.signature)
     #end signature
 
+    @property
+    def entry_signature(self) :
+        "signature for a dict entry."
+        return \
+            "{%s%s}" % (self.keytype.signature, self.valuetype.signature)
+    #end entry_signature
+
 #end DictType
 
 #+
@@ -2933,34 +2940,30 @@ class Message :
     # NYI append_args, get_args -- probably not useful, use my
     # objects and append_objects convenience methods (below) instead
 
-    class Iter :
-        "for iterating over the arguments in a Message, whether for reading or appending." \
-        " Do not instantiate directly; get from Message.iter_init, Message.Iter.recurse," \
-        " Message.iter_init_append or Message.Iter.open_container.\n" \
+    class ExtractIter :
+        "for iterating over the arguments in a Message for reading. Do not" \
+        " instantiate directly; get from Message.iter_init or ExtractIter.recurse.\n" \
         "\n" \
-        "When reading, you can use this as a Python iterator, in a for-loop, passing" \
+        "You can use this as a Python iterator, in a for-loop, passing" \
         " it to the next() built-in function etc. Do not mix such usage with calls to" \
         " the has_next() and next() methods."
 
-        __slots__ = ("_dbobj", "_parent", "_nulliter", "_writing", "_startiter") # to forestall typos
+        __slots__ = ("_dbobj", "_parent", "_nulliter", "_startiter") # to forestall typos
 
-        def __init__(self, _parent, _writing) :
+        def __init__(self, _parent) :
             self._dbobj = DBUS.MessageIter()
             self._parent = _parent
             self._nulliter = False
-            self._writing = _writing
             self._startiter = True
         #end __init__
 
         @property
         def has_next(self) :
-            assert not self._writing, "cannot read from write iterator"
             return \
                 dbus.dbus_message_iter_has_next(self._dbobj)
         #end has_next
 
         def next(self) :
-            assert not self._writing, "cannot read from write iterator"
             if self._nulliter or not dbus.dbus_message_iter_next(self._dbobj) :
                 raise StopIteration("end of message iterator")
             #end if
@@ -2970,13 +2973,11 @@ class Message :
         #end next
 
         def __iter__(self) :
-            assert not self._writing, "cannot read from write iterator"
             return \
                 self
         #end __iter__
 
         def __next__(self) :
-            assert not self._writing, "cannot read from write iterator"
             if self._nulliter :
                 raise StopIteration("empty message iterator")
             else :
@@ -2993,7 +2994,6 @@ class Message :
         @property
         def arg_type(self) :
             "the type code for this argument."
-            assert not self._writing, "cannot read from write iterator"
             return \
                 dbus.dbus_message_iter_get_arg_type(self._dbobj)
         #end arg_type
@@ -3001,15 +3001,13 @@ class Message :
         @property
         def element_type(self) :
             "the contained element type of this argument, assuming it is of a container type."
-            assert not self._writing, "cannot read from write iterator"
             return \
                 dbus.dbus_message_iter_get_element_type(self._dbobj)
         #end element_type
 
         def recurse(self) :
             "creates a sub-iterator for recursing into a container argument."
-            assert not self._writing, "cannot read from write iterator"
-            subiter = type(self)(self, False)
+            subiter = type(self)(self)
             dbus.dbus_message_iter_recurse(self._dbobj, subiter._dbobj)
             return \
                 subiter
@@ -3017,7 +3015,6 @@ class Message :
 
         @property
         def signature(self) :
-            assert not self._writing, "cannot read from write iterator"
             c_result = dbus.dbus_message_iter_get_signature(self._dbobj)
             if c_result == None :
                 raise DBusFailure("dbus_message_iter_get_signature failure")
@@ -3031,7 +3028,6 @@ class Message :
         @property
         def basic(self) :
             "returns the argument value, assuming it is of a non-container type."
-            assert not self._writing, "cannot read from write iterator"
             argtype = self.arg_type
             c_result_type = DBUS.basic_to_ctypes[argtype]
             c_result = c_result_type()
@@ -3052,7 +3048,6 @@ class Message :
         def object(self) :
             "returns the current iterator item as a Python object. Will recursively" \
             " process container objects."
-            assert not self._writing, "cannot read from write iterator"
             argtype = self.arg_type
             if argtype in DBUS.basic_to_ctypes :
                 result = self.basic
@@ -3089,7 +3084,6 @@ class Message :
             def element_count(self) :
                 "returns the count of contained elements, assuming the current argument" \
                 " is of a container type."
-                assert not self._writing, "cannot read from write iterator"
                 return \
                     dbus.dbus_message_iter_get_element_count(self._dbobj)
             #end element_count
@@ -3100,7 +3094,6 @@ class Message :
         def fixed_array(self) :
             "returns the array elements, assuming the current argument is an array" \
             " with a non-container element type."
-            assert not self._writing, "cannot read from write iterator"
             c_element_type = DBUS.basic_to_ctypes[self.element_type]
             c_result = ct.POINTER(c_element_type)()
             c_nr_elts = ct.c_int()
@@ -3119,9 +3112,22 @@ class Message :
                 result
         #end fixed_array
 
+    #end ExtractIter
+
+    class AppendIter :
+        "for iterating over the arguments in a Message for appending." \
+        " Do not instantiate directly; get from Message.iter_init_append or" \
+        " AppendIter.open_container."
+
+        __slots__ = ("_dbobj", "_parent") # to forestall typos
+
+        def __init__(self, _parent) :
+            self._dbobj = DBUS.MessageIter()
+            self._parent = _parent
+        #end __init__
+
         def append_basic(self, type, value) :
             "appends a single value of a non-container type."
-            assert self._writing, "cannot write to read iterator"
             if type in DBUS.int_convert :
                 value = DBUS.int_convert[type](value)
             #end if
@@ -3139,7 +3145,6 @@ class Message :
 
         def append_fixed_array(self, element_type, values) :
             "appends an array of elements of a non-container type."
-            assert self._writing, "cannot write to read iterator"
             c_elt_type = DBUS.basic_to_ctypes[element_type]
             nr_elts = len(values)
             c_arr = (nr_elts * c_elt_type)()
@@ -3162,13 +3167,12 @@ class Message :
             "starts appending an argument of a container type, returning a sub-iterator" \
             " for appending the contents of the argument. Can be called recursively for" \
             " containers of containers etc."
-            assert self._writing, "cannot write to read iterator"
             if contained_signature != None :
                 c_sig = contained_signature.encode()
             else :
                 c_sig = None
             #end if
-            subiter = __builtins__["type"](self)(self, True)
+            subiter = __builtins__["type"](self)(self)
             if not dbus.dbus_message_iter_open_container(self._dbobj, type, c_sig, subiter._dbobj) :
                 raise DBusFailure("dbus_message_iter_open_container failed")
             #end if
@@ -3179,7 +3183,6 @@ class Message :
         def close(self) :
             "closes a sub-iterator, indicating the completion of construction" \
             " of a container value."
-            assert self._writing, "cannot write to read iterator"
             assert self._parent != None, "cannot close top-level iterator"
             if not dbus.dbus_message_iter_close_container(self._parent._dbobj, self._dbobj) :
                 raise DBusFailure("dbus_message_iter_close_container failed")
@@ -3192,18 +3195,17 @@ class Message :
             "closes a sub-iterator, indicating the abandonment of construction" \
             " of a container value. The Message object is effectively unusable" \
             " after this point and should be discarded."
-            assert self._writing, "cannot write to read iterator"
             assert self._parent != None, "cannot abandon top-level iterator"
             dbus.dbus_message_iter_abandon_container(self._parent._dbobj, self._dbobj)
             return \
                 self._parent
         #end abandon
 
-    #end Iter
+    #end AppendIter
 
     def iter_init(self) :
-        "creates a Message.Iter for extracting the arguments of the Message."
-        iter = self.Iter(None, False)
+        "creates an iterator for extracting the arguments of the Message."
+        iter = self.ExtractIter(None)
         if dbus.dbus_message_iter_init(self._dbobj, iter._dbobj) == 0 :
             iter._nulliter = True
         #end if
@@ -3227,8 +3229,8 @@ class Message :
     #end all_objects
 
     def iter_init_append(self) :
-        "creates a Message.Iter for appending arguments to the Message."
-        iter = self.Iter(None, True)
+        "creates a Message.AppendIter for appending arguments to the Message."
+        iter = self.AppendIter(None)
         dbus.dbus_message_iter_init_append(self._dbobj, iter._dbobj)
         return \
             iter
@@ -3238,65 +3240,64 @@ class Message :
         "interprets Python value val (which should be a sequence of objects) according" \
         " to signature and appends converted items to the message args."
 
-        def append_sub(val, sigiter, appenditer) :
-            index = 0
-            for sigelt in sigiter :
-                elttype = sigelt.current_type
-                elt = val[index]
-                if elttype in DBUS.basic_to_ctypes :
-                    appenditer.append_basic(elttype, elt)
-                elif elttype == DBUS.TYPE_ARRAY :
-                    if sigiter.element_type == DBUS.TYPE_DICT_ENTRY :
-                        if not isinstance(elt, dict) :
-                            raise TypeError("dict expected for array of dict entry")
-                        #end if
-                        subsig = sigiter.recurse()
-                        subiter = appenditer.open_container(elttype, subsig.signature)
-                        for key in sorted(elt) : # might as well insert in some kind of predictable order
-                            value = elt[key]
-                            subsubiter = subiter.open_container(DBUS.TYPE_DICT_ENTRY, None)
-                            subsubsig = subsig.recurse()
-                            assert subsubsig.current_type in DBUS.basic_to_ctypes, "dict key type must be basic type"
-                            append_sub([key, value], subsubsig, subsubiter)
-                            subsubiter.close()
-                        #end for
-                        subiter.close()
-                    else :
-                        # append 0 or more elements matching sigiter.element_type
-                        subiter = appenditer.open_container(elttype, sigiter.recurse().signature)
-                        if not isinstance(elt, (tuple, list)) :
-                            raise TypeError("expecting sequence of values for array")
-                        #end if
-                        for subval in elt :
-                            subsig = sigiter.recurse()
-                            append_sub([subval], subsig, subiter)
-                        #end for
-                        subiter.close()
+        def append_sub(siglist, eltlist, appenditer) :
+            if len(siglist) != len(eltlist) :
+                raise ValueError \
+                  (
+                    "mismatch between signature entries and number of sequence elements"
+                  )
+            #end if
+            for elttype, elt in zip(siglist, eltlist) :
+                if isinstance(elttype, BasicType) :
+                    appenditer.append_basic(elttype.code.value, elt)
+                elif isinstance(elttype, DictType) :
+                    if not isinstance(elt, dict) :
+                        raise TypeError("dict expected for %s" % repr(elttype))
                     #end if
-                elif elttype == DBUS.TYPE_STRUCT :
-                    subiter = appenditer.open_container(elttype, None)
-                    append_sub(elt, sigiter.recurse(), subiter)
+                    subiter = appenditer.open_container(DBUS.TYPE_ARRAY, elttype.entry_signature)
+                    for key in sorted(elt) : # might as well insert in some kind of predictable order
+                        value = elt[key]
+                        subsubiter = subiter.open_container(DBUS.TYPE_DICT_ENTRY, None)
+                        append_sub([DicType.keytype, DictType.valuetype], [key, value], subsubiter)
+                        subsubiter.close()
+                    #end for
                     subiter.close()
-                elif elttype == DBUS.TYPE_VARIANT :
+                elif isinstance(elttype, ArrayType) :
+                    # append 0 or more elements matching elttype.elttype
+                    subiter = appenditer.open_container(DBUS.TYPE_ARRAY, elttype.elttype.signature)
+                    if not isinstance(elt, (tuple, list)) :
+                        raise TypeError("expecting sequence of values for array")
+                    #end if
+                    for subval in elt :
+                        append_sub([elttype.elttype], [subval], subiter)
+                    #end for
+                    subiter.close()
+                elif isinstance(elttype, StructType) :
+                    if not isinstance(elt, (tuple, list)) :
+                        raise TypeError("expecting sequence of values for struct")
+                    #end if
+                    subiter = appenditer.open_container(DBUS.TYPE_STRUCT, None)
+                    append_sub(elttype.elttypes, elt, subiter)
+                    subiter.close()
+                elif isinstance(elttype, VariantType) :
                     if not isinstance(elt, (list, tuple)) or len(elt) != 2 :
                         raise TypeError("sequence of 2 elements expected for variant")
                     #end if
-                    subiter = appenditer.open_container(elttype, elt[0])
-                    append_sub([elt[1]], SignatureIter.init(elt[0]), subiter)
+                    actual_type = parse_single_signature(elt[0])
+                    subiter = appenditer.open_container(DBUS.TYPE_VARIANT, actual_type.signature)
+                    append_sub([actual_type], [elt[1]], subiter)
                     subiter.close()
                 else :
-                    raise RuntimeError("unrecognized type %s" % bytes((elttype,)))
+                    raise RuntimeError("unrecognized type %s" % repr(elttype))
                 #end if
-                index += 1
             #end for
-            assert index == len(val), "leftover unappended objects"
         #end append_sub
 
     #begin append_objects
         if not isinstance(val, (tuple, list)) :
             val = [val]
         #end if
-        append_sub(val, SignatureIter.init(signature), self.iter_init_append())
+        append_sub(parse_signature(signature), val, self.iter_init_append())
     #end append_objects
 
     @property
@@ -4052,6 +4053,12 @@ class SignatureIter :
         return \
             result
     #end signature
+
+    @property
+    def parsed_signature(self) :
+        return \
+            parse_single_signature(self.signature)
+    #end parsed_signature
 
     @property
     def element_type(self) :

@@ -4310,16 +4310,18 @@ class Introspection :
 
             class Arg :
 
-                __slots__ = ("type", "direction", "annotations")
+                __slots__ = ("name", "type", "direction", "annotations")
                 tag_name = "arg"
-                tag_attrs = ("type", "direction")
+                tag_attrs = ("name", "type", "direction")
+                tag_attrs_optional = {"name"}
                 tag_elts = {}
                 attr_convert = {} # {"direction" : Introspection.DIRECTION} assigned below
 
-                def __init__(self, type, direction, annotations = ()) :
+                def __init__(self, *, name = None, type, direction, annotations = ()) :
                     if not isinstance(direction, Introspection.DIRECTION) :
                         raise TypeError("direction must be an Introspection.DIRECTION.xxx enum")
                     #end if
+                    self.name = name
                     self.type = parse_single_signature(type)
                     self.direction = direction
                     self.annotations = Introspection._get_annotations(annotations)
@@ -4348,12 +4350,14 @@ class Introspection :
 
             class Arg :
 
-                __slots__ = ("type", "annotations")
+                __slots__ = ("name", "type", "annotations")
                 tag_name = "arg"
-                tag_attrs = ("type",)
+                tag_attrs = ("name", "type")
+                tag_attrs_optional = {"name"}
                 tag_elts = {}
 
-                def __init__(self, type, annotations = ()) :
+                def __init__(self, *, name = None, type, annotations = ()) :
+                    self.name = name
                     self.type = parse_single_signature(type)
                     self.annotations = Introspection._get_annotations(annotations)
                 #end __init__
@@ -4460,7 +4464,17 @@ class Introspection :
                     raise KeyError("unrecognized tag %s" % child.tag)
                 #end if
                 childclass = child_tags[child.tag]
-                childattrs = dict((attrname, child.attrib[attrname]) for attrname in childclass.tag_attrs)
+                childattrs = {}
+                for attrname in childclass.tag_attrs :
+                    if hasattr(childclass, "tag_attrs_optional") and attrname in childclass.tag_attrs_optional :
+                        childattrs[attrname] = child.attrib.get(attrname, None)
+                    else :
+                        if attrname not in child.attrib :
+                            raise ValueError("missing %s attribute for %s tag" % (attrname, child.tag))
+                        #end if
+                        childattrs[attrname] = child.attrib[attrname]
+                    #end if
+                #end for
                 if hasattr(childclass, "attr_convert") :
                     for attr in childclass.attr_convert :
                         if attr in childattrs :
@@ -4500,14 +4514,16 @@ class Introspection :
             attrs = []
             for attrname in obj.tag_attrs :
                 attr = getattr(obj, attrname)
-                if isinstance(attr, enum.Enum) :
-                    attr = attr.value
-                elif isinstance(attr, Type) :
-                    attr = unparse_signature(attr)
-                elif not isinstance(attr, str) :
-                    raise TypeError("unexpected attribute type %s for %s" % (type(attr).__name__, repr(attr)))
+                if attr != None :
+                    if isinstance(attr, enum.Enum) :
+                        attr = attr.value
+                    elif isinstance(attr, Type) :
+                        attr = unparse_signature(attr)
+                    elif not isinstance(attr, str) :
+                        raise TypeError("unexpected attribute type %s for %s" % (type(attr).__name__, repr(attr)))
+                    #end if
+                    attrs.append("%s=\"%s\"" % (attrname, xml_escape(attr)))
                 #end if
-                attrs.append("%s=\"%s\"" % (attrname, xml_escape(attr)))
             #end for
             has_elts = sum(len(getattr(obj, attrname)) for attrname in tuple(obj.tag_elts.keys()) + ("annotations",)) != 0
             out.write(" " * indent + "<" + tag_name)

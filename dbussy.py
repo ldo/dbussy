@@ -4287,6 +4287,15 @@ class Introspection :
 
     #end Annotation
 
+    def _get_annotations(annotations) :
+        # common validation of annotations arguments.
+        if not all(isinstance(a, Annotation) for a in annotations) :
+            raise TypeError("annotations must be Annotation instances")
+        #end if
+        return \
+            annotations
+    #end _get_annotations
+
     class Interface :
 
         __slots__ = ("name", "methods", "signals", "properties", "annotations")
@@ -4313,7 +4322,7 @@ class Introspection :
                     #end if
                     self.type = parse_single_signature(type)
                     self.direction = direction
-                    self.annotations = annotations # TBD validate
+                    self.annotations = Introspection._get_annotations(annotations)
                 #end __init__
 
             #end Arg
@@ -4326,7 +4335,7 @@ class Introspection :
                 #end if
                 self.name = name
                 self.args = tuple(args)
-                self.annotations = annotations # TBD validate
+                self.annotations = Introspection._get_annotations(annotations)
             #end __init__
 
         #end Method
@@ -4346,7 +4355,7 @@ class Introspection :
 
                 def __init__(self, type, annotations = ()) :
                     self.type = parse_single_signature(type)
-                    self.annotations = annotations # TBD validate
+                    self.annotations = Introspection._get_annotations(annotations)
                 #end __init__
 
             #end Arg
@@ -4359,7 +4368,7 @@ class Introspection :
                 #end if
                 self.name = name
                 self.args = tuple(args)
-                self.annotations = annotations # TBD validate
+                self.annotations = Introspection._get_annotations(annotations)
             #end __init__
 
         #end Signal
@@ -4379,7 +4388,7 @@ class Introspection :
                 self.name = name
                 self.type = parse_single_signature(type)
                 self.access = access
-                self.annotations = annotations # TBD validate
+                self.annotations = Introspection._get_annotations(annotations)
             #end __init__
 
         #end Property
@@ -4400,7 +4409,7 @@ class Introspection :
             self.methods = tuple(methods)
             self.signals = tuple(signals)
             self.properties = tuple(properties)
-            self.annotations = annotations # TBD validate
+            self.annotations = Introspection._get_annotations(annotations)
         #end __init__
 
     #end Interface
@@ -4416,7 +4425,7 @@ class Introspection :
 
         def __init__(self, name, annotations = ()) :
             self.name = name
-            self.annotations = annotations # TBD validate
+            self.annotations = Introspection._get_annotations(annotations)
         #end __init__
 
     #end Node
@@ -4432,7 +4441,7 @@ class Introspection :
         #end if
         self.interfaces = tuple(interfaces)
         self.nodes = tuple(nodes)
-        self.annotations = annotations # TBD validate
+        self.annotations =  Introspection._get_annotations(annotations)
     #end __init__
 
     @classmethod

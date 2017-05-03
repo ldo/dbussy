@@ -2428,7 +2428,7 @@ class Connection :
         " messages addressed to your bus name(s); but you can use this, for example," \
         " to request notification of signals indicating useful events on the system."
         error, my_error = _get_error(error)
-        dbus.dbus_bus_add_match(self._dbobj, rule.encode(), error._dbobj)
+        dbus.dbus_bus_add_match(self._dbobj, format_rule(rule).encode(), error._dbobj)
         my_error.raise_if_set()
     #end bus_add_match
 
@@ -2436,7 +2436,7 @@ class Connection :
         "removes a previously-added match rule for messages you previously wanted" \
         " to receive."
         error, my_error = _get_error(error)
-        dbus.dbus_bus_remove_match(self._dbobj, rule.encode(), error._dbobj)
+        dbus.dbus_bus_remove_match(self._dbobj, format_rule(rule).encode(), error._dbobj)
         my_error.raise_if_set()
     #end bus_remove_match
 
@@ -3965,6 +3965,25 @@ def address_unescape_value(value, error = None) :
     return \
         result
 #end address_unescape_value
+
+def format_rule(rule) :
+    "convenience routine to allow a match rule to be expressed as either" \
+    " a dict of {key : value} or the usual string \"key='value'\", automatically" \
+    " converting the former to the latter."
+    if isinstance(rule, str) :
+        pass
+    elif isinstance(rule, dict) :
+        # there seems to be no provision for escaping values; single-quoting
+        # appears to be enough
+        rule = ",".join("%s='%s'" % (k, rule[k]) for k in sorted(rule))
+          # sort to ensure some kind of consistent ordering, just for
+          # appearance’s sake
+    else :
+        raise TypeError("rule “%s” must be a dict or string" % repr(rule))
+    #end if
+    return \
+        rule
+#end format_rule
 
 class SignatureIter :
     "wraps a DBusSignatureIter object. Do not instantiate directly; use the init" \

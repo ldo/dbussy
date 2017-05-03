@@ -971,8 +971,10 @@ dbus.dbus_message_iter_recurse.restype = None
 dbus.dbus_message_iter_recurse.argtypes = (DBUS.MessageIterPtr, DBUS.MessageIterPtr)
 dbus.dbus_message_iter_get_basic.restype = None
 dbus.dbus_message_iter_get_basic.argtypes = (DBUS.MessageIterPtr, ct.c_void_p)
-dbus.dbus_message_iter_get_element_count.restype = ct.c_int
-dbus.dbus_message_iter_get_element_count.argtypes = (DBUS.MessageIterPtr,)
+if hasattr(dbus, "dbus_message_iter_get_element_count") :
+    dbus.dbus_message_iter_get_element_count.restype = ct.c_int
+    dbus.dbus_message_iter_get_element_count.argtypes = (DBUS.MessageIterPtr,)
+#end if
 # dbus_message_iter_get_array_len deprecated
 dbus.dbus_message_iter_get_fixed_array.restype = None
 dbus.dbus_message_iter_get_fixed_array.argtypes = (DBUS.MessageIterPtr, ct.c_void_p, ct.POINTER(ct.c_int))
@@ -1010,10 +1012,14 @@ dbus.dbus_message_demarshal.restype = ct.c_void_p
 dbus.dbus_message_demarshal.argtypes = (ct.c_void_p, ct.c_int, DBUS.ErrorPtr)
 dbus.dbus_message_demarshal_bytes_needed.restype = ct.c_int
 dbus.dbus_message_demarshal_bytes_needed.argtypes = (ct.c_void_p, ct.c_int)
-dbus.dbus_message_set_allow_interactive_authorization.restype = None
-dbus.dbus_message_set_allow_interactive_authorization.argtypes = (ct.c_void_p, DBUS.bool_t)
-dbus.dbus_message_get_allow_interactive_authorization.restype = DBUS.bool_t
-dbus.dbus_message_get_allow_interactive_authorization.argtypes = (ct.c_void_p,)
+if hasattr(dbus, "dbus_message_set_allow_interactive_authorization") :
+    dbus.dbus_message_set_allow_interactive_authorization.restype = None
+    dbus.dbus_message_set_allow_interactive_authorization.argtypes = (ct.c_void_p, DBUS.bool_t)
+#end if
+if hasattr(dbus, "dbus_message_get_allow_interactive_authorization") :
+    dbus.dbus_message_get_allow_interactive_authorization.restype = DBUS.bool_t
+    dbus.dbus_message_get_allow_interactive_authorization.argtypes = (ct.c_void_p,)
+#end if
 
 # from dbus-memory.h:
 dbus.dbus_malloc.restype = ct.c_void_p
@@ -3077,14 +3083,18 @@ class Message :
                 result
         #end object
 
-        @property
-        def element_count(self) :
-            "returns the count of contained elements, assuming the current argument" \
-            " is of a container type."
-            assert not self._writing, "cannot read from write iterator"
-            return \
-                dbus.dbus_message_iter_get_element_count(self._dbobj)
-        #end element_count
+        if hasattr(dbus, "dbus_message_iter_get_element_count") :
+
+            @property
+            def element_count(self) :
+                "returns the count of contained elements, assuming the current argument" \
+                " is of a container type."
+                assert not self._writing, "cannot read from write iterator"
+                return \
+                    dbus.dbus_message_iter_get_element_count(self._dbobj)
+            #end element_count
+
+        #end if
 
         @property
         def fixed_array(self) :

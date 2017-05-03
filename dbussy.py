@@ -84,6 +84,9 @@ class DBUS :
 
     def int_subtype(i, bits, signed) :
         "returns integer i after checking that it fits in the given number of bits."
+        if not isinstance(i, int) or isinstance(i, bool) :
+            raise TypeError("value is not int: %s" % repr(i))
+        #end if
         if signed :
             lo = - 1 << bits - 1
             hi = (1 << bits - 1) - 1

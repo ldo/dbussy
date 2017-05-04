@@ -4562,7 +4562,7 @@ class Introspection :
             #end for
             has_elts = sum(len(getattr(obj, attrname)) for attrname in tuple(obj.tag_elts.keys()) + ("annotations",)) != 0
             out.write(" " * indent + "<" + tag_name)
-            if len(tag_name) + sum(len(s) for s in attrs) + 2 + int(has_elts) > max_linelen :
+            if indent + len(tag_name) + sum((len(s) + 1) for s in attrs) + 2 + int(has_elts) > max_linelen :
                 out.write("\n")
                 for attr in attrs :
                     out.write(" " * (indent + indent_step))

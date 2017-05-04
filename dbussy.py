@@ -3247,7 +3247,9 @@ class Message :
             if len(siglist) != len(eltlist) :
                 raise ValueError \
                   (
-                    "mismatch between signature entries and number of sequence elements"
+                        "mismatch between signature entries %s and number of sequence elements %s"
+                    %
+                        (repr(siglist), repr(eltlist))
                   )
             #end if
             for elttype, elt in zip(siglist, eltlist) :

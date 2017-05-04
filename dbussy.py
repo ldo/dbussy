@@ -4199,7 +4199,9 @@ def validate_path(path, error = None) :
 
 def split_path(path) :
     "convenience routine for splitting a path into a list of components."
-    if path == "/" :
+    if isinstance(path, (tuple, list)) :
+        result = path # assume already split
+    elif path == "/" :
         result = []
     else :
         if not path.startswith("/") or path.endswith("/") :
@@ -4210,6 +4212,17 @@ def split_path(path) :
     return \
         result
 #end split_path
+
+def unsplit_path(path) :
+    path = split_path(path)
+    if len(path) != 0 :
+        result = "".join("/" + component for component in path)
+    else :
+        result = "/"
+    #end if
+    return \
+        result
+#end unsplit_path
 
 def validate_interface(name, error = None) :
     error, my_error = _get_error(error)

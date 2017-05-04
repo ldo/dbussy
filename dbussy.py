@@ -3239,9 +3239,33 @@ class Message :
             iter
     #end iter_init_append
 
-    def append_objects(self, signature, val) :
-        "interprets Python value val (which should be a sequence of objects) according" \
-        " to signature and appends converted items to the message args."
+    def append_objects(self, signature, *val) :
+        "interprets Python values val according to signature and appends" \
+        " converted item(s) to the message args."
+
+        def sig_array_depth(sig) :
+            # returns the depth of nesting of an ArrayType or single-element StructType.
+            if isinstance(sig, ArrayType) :
+                result = 1 + sig_array_depth(sig.elttype)
+            elif isinstance(sig, StructType) and len(sig.elttypes) == 1 :
+                result = 1 + sig_array_depth(sig.elttypes[0])
+            else :
+                result = 0
+            #end if
+            return \
+                result
+        #end sig_array_depth
+
+        def val_singleelt_array_depth(val) :
+            # returns the depth of nesting of a single-element sequence.
+            if isinstance(val, (tuple, list)) and len(val) == 1 :
+                result = 1 + val_singleelt_array_depth(val[0])
+            else :
+                result = 0
+            #end if
+            return \
+                result
+        #end val_singleelt_array_depth
 
         def append_sub(siglist, eltlist, appenditer) :
             if len(siglist) != len(eltlist) :
@@ -3299,10 +3323,25 @@ class Message :
         #end append_sub
 
     #begin append_objects
-        if not isinstance(val, (tuple, list)) :
-            val = [val]
+        signature = parse_signature(signature)
+        # automatically apply no more than one level of rowing/unrowing
+        if len(signature) != 1 :
+            if not isinstance(val, (tuple, list)) :
+                raise ValueError("expecting sequence of %d items" % len(signature))
+            #end if
+            if len(val) == 1 :
+                val = val[0]
+            #end if
+        else :
+            sig_depth = sig_array_depth(signature[0])
+            val_depth = val_singleelt_array_depth(val)
+            if sig_depth  >= val_depth :
+                val = [val]
+            elif sig_depth + 1 < val_depth :
+                val = val[0]
+            #end if
         #end if
-        append_sub(parse_signature(signature), val, self.iter_init_append())
+        append_sub(signature, val, self.iter_init_append())
     #end append_objects
 
     @property

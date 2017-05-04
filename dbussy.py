@@ -4272,7 +4272,11 @@ def validate_utf8(alleged_utf8, error = None) :
 class Introspection :
     "high-level wrapper for the DBUS.INTERFACE_INTROSPECTABLE interface."
 
-    __slots__ = ("interfaces", "nodes", "annotations")
+    __slots__ = ("name", "interfaces", "nodes", "annotations")
+
+    tag_name = "node"
+    tag_attrs = ("name",)
+    tag_attrs_optional = {"name"}
 
     class DIRECTION(enum.Enum) :
         "argument direction."
@@ -4434,6 +4438,22 @@ class Introspection :
     #end Interface
     Interface.Method.Arg.attr_convert["direction"] = DIRECTION
     Interface.Property.attr_convert["access"] = ACCESS
+
+    class StubInterface :
+        "use this as a replacement for an Interface that you don’t want" \
+        " to see expanded, e.g. if it has already been seen."
+
+        __slots__ = ("name", "annotations")
+        tag_name = "interface"
+        tag_attrs = ("name",)
+        tag_elts = {}
+
+        def __init__(self, name) :
+            self.name = name
+            self.annotations = ()
+        #end __init__
+
+    #end StubInterface
 
     class Node :
 

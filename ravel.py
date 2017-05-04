@@ -9,6 +9,7 @@ modelled on dbus-python <http://dbus.freedesktop.org/doc/dbus-python/>.
 #-
 
 import types
+import enum
 from weakref import \
     WeakValueDictionary
 import asyncio
@@ -26,11 +27,7 @@ def max_type(*args) :
     i = 0
     while True :
         this_type = guess_signature(args[i])
-        if len(this_type) > 1 and result != None and result != this_type :
-            # incompatible container types
-            result = None
-            break
-        #end if
+        #print("guess prev %s this %s" % (repr(result), repr(this_type))) # debug
         if result == None :
             result = this_type
         elif this_type in signed_ints and result in signed_ints :
@@ -43,7 +40,7 @@ def max_type(*args) :
              #end if
         elif this_type == chr(DBUS.TYPE_DOUBLE) and result in signed_ints + unsigned_ints :
             result = this_type
-        else :
+        elif this_type != result :
             #print("cannot find max_type between %s and %s" % (repr(result), repr(this_type))) # debug
             result = None
             break
@@ -79,13 +76,14 @@ def guess_signature(obj) :
     elif isinstance(obj, (bytes, bytearray)) :
         signature = chr(DBUS.TYPE_ARRAY) + chr(DBUS.TYPE_BYTE)
     elif isinstance(obj, (tuple, list)) :
-        common_elt_type = max_type(obj)
+        common_elt_type = max_type(*obj)
+        #print("comment_elt_type for %s = %s" % (repr(obj), repr(common_elt_type))) # debug
         if (
                 common_elt_type != None
             and
                 common_elt_type[:-1] == "a" * (len(common_elt_type) - 1)
             and
-                common_elt_type[-1] in DBUS.basic_to_ctypes
+                ord(common_elt_type[-1]) in DBUS.basic_to_ctypes
         ) :
             signature = chr(DBUS.TYPE_ARRAY) + common_elt_type
         else :
@@ -203,12 +201,12 @@ class Bus :
         "for server-side use; registers an instance of the specified interface" \
         " class for handling method calls on the specified path, and also on subpaths" \
         " if subdir."
-        if not is_sinterface(interface) :
-            raise TypeError("interface must be an @sinterface() class")
+        if not is_interface(interface) :
+            raise TypeError("interface must be an @interface() class")
         #end if
         if self._dispatch == None :
             self._dispatch = {}
-            self.connection.add_filter(_message_sinterface_dispatch, self)
+            self.connection.add_filter(_message_interface_dispatch, self)
         #end if
         level = self._dispatch
         for component in dbus.split_path(path) :
@@ -223,7 +221,7 @@ class Bus :
         if "dispatch" not in level :
             level["dispatch"] = {}
         #end if
-        interface_name = interface._sinterface_name
+        interface_name = interface._interface_name
         if interface_name in level["dispatch"] :
             raise KeyError("already registered an interface named “%s”" % interface_name)
         #end if
@@ -240,8 +238,8 @@ class Bus :
         "for server-side use; unregisters the specified interface class (or all" \
         " registered interface classes, if None) from handling method calls on path," \
         " and also on subpaths if subdir."
-        if interface != None and not is_sinterface(interface) :
-            raise TypeError("interface must be None or an @sinterface() class")
+        if interface != None and not is_interface(interface) :
+            raise TypeError("interface must be None or an @interface() class")
         #end if
         if self._dispatch != None :
             level = self._dispatch
@@ -251,7 +249,7 @@ class Bus :
                 if component == None :
                     if "dispatch" in level :
                         if interface != None :
-                            level["dispatch"].pop(interface._sinterface_name, None)
+                            level["dispatch"].pop(interface._interface_name, None)
                         else :
                             level["dispatch"].clear() # wipe it all out
                         #end if
@@ -265,41 +263,78 @@ class Bus :
         #end if
     #end unregister
 
-    def defsignal(self, interface, name, docstring = None, signature = None) :
-        "for server-side use; returns a function that, when called like this:\n" \
-        "\n" \
-        "    signal(path, *args)\n" \
-        "\n" \
-        " will send a signal with the specified path, interface and name on" \
-        " the bus. docstring is an optional docstring for the generated" \
-        " function."
-
-        def gen_signal(path, *args) :
-            message = dbus.Message.new_signal \
-              (
-                path = path,
-                iface = interface,
-                name = name
-              )
-            if len(args) != 0 :
-                # fixme: if signature is not None, args should be required?
-                message.append_objects \
-                  (
-                    (lambda : guess_sequence_signature(args), lambda : signature)[signature != None](),
-                    args
-                  )
+    def get_dispatch(self, path, interface_name) :
+        "returns the appropriate instance of a previously-registered interface" \
+        " class for handling calls to the specified interface name for the" \
+        " specified object path, or None if no such."
+        fallback = None # to begin with
+        level = self._dispatch
+        levels = iter(dbus.split_path(path))
+        while True :
+            component = next(levels, None)
+            if (
+                    "dispatch" in level
+                and
+                    interface_name in level["dispatch"]
+                and
+                    (level["dispatch"][interface_name]["subdir"] or component == None)
+            ) :
+                iface = level["dispatch"][interface_name]["interface"]
+            else :
+                iface = None
             #end if
-            self.connection.send(message)
-        #end gen_signal
-
-    #begin defsignal
-        gen_signal.__name__ = name
-        if docstring != None :
-            gen_signal.__doc__ = docstring
-        #end if
+            if (
+                    component == None
+                      # reached bottom of path
+                or
+                    "subdir" not in level
+                      # reached bottom of registered paths
+                or
+                    component not in level["subdir"]
+                      # no handlers to be found further down path
+            ) :
+                if iface == None :
+                    iface = fallback
+                #end if
+                break
+            #end if
+            fallback = iface
+            level = level["subdir"][component]
+              # search another step down the path
+        #end while
         return \
-            gen_signal
-    #end defsignal
+            iface
+    #end get_dispatch
+
+    def send_signal(self, *, path, interface, name, args) :
+        "sends a signal with the specified interface and name from the" \
+        " specified object path. There must already be a registered" \
+        " interface instance with that name which will handle that" \
+        " signal for that path."
+        iface = self.get_dispatch(path, interface)
+        if iface == None :
+            raise TypeError("no suitable interface %s for object %s" % (interface, dbus.unsplit_path(path)))
+        #end if
+        iface_type = type(iface)
+        if iface_type._interface_kind == INTERFACE.CLIENT :
+            raise TypeError("cannot send signal from client side")
+        #end if
+        if name not in iface_type._interface_signals :
+            raise KeyError \
+              (
+                "name %s is not a signal of interface %s" % (name, iface_type._interface_name)
+              )
+        #end if
+        message = dbus.Message.new_signal \
+          (
+            path = dbus.unsplit_path(path),
+            iface = iface_type._interface_name,
+            name = name
+          )
+        message.append_objects("".join(guess_signature(arg) for arg in args), args)
+          # fixme: pay attention to iface_type._interface_signals[name]["in_signature"]?
+        self.connection.send(message)
+    #end send_signal
 
 #end Bus
 
@@ -324,6 +359,17 @@ def connect_server(address) :
 
 #+
 # Client-side proxies for server-side objects
+#
+# These calls provide a simple mechanism for clients to call interface
+# methods on the fly. The basic call sequence looks like
+#
+#     result = \
+#         «bus».get_object(«bus-name», «object-path») \
+#             .get_interface(«interface-name») \
+#             .«method-name»(«args»)
+#
+# or substitute get_interface with get_async_interface to do an asynchronous
+# call.
 #-
 
 class CObject :
@@ -339,6 +385,16 @@ class CObject :
         self.name = name
         self.path = path
     #end __init__
+
+    def get_interface(self, name, timeout = DBUS.TIMEOUT_USE_DEFAULT) :
+        return \
+            CInterface(object = self, name = name, timeout = timeout)
+    #end get_interface
+
+    def get_async_interface(self, name, timeout = DBUS.TIMEOUT_USE_DEFAULT) :
+        return \
+            CAsyncInterface(object = self, name = name, timeout = timeout)
+    #end get_async_interface
 
 #end CObject
 
@@ -444,165 +500,231 @@ class CAsyncMethod(CMethod) :
 #end CAsyncMethod
 
 #+
-# Server-side utilities
+# Interface-dispatch mechanism
 #-
 
-def _message_sinterface_dispatch(connection, message, bus) :
+class INTERFACE(enum.Enum) :
+    "what kind of @interface() is this:\n" \
+    "  * CLIENT -- client-side, for sending method calls to server and" \
+        " receiving signals from server\n" \
+    "  * SERVER -- server-side, for receiving method calls from clients and" \
+        " sending signals to clients\n" \
+    "  * CLIENT_AND_SERVER -- this side is both client and server."
+
+    CLIENT = 1
+    SERVER = 2
+    CLIENT_AND_SERVER = 3
+#end INTERFACE
+
+def _message_interface_dispatch(connection, message, bus) :
     # installed as message filter on a connection to handle dispatch
-    # to registered @sinterface() classes.
+    # to registered @interface() classes.
     result = DBUS.HANDLER_RESULT_NOT_YET_HANDLED # to begin with
     if message.type in (DBUS.MESSAGE_TYPE_METHOD_CALL, DBUS.MESSAGE_TYPE_SIGNAL) :
-        fallback = None # to begin with
-        level = bus._dispatch
-        levels = iter(message.path_decomposed)
+        is_method = message.type == DBUS.MESSAGE_TYPE_METHOD_CALL
         interface_name = message.interface
-        while True :
-            component = next(levels, None)
-            iface = None # to begin with
-            if "dispatch" in level and interface_name in level["dispatch"] and (level["dispatch"][interface_name]["subdir"] or component == None) :
-                iface = level["dispatch"][interface_name]["interface"]
-            #end if
+        iface = bus.get_dispatch(message.path, interface_name)
+        if iface != None :
+            method_name = message.member
+            methods = (iface._interface_signals, iface._interface_methods)[is_method]
             if (
-                    component == None
-                      # reached bottom of path
-                or
-                    "subdir" not in level
-                or
-                    component not in level["subdir"]
-                      # no handlers to be found further down path
+                    iface._interface_kind != (INTERFACE.SERVER, INTERFACE.CLIENT)[is_method]
+                and
+                    method_name in methods
             ) :
-                if iface == None :
-                    iface = fallback
-                #end if
-                if iface != None :
-                    method_name = message.member
-                    methods = \
-                        {
-                            DBUS.MESSAGE_TYPE_METHOD_CALL : iface._sinterface_methods,
-                            DBUS.MESSAGE_TYPE_SIGNAL : iface._sinterface_signals,
-                        }[message.type]
-                    if method_name in methods :
-                        method = methods[method_name]
-                        args = message.all_objects
-                          # fixme: should I pay any attention to method._smethod_info["signature"]?
-                        result = method(iface, connection, message, *args)
-                        if isinstance(result, types.CoroutineType) :
-                            assert bus.loop != None, "no event loop to attach coroutine to"
-                            bus.loop.create_task(result)
-                            result = DBUS.HANDLER_RESULT_HANDLED
-                        #end if
+                method = methods[method_name]
+                args = message.all_objects
+                  # fixme: pay attention to method._method/signal_info[in_signature, out_signature]?
+                call_info = getattr(method, ("_signal_info", "_method_info")[is_method])
+                kwargs = {}
+                for keyword_keyword, value in \
+                    (
+                        ("connection_keyword", lambda : connection),
+                        ("message_keyword", lambda : message),
+                        ("path_keyword", lambda : message.path),
+                    ) \
+                :
+                    if call_info[keyword_keyword] != None :
+                        kwargs[call_info[keyword_keyword]] = value()
                     #end if
+                #end for
+                if call_info["args_keyword"] != None :
+                    kwargs[call_info["args_keyword"]] = args
+                    args = ()
                 #end if
-                break
+                result = method(iface, *args, **kwargs)
+                if result == None :
+                    result = DBUS.HANDLER_RESULT_HANDLED
+                elif isinstance(result, types.CoroutineType) :
+                    assert bus.loop != None, "no event loop to attach coroutine to"
+                    bus.loop.create_task(result)
+                    result = DBUS.HANDLER_RESULT_HANDLED
+                elif (
+                        result
+                    not in
+                        (
+                            DBUS.HANDLER_RESULT_HANDLED,
+                            DBUS.HANDLER_RESULT_NOT_YET_HANDLED,
+                            DBUS.HANDLER_RESULT_NEED_MEMORY,
+                        )
+                ) :
+                    raise ValueError("invalid handler result %s" % repr(result))
+                #end if
             #end if
-            fallback = iface
-            level = level["subdir"][component]
-              # search another step down the path
-        #end while
+        #end if
     #end if
     return \
          result
-#end _message_sinterface_dispatch
+#end _message_interface_dispatch
 
-def sinterface(*, name) :
-    "class decorator creator for defining server-side interfaces. “name” (required)" \
+def interface(kind, *, name) :
+    "class decorator creator for defining interface classes. “kind” indicates" \
+    " whether this is for use on the client side (send methods, receive signals)," \
+    " server side (receive methods, send signals) or both. “name” (required)" \
     " is the interface name that will be known to D-Bus. Interface methods and" \
     " signals should be invocable as\n" \
     "\n" \
     "    method(self, connection, message, *message_args)\n" \
     "\n" \
-    " and definitions should be prefixed with calls to the “@smethod()” or “@ssignal()”" \
+    " and definitions should be prefixed with calls to the “@method()” or “@signal()”" \
     " decorator to identify them. The return result should be a DBUS.HANDLER_RESULT_xxx" \
     " code, or a coroutine to queue for execution after indicating that the" \
     " message has been handled. Note that if you declare the method with “async def”," \
     " then the return result seen will be such a coroutine."
 
+    if not isinstance(kind, INTERFACE) :
+        raise TypeError("kind must be an INTERFACE enum value")
+    #end if
+    if not isinstance(name, str) :
+        raise ValueError("name is required")
+    #end if
+
     def decorate(celf) :
         if not isinstance(celf, type) :
             raise TypeError("only apply decorator to classes.")
         #end if
-        if not isinstance(name, str) :
-            raise ValueError("name is required")
-        #end if
-        celf._sinterface_name = name
-        celf._sinterface_methods = \
+        celf._interface_kind = kind
+        celf._interface_name = name
+        celf._interface_methods = \
             dict \
               (
-                (f._smethod_info["name"], f)
+                (f._method_info["name"], f)
                 for fname in dir(celf)
                 for f in (getattr(celf, fname),)
-                if hasattr(f, "_smethod_info")
+                if hasattr(f, "_method_info")
               )
-        celf._sinterface_signals = \
+        celf._interface_signals = \
             dict \
               (
-                (f._ssignal_info["name"], f)
+                (f._signal_info["name"], f)
                 for fname in dir(celf)
                 for f in (getattr(celf, fname),)
-                if hasattr(f, "_ssignal_info")
+                if hasattr(f, "_signal_info")
               )
         return \
             celf
     #end decorate
 
-#begin sinterface
+#begin interface
     return \
         decorate
-#end sinterface
+#end interface
 
-def is_sinterface(cłass) :
-    "is cłass defined as an sinterface class."
+def is_interface(cłass) :
+    "is cłass defined as an interface class."
     return \
-        isinstance(cłass, type) and hasattr(cłass, "_sinterface_name")
-#end is_sinterface
+        isinstance(cłass, type) and hasattr(cłass, "_interface_name")
+#end is_interface
 
-def smethod(*, name = None, signature = None) :
-    "put a call to this function as a decorator for each method of an @sinterface()" \
-    " class that is to be registered as a method of the interface. “name” is the" \
-    " name of the method as specified in the D-Bus message; if omitted, it defaults" \
-    " to the name of the function."
+def is_interface_instance(obj) :
+    "is obj an instance of an interface class."
+    return \
+        is_interface(type(obj))
+#end is_interface_instance
+
+def method \
+  (*,
+    name = None,
+    in_signature = None,
+    out_signature = None,
+    args_keyword = None,
+    connection_keyword = None,
+    message_keyword = None,
+    path_keyword = None
+  ) :
+    "put a call to this function as a decorator for each method of a @cinterface() or" \
+    " @interface() class that is to be registered as a method of the interface." \
+    " “name” is the name of the method as specified in the D-Bus message; if omitted," \
+    " it defaults to the name of the function."
 
     def decorate(func) :
         if not isinstance(func, types.FunctionType) :
             raise TypeError("only apply decorator to functions.")
         #end if
-        nonlocal name
-        if name == None :
-            name = func.__name__
+        if name != None :
+            func_name = name
+        else :
+            func_name = func.__name__
         #end if
-        func._smethod_info = {"name" : name, "signature" : signature}
+        func._method_info = \
+            {
+                "name" : func_name,
+                "in_signature" : in_signature,
+                "out_signature" : out_signature,
+                "args_keyword" : args_keyword,
+                "connection_keyword" : connection_keyword,
+                "message_keyword" : message_keyword,
+                "path_keyword" : path_keyword,
+            }
         return \
             func
     #end decorate
 
-#begin smethod
+#begin method
     return \
         decorate
-#end smethod
+#end method
 
-def ssignal(*, name = None, signature = None) :
-    "put a call to this function as a decorator for each method of an @sinterface()" \
-    " class that is to be registered as a signal of the interface. “name” is the" \
-    " name of the signal as specified in the D-Bus message; if omitted, it defaults" \
-    " to the name of the function."
+def signal \
+  (*,
+    name = None,
+    signature = None,
+    args_keyword = None,
+    connection_keyword = None,
+    message_keyword = None,
+    path_keyword = None
+  ) :
+    "put a call to this function as a decorator for each method of a @cinterface() or" \
+    " @interface() class that is to be registered as a signal of the interface." \
+    " “name” is the name of the signal as specified in the D-Bus message; if omitted," \
+    " it defaults to the name of the function."
 
     def decorate(func) :
         if not isinstance(func, types.FunctionType) :
             raise TypeError("only apply decorator to functions.")
         #end if
-        nonlocal name
-        if name == None :
-            name = func.__name__
+        if name != None :
+            func_name = name
+        else :
+            func_name = func.__name__
         #end if
-        func._ssignal_info = {"name" : name, "signature" : signature}
+        func._signal_info =  \
+            {
+                "name" : func_name,
+                "in_signature" : signature,
+                "args_keyword" : args_keyword,
+                "connection_keyword" : connection_keyword,
+                "message_keyword" : message_keyword,
+                "path_keyword" : path_keyword,
+            }
         return \
             func
     #end decorate
 
-#begin ssignal
+#begin signal
     return \
         decorate
-#end ssignal
+#end signal
 
 class Server :
     "listens for connections on a particular socket address, separate from" \

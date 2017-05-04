@@ -3243,30 +3243,6 @@ class Message :
         "interprets Python values val according to signature and appends" \
         " converted item(s) to the message args."
 
-        def sig_array_depth(sig) :
-            # returns the depth of nesting of an ArrayType or single-element StructType.
-            if isinstance(sig, ArrayType) :
-                result = 1 + sig_array_depth(sig.elttype)
-            elif isinstance(sig, StructType) and len(sig.elttypes) == 1 :
-                result = 1 + sig_array_depth(sig.elttypes[0])
-            else :
-                result = 0
-            #end if
-            return \
-                result
-        #end sig_array_depth
-
-        def val_singleelt_array_depth(val) :
-            # returns the depth of nesting of a single-element sequence.
-            if isinstance(val, (tuple, list)) and len(val) == 1 :
-                result = 1 + val_singleelt_array_depth(val[0])
-            else :
-                result = 0
-            #end if
-            return \
-                result
-        #end val_singleelt_array_depth
-
         def append_sub(siglist, eltlist, appenditer) :
             if len(siglist) != len(eltlist) :
                 raise ValueError \
@@ -3323,22 +3299,7 @@ class Message :
         #end append_sub
 
     #begin append_objects
-        signature = parse_signature(signature)
-        # automatically apply no more than one level of unrowing
-        # no need to apply rowing because *val will always give me a sequence
-        if len(signature) != 1 :
-            if not isinstance(val, (tuple, list)) :
-                raise ValueError("expecting sequence of %d items" % len(signature))
-            #end if
-            if len(val) == 1 :
-                val = val[0]
-            #end if
-        else :
-            if sig_array_depth(signature[0]) + 1 < val_singleelt_array_depth(val) :
-                val = val[0]
-            #end if
-        #end if
-        append_sub(signature, val, self.iter_init_append())
+        append_sub(parse_signature(signature), val, self.iter_init_append())
     #end append_objects
 
     @property

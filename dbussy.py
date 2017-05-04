@@ -4505,13 +4505,14 @@ class Introspection :
 
     tag_elts = {"interfaces" : Interface, "nodes" : Node}
 
-    def __init__(self, interfaces = (), nodes = (), annotations = ()) :
+    def __init__(self, name = None, interfaces = (), nodes = (), annotations = ()) :
         if not all(isinstance(i, self.Interface) for i in interfaces) :
             raise TypeError("interfaces must be Interface instances")
         #end if
         if not all(isinstance(n, self.Node) for n in nodes) :
             raise TypeError("nodes must be Node instances")
         #end if
+        self.name = name
         self.interfaces = tuple(interfaces)
         self.nodes = tuple(nodes)
         self.annotations =  Introspection._get_annotations(annotations)
@@ -4626,7 +4627,11 @@ class Introspection :
 
     #begin unparse
         out.write(DBUS.INTROSPECT_1_0_XML_DOCTYPE_DECL_NODE)
-        out.write("<node>\n")
+        out.write("<node")
+        if self.name != None :
+            out.write(" name=\"%s\"" % xml_escape(self.name))
+        #end if
+        out.write(">\n")
         for elt in self.interfaces :
             to_string(elt, 1 * indent_step)
         #end for

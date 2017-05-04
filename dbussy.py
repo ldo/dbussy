@@ -84,7 +84,7 @@ class DBUS :
 
     def int_subtype(i, bits, signed) :
         "returns integer i after checking that it fits in the given number of bits."
-        if not isinstance(i, int) or isinstance(i, bool) :
+        if not isinstance(i, int) :
             raise TypeError("value is not int: %s" % repr(i))
         #end if
         if signed :
@@ -104,6 +104,7 @@ class DBUS :
             i
     #end int_subtype
 
+    subtype_boolean = lambda i : DBUS.int_subtype(i, 1, False)
     subtype_byte = lambda i : DBUS.int_subtype(i, 8, False)
     subtype_int16 = lambda i : DBUS.int_subtype(i, 16, True)
     subtype_uint16 = lambda i : DBUS.int_subtype(i, 16, False)
@@ -114,6 +115,7 @@ class DBUS :
 
     int_convert = \
         { # range checks for the various D-Bus integer types
+            TYPE_BOOLEAN : subtype_boolean,
             TYPE_BYTE : subtype_byte,
             TYPE_INT16 : subtype_int16,
             TYPE_UINT16 : subtype_uint16,

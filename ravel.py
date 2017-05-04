@@ -325,14 +325,21 @@ class Bus :
                 "name %s is not a signal of interface %s" % (name, iface_type._interface_name)
               )
         #end if
+        call_info = iface_type._interface_signals[name]._signal_info
         message = dbus.Message.new_signal \
           (
             path = dbus.unsplit_path(path),
             iface = iface_type._interface_name,
             name = name
           )
-        message.append_objects(guess_sequence_signature(args), args)
-          # fixme: pay attention to iface_type._interface_signals[name]["in_signature"]?
+        message.append_objects \
+          (
+            (
+                lambda : guess_sequence_signature(args),
+                lambda : call_info["in_signature"],
+            )[call_info["in_signature"] != None](),
+            args
+          )
         self.connection.send(message)
     #end send_signal
 
@@ -563,9 +570,9 @@ def _message_interface_dispatch(connection, message, bus) :
                     method_name in methods
             ) :
                 method = methods[method_name]
-                args = message.all_objects
-                  # fixme: pay attention to method._method/signal_info[in_signature, out_signature]?
                 call_info = getattr(method, ("_signal_info", "_method_info")[is_method])
+                args = message.all_objects
+                  # fixme: pay attention to method._method/signal_info["in_signature"]?
                 kwargs = {}
                 for keyword_keyword, value in \
                     (
@@ -582,12 +589,52 @@ def _message_interface_dispatch(connection, message, bus) :
                     kwargs[call_info["args_keyword"]] = args
                     args = ()
                 #end if
+                to_return_result = None
+                allow_set_result = True
+                if is_method and call_info["set_result_keyword"] != None :
+                    def set_result(the_result) :
+                        "Call this to set the args for the reply message."
+                        nonlocal to_return_result
+                        if not allow_set_result :
+                            raise RuntimeError("set_result must not be called from a coroutine")
+                        #end if
+                        to_return_result = the_result
+                    #end set_result
+                    kwargs[call_info["set_result_keyword"]] = set_result
+                #end if
                 result = method(iface, *args, **kwargs)
+                allow_set_result = False
+                  # block further calls to this instance of set_result from this point
                 if result == None :
+                    if to_return_result != None :
+                        # handler used set_result mechanism
+                        reply = message.new_method_return()
+                        reply.append_objects \
+                          (
+                            (
+                                lambda : guess_sequence_signature(to_return_result),
+                                lambda : call_info["out_signature"],
+                            )[call_info["out_signature"] != None](),
+                            to_return_result
+                          )
+                        connection.send(reply)
+                    #end if
                     result = DBUS.HANDLER_RESULT_HANDLED
                 elif isinstance(result, types.CoroutineType) :
                     assert bus.loop != None, "no event loop to attach coroutine to"
-                    bus.loop.create_task(result)
+                    if call_info["out_signature"] != None :
+                        # await function result and generate reply message on behalf of handler
+                        out_signature = dbus.parse_signature(call_info["out_signature"])
+                        async def await_result(coro) :
+                            result = await coro
+                            reply = message.new_method_return()
+                            reply.append_objects(out_signature, reply)
+                            connection.send(reply)
+                        #end await_result
+                        bus.loop.create_task(await_result(result))
+                    else :
+                        bus.loop.create_task(result)
+                    #end if
                     result = DBUS.HANDLER_RESULT_HANDLED
                 elif (
                         result
@@ -681,7 +728,8 @@ def method \
     args_keyword = None,
     connection_keyword = None,
     message_keyword = None,
-    path_keyword = None
+    path_keyword = None,
+    set_result_keyword = None
   ) :
     "put a call to this function as a decorator for each method of an @interface()" \
     " class that is to be registered as a method of the interface." \
@@ -711,6 +759,7 @@ def method \
                 "connection_keyword" : connection_keyword,
                 "message_keyword" : message_keyword,
                 "path_keyword" : path_keyword,
+                "set_result_keyword" : set_result_keyword,
             }
         return \
             func

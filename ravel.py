@@ -331,7 +331,7 @@ class Bus :
             iface = iface_type._interface_name,
             name = name
           )
-        message.append_objects("".join(guess_signature(arg) for arg in args), args)
+        message.append_objects(guess_sequence_signature(args), args)
           # fixme: pay attention to iface_type._interface_signals[name]["in_signature"]?
         self.connection.send(message)
     #end send_signal
@@ -578,19 +578,20 @@ def _message_interface_dispatch(connection, message, bus) :
 #end _message_interface_dispatch
 
 def interface(kind, *, name) :
-    "class decorator creator for defining interface classes. “kind” indicates" \
-    " whether this is for use on the client side (send methods, receive signals)," \
-    " server side (receive methods, send signals) or both. “name” (required)" \
-    " is the interface name that will be known to D-Bus. Interface methods and" \
-    " signals should be invocable as\n" \
+    "class decorator creator for defining interface classes. “kind” is an" \
+    " INTERFACE.xxx value indicating whether this is for use on the client side" \
+    " (send methods, receive signals), server side (receive methods, send signals)" \
+    " or both. “name” (required) is the interface name that will be known to D-Bus." \
+    " Interface methods and signals should be invocable as\n" \
     "\n" \
-    "    method(self, connection, message, *message_args)\n" \
+    "    method(self, ...)\n" \
     "\n" \
     " and definitions should be prefixed with calls to the “@method()” or “@signal()”" \
-    " decorator to identify them. The return result should be a DBUS.HANDLER_RESULT_xxx" \
-    " code, or a coroutine to queue for execution after indicating that the" \
-    " message has been handled. Note that if you declare the method with “async def”," \
-    " then the return result seen will be such a coroutine."
+    " decorator to identify them. The return result can be a DBUS.HANDLER_RESULT_xxx" \
+    " code, or None (equivalent to DBUS.DBUS.HANDLER_RESULT_HANDLED), or a coroutine" \
+    " to queue for execution after indicating that the message has been handled. Note" \
+    " that if you declare the method with “async def”, then the return result seen" \
+    " will be such a coroutine."
 
     if not isinstance(kind, INTERFACE) :
         raise TypeError("kind must be an INTERFACE enum value")
@@ -652,10 +653,15 @@ def method \
     message_keyword = None,
     path_keyword = None
   ) :
-    "put a call to this function as a decorator for each method of a @cinterface() or" \
-    " @interface() class that is to be registered as a method of the interface." \
+    "put a call to this function as a decorator for each method of an @interface()" \
+    " class that is to be registered as a method of the interface." \
     " “name” is the name of the method as specified in the D-Bus message; if omitted," \
-    " it defaults to the name of the function."
+    " it defaults to the name of the function.\n" \
+    "\n" \
+    "This is really only useful on the server side. On the client side, omit the" \
+    " method definition, and even leave out the interface definition and registration" \
+    " altogether, unless you want to receive signals from the server; instead, use" \
+    " Bus.get_object() to send method calls to the server."
 
     def decorate(func) :
         if not isinstance(func, types.FunctionType) :
@@ -694,10 +700,13 @@ def signal \
     message_keyword = None,
     path_keyword = None
   ) :
-    "put a call to this function as a decorator for each method of a @cinterface() or" \
-    " @interface() class that is to be registered as a signal of the interface." \
+    "put a call to this function as a decorator for each method of an @interface()" \
+    " class that is to be registered as a signal of the interface." \
     " “name” is the name of the signal as specified in the D-Bus message; if omitted," \
-    " it defaults to the name of the function."
+    " it defaults to the name of the function.\n" \
+    "\n" \
+    "On the server side, the actual function need only be a dummy, since it is just" \
+    " a placeholder for storing the information used by Bus.send_signal()."
 
     def decorate(func) :
         if not isinstance(func, types.FunctionType) :

@@ -1,7 +1,9 @@
 """
-Simplified higher-level Python binding for D-Bus, implementing proxy
-Python objects to represent D-Bus objects. The API is vaguely
-modelled on dbus-python <http://dbus.freedesktop.org/doc/dbus-python/>.
+Simplified higher-level Python binding for D-Bus on top of dbussy.
+Provides a framework for dispatching method and signal calls, and also
+for on-the-fly invocation of method calls in the server from the
+client using proxy objects, all with the option of running via an
+asyncio event loop.
 """
 #+
 # Copyright 2017 Lawrence D'Oliveiro <ldo@geek-central.gen.nz>.

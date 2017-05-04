@@ -528,6 +528,10 @@ class Type :
         raise NotImplementedError("subclass forgot to override signature property")
     #end signature
 
+    def __eq__(t1, t2) :
+        raise NotImplementedError("subclass forgot to override __eq__ property")
+    #end __eq__
+
     def __repr__(self) :
         return \
             "%s(sig = %s)" % (type(self).__name__, repr(self.signature))
@@ -553,6 +557,11 @@ class BasicType(Type) :
             chr(self.code.value)
     #end signature
 
+    def __eq__(t1, t2) :
+        return \
+            isinstance(t2, BasicType) and t1.code == t2.code
+    #end __eq__
+
 #end BasicType
 
 class VariantType(Type) :
@@ -563,6 +572,11 @@ class VariantType(Type) :
         return \
             chr(TYPE.VARIANT.value)
     #end signature
+
+    def __eq__(t1, t2) :
+        return \
+            isinstance(t2, VariantType)
+    #end __eq__
 
 #end VariantType
 
@@ -587,6 +601,17 @@ class StructType(Type) :
             "(%s)" % "".join(t.signature for t in self.elttypes)
     #end signature
 
+    def __eq__(t1, t2) :
+        return \
+            (
+                    isinstance(t2, StructType)
+                and
+                    len(t1.elttypes) == len(t2.elttypes)
+                and
+                    all(e1 == e2 for e1, e2 in zip(t1.elttypes, t2.elttypes))
+            )
+    #end __eq__
+
 #end StructType
 
 class ArrayType(Type) :
@@ -606,6 +631,11 @@ class ArrayType(Type) :
         return \
             chr(TYPE.ARRAY.value) + self.elttype.signature
     #end signature
+
+    def __eq__(t1, t2) :
+        return \
+            isinstance(t2, ArrayType) and t1.elttype == t2.elttype
+    #end __eq__
 
 #end ArrayType
 
@@ -634,6 +664,11 @@ class DictType(Type) :
         return \
             "{%s%s}" % (self.keytype.signature, self.valuetype.signature)
     #end entry_signature
+
+    def __eq__(t1, t2) :
+        return \
+            isinstance(t2, DictType) and t1.keytype == t2.keytype and t1.valuetype == t2.valuetype
+    #end __eq__
 
 #end DictType
 

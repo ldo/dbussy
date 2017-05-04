@@ -3324,7 +3324,8 @@ class Message :
 
     #begin append_objects
         signature = parse_signature(signature)
-        # automatically apply no more than one level of rowing/unrowing
+        # automatically apply no more than one level of unrowing
+        # no need to apply rowing because *val will always give me a sequence
         if len(signature) != 1 :
             if not isinstance(val, (tuple, list)) :
                 raise ValueError("expecting sequence of %d items" % len(signature))
@@ -3333,11 +3334,7 @@ class Message :
                 val = val[0]
             #end if
         else :
-            sig_depth = sig_array_depth(signature[0])
-            val_depth = val_singleelt_array_depth(val)
-            if sig_depth  >= val_depth :
-                val = [val]
-            elif sig_depth + 1 < val_depth :
+            if sig_array_depth(signature[0]) + 1 < val_singleelt_array_depth(val) :
                 val = val[0]
             #end if
         #end if

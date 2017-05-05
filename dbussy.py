@@ -3097,7 +3097,8 @@ class Message :
                     subiter = self.recurse()
                     while True :
                         entry = next(subiter, None)
-                        if entry == None :
+                        if entry == None or entry.arg_type == DBUS.TYPE_INVALID :
+                          # TYPE_INVALID can be returned for an empty dict
                             break
                         assert entry.arg_type == DBUS.TYPE_DICT_ENTRY, "invalid dict entry type %d" % entry.arg_type
                         key, value = tuple(x.object for x in entry.recurse())
@@ -3105,12 +3106,19 @@ class Message :
                     #end while
                 else :
                     result = list(x.object for x in self.recurse())
+                    if len(result) != 0 and result[-1] == None :
+                        # fudge for iterating into an empty array
+                        result = result[:-1]
+                    #end if
                 #end if
             elif argtype == DBUS.TYPE_STRUCT :
                 result = list(x.object for x in self.recurse())
             elif argtype == DBUS.TYPE_VARIANT :
                 subiter = self.recurse()
                 result = next(subiter, None).object
+            elif argtype == DBUS.TYPE_INVALID :
+                # fudge for iterating into an empty array
+                result = None
             else :
                 raise RuntimeError("unrecognized argtype %d" % argtype)
             #end if

@@ -3099,7 +3099,7 @@ class Message :
                         entry = next(subiter, None)
                         if entry == None :
                             break
-                        assert entry.arg_type == DBUS.TYPE_DICT_ENTRY
+                        assert entry.arg_type == DBUS.TYPE_DICT_ENTRY, "invalid dict entry type %d" % entry.arg_type
                         key, value = tuple(x.object for x in entry.recurse())
                         result[key] = value
                     #end while

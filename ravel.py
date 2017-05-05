@@ -137,14 +137,14 @@ def guess_sequence_signature(args) :
         result
 #end guess_sequence_signature
 
-class Bus :
+class Connection :
 
     __slots__ = ("__weakref__", "connection", "loop", "_dispatch") # to forestall typos
 
     _instances = WeakValueDictionary()
 
     def __new__(celf, connection) :
-        # always return the same Bus for the same Connection.
+        # always return the same Connection for the same dbus.Connection.
         if not isinstance(connection, dbus.Connection) :
             raise TypeError("connection must be a Connection")
         #end if
@@ -161,7 +161,7 @@ class Bus :
     #end __new__
 
     def attach_asyncio(self, loop = None) :
-        "attaches this Bus object to an asyncio event loop. If none is" \
+        "attaches this Connection object to an asyncio event loop. If none is" \
         " specified, the default event loop (as returned from asyncio.get_event_loop()" \
         " is used."
         self.connection.attach_asyncio(loop)
@@ -171,15 +171,15 @@ class Bus :
     #end attach_asyncio
 
     class Name :
-        __slots__ = ("bus", "name")
+        __slots__ = ("conn", "name")
 
-        def __init__(self, bus, name) :
-            self.bus = bus
+        def __init__(self, conn, name) :
+            self.conn = conn
             self.name = name
         #end __init__
 
         def __del__(self) :
-            self.bus.connection.bus_release_name(self.name)
+            self.conn.connection.bus_release_name(self.name)
         #end __del__
 
     #end Name
@@ -345,25 +345,25 @@ class Bus :
         self.connection.send(message)
     #end send_signal
 
-#end Bus
+#end Connection
 
 def session_bus() :
-    "returns a Bus object for the current D-Bus session bus."
+    "returns a Connection object for the current D-Bus session bus."
     return \
-        Bus(dbus.Connection.bus_get(DBUS.BUS_SESSION, private = False))
+        Connection(dbus.Connection.bus_get(DBUS.BUS_SESSION, private = False))
 #end session_bus
 
 def system_bus() :
-    "returns a Bus object for the D-Bus system bus."
+    "returns a Connection object for the D-Bus system bus."
     return \
-        Bus(dbus.Connection.bus_get(DBUS.BUS_SYSTEM, private = False))
+        Connection(dbus.Connection.bus_get(DBUS.BUS_SYSTEM, private = False))
 #end system_bus
 
 def connect_server(address) :
     "opens a connection to a server at the specified network address and" \
-    " returns a Bus object for the connection."
+    " returns a Connection object for the connection."
     return \
-        Bus(dbus.Connection.open(address, private = False))
+        Connection(dbus.Connection.open(address, private = False))
 #end connect_server
 
 class Server :
@@ -382,11 +382,11 @@ class Server :
     #end __del__
 
     async def await_new_connection(self, timeout = DBUS.TIMEOUT_INFINITE) :
-        "waits for a new connection attempt and returns a wrapping Bus object." \
+        "waits for a new connection attempt and returns a wrapping Connection object." \
         " If no connection appears within the specified timeout, returns None."
         conn = await self.server.await_new_connection(timeout)
         if conn != None :
-            result = Bus(conn)
+            result = Connection(conn)
         else :
             result = None
         #end if
@@ -414,13 +414,13 @@ class Server :
 class CObject :
     "identifies an object by a bus, a bus name and a path."
 
-    __slots__ = ("bus", "name", "path")
+    __slots__ = ("conn", "name", "path")
 
-    def __init__(self, bus, name, path) :
-        if not isinstance(bus, Bus) :
-            raise TypeError("bus must be a Bus")
+    def __init__(self, conn, name, path) :
+        if not isinstance(conn, Connection) :
+            raise TypeError("conn must be a Connection")
         #end if
-        self.bus = bus
+        self.conn = conn
         self.name = name
         self.path = path
     #end __init__
@@ -517,7 +517,7 @@ class CMethod :
 
     def __call__(self, *args) :
         message = self._construct_message(args)
-        reply = self.interface.object.bus.connection.send_with_reply_and_block(message, timeout = self.interface.timeout)
+        reply = self.interface.object.conn.connection.send_with_reply_and_block(message, timeout = self.interface.timeout)
         return \
             self._process_reply(reply)
     #end __call__
@@ -531,7 +531,7 @@ class CAsyncMethod(CMethod) :
 
     async def __call__(self, *args) :
         message = self._construct_message(args)
-        reply = await self.interface.object.bus.connection.send_await_reply(message, timeout = self.interface.timeout)
+        reply = await self.interface.object.conn.connection.send_await_reply(message, timeout = self.interface.timeout)
         return \
             self._process_reply(reply)
     #end _call__
@@ -741,7 +741,7 @@ def method \
     "This is really only useful on the server side. On the client side, omit the" \
     " method definition, and even leave out the interface definition and registration" \
     " altogether, unless you want to receive signals from the server; instead, use" \
-    " Bus.get_object() to send method calls to the server."
+    " Connection.get_object() to send method calls to the server."
 
     def decorate(func) :
         if not isinstance(func, types.FunctionType) :
@@ -787,7 +787,7 @@ def signal \
     " it defaults to the name of the function.\n" \
     "\n" \
     "On the server side, the actual function need only be a dummy, since it is just" \
-    " a placeholder for storing the information used by Bus.send_signal()."
+    " a placeholder for storing the information used by Connection.send_signal()."
 
     def decorate(func) :
         if not isinstance(func, types.FunctionType) :

@@ -4678,19 +4678,22 @@ standard_interfaces = \
                                 [
                                     Introspection.Interface.Method.Arg
                                       (
+                                        name = "interface_name",
                                         type = BasicType(TYPE.STRING),
                                         direction = Introspection.DIRECTION.IN,
-                                      ), # interface_name
+                                      ),
                                     Introspection.Interface.Method.Arg
                                       (
+                                        name = "property_name",
                                         type = BasicType(TYPE.STRING),
                                         direction = Introspection.DIRECTION.IN,
-                                      ), # property_name
+                                      ),
                                     Introspection.Interface.Method.Arg
                                       (
+                                        name = "value",
                                         type = VariantType(),
                                         direction = Introspection.DIRECTION.OUT,
-                                      ), # value
+                                      ),
                                 ],
                           ),
                         Introspection.Interface.Method
@@ -4700,19 +4703,22 @@ standard_interfaces = \
                                 [
                                     Introspection.Interface.Method.Arg
                                       (
+                                        name = "interface_name",
                                         type = BasicType(TYPE.STRING),
                                         direction = Introspection.DIRECTION.IN,
-                                      ), # interface_name
+                                      ),
                                     Introspection.Interface.Method.Arg
                                       (
+                                        name = "property_name",
                                         type = BasicType(TYPE.STRING),
                                         direction = Introspection.DIRECTION.IN,
-                                      ), # property_name
+                                      ),
                                     Introspection.Interface.Method.Arg
                                       (
+                                        name = "value",
                                         type = VariantType(),
                                         direction = Introspection.DIRECTION.IN,
-                                      ), # value
+                                      ),
                                 ],
                           ),
                         Introspection.Interface.Method
@@ -4722,14 +4728,16 @@ standard_interfaces = \
                                 [
                                     Introspection.Interface.Method.Arg
                                       (
+                                        name = "interface_name",
                                         type = BasicType(TYPE.STRING),
                                         direction = Introspection.DIRECTION.IN,
-                                      ), # interface_name
+                                      ),
                                     Introspection.Interface.Method.Arg
                                       (
+                                        name = "values",
                                         type = DictType(BasicType(TYPE.STRING), VariantType()),
                                         direction = Introspection.DIRECTION.OUT,
-                                      ), # values
+                                      ),
                                 ],
                           ),
                     ],
@@ -4742,16 +4750,19 @@ standard_interfaces = \
                                 [
                                     Introspection.Interface.Signal.Arg
                                       (
+                                        name = "interface_name",
                                         type = BasicType(TYPE.STRING),
-                                      ), # interface_name
+                                      ),
                                     Introspection.Interface.Signal.Arg
                                       (
+                                        name = "changed_properties",
                                         type = DictType(BasicType(TYPE.STRING), VariantType()),
-                                      ), # changed_properties
+                                      ),
                                     Introspection.Interface.Signal.Arg
                                       (
+                                        name = "invalidated_properties",
                                         type = ArrayType(BasicType(TYPE.STRING)),
-                                      ), # invalidated_properties
+                                      ),
                                 ],
                           ),
                     ]

@@ -10,6 +10,7 @@ asyncio module.
 # Licensed under the GNU Lesser General Public License v2.1 or later.
 #-
 
+import builtins
 import array
 import types
 import enum
@@ -3220,7 +3221,7 @@ class Message :
             else :
                 c_sig = None
             #end if
-            subiter = __builtins__["type"](self)(self)
+            subiter = builtins.type(self)(self)
             if not dbus.dbus_message_iter_open_container(self._dbobj, type, c_sig, subiter._dbobj) :
                 raise DBusFailure("dbus_message_iter_open_container failed")
             #end if

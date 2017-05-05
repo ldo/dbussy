@@ -775,7 +775,7 @@ def method \
 def signal \
   (*,
     name = None,
-    signature = None,
+    in_signature = None,
     args_keyword = None,
     connection_keyword = None,
     message_keyword = None,
@@ -801,7 +801,7 @@ def signal \
         func._signal_info =  \
             {
                 "name" : func_name,
-                "in_signature" : signature,
+                "in_signature" : in_signature,
                 "args_keyword" : args_keyword,
                 "connection_keyword" : connection_keyword,
                 "message_keyword" : message_keyword,

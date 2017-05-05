@@ -3300,7 +3300,7 @@ class Message :
                     for key in sorted(elt) : # might as well insert in some kind of predictable order
                         value = elt[key]
                         subsubiter = subiter.open_container(DBUS.TYPE_DICT_ENTRY, None)
-                        append_sub([DicType.keytype, DictType.valuetype], [key, value], subsubiter)
+                        append_sub([elttype.keytype, elttype.valuetype], [key, value], subsubiter)
                         subsubiter.close()
                     #end for
                     subiter.close()

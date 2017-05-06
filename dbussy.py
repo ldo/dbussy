@@ -3712,7 +3712,15 @@ class PendingCall :
     " creates these as the result from calling send_with_reply() on a Message."
     # <https://dbus.freedesktop.org/doc/api/html/group__DBusPendingCall.html>
 
-    __slots__ = ("__weakref__", "_dbobj", "_conn", "_wrap_notify", "_wrap_free") # to forestall typos
+    __slots__ = \
+      (
+        "__weakref__",
+        "_dbobj",
+        "_conn",
+        "_wrap_notify",
+        "_wrap_free",
+        "_awaiting",
+      ) # to forestall typos
 
     _instances = WeakValueDictionary()
 
@@ -3724,6 +3732,7 @@ class PendingCall :
             self._conn = _conn
             self._wrap_notify = None
             self._wrap_free = None
+            self._awaiting = None
             celf._instances[_dbobj] = self
         else :
             dbus.dbus_pending_call_unref(self._dbobj)
@@ -3771,6 +3780,12 @@ class PendingCall :
     def cancel(self) :
         "tells libdbus you no longer care about the pending incoming message."
         dbus.dbus_pending_call_cancel(self._dbobj)
+        if self._awaiting != None :
+            # This probably shouldn’t occur. Looking at the source of libdbus,
+            # it doesn’t keep track of any “cancelled” state for the PendingCall,
+            # it just detaches it from any notifications about an incoming reply.
+            self._awaiting.cancel()
+        #end if
     #end cancel
 
     @property
@@ -3796,7 +3811,11 @@ class PendingCall :
         " coroutine (letting the event loop do other things) until it becomes" \
         " available."
         assert self._conn.loop != None, "no event loop on parent Connection to attach coroutine to"
+        if self._wrap_notify != None or self._awaiting != None :
+            raise asyncio.InvalidStateError("there is already a notify set on this PendingCall")
+        #end if
         done = self._conn.loop.create_future()
+        self._awaiting = done
 
         def pending_done(pending, _) :
             done.set_result(self.steal_reply())

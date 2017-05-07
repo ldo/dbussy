@@ -79,26 +79,37 @@ def guess_signature(obj) :
     elif isinstance(obj, (bytes, bytearray)) :
         signature = chr(DBUS.TYPE_ARRAY) + chr(DBUS.TYPE_BYTE)
     elif isinstance(obj, (tuple, list)) :
-        common_elt_type = max_type(*obj)
-        #print("comment_elt_type for %s = %s" % (repr(obj), repr(common_elt_type))) # debug
-        if (
-                common_elt_type != None
-            and
-                common_elt_type[:-1] == "a" * (len(common_elt_type) - 1)
-            and
-                ord(common_elt_type[-1]) in DBUS.basic_to_ctypes
-        ) :
-            signature = chr(DBUS.TYPE_ARRAY) + common_elt_type
+        if len(obj) != 0 :
+            common_elt_type = max_type(*obj)
+            #print("comment_elt_type for %s = %s" % (repr(obj), repr(common_elt_type))) # debug
+            if (
+                    common_elt_type != None
+                and
+                    common_elt_type[:-1] == "a" * (len(common_elt_type) - 1)
+                and
+                    ord(common_elt_type[-1]) in DBUS.basic_to_ctypes
+            ) :
+                signature = chr(DBUS.TYPE_ARRAY) + common_elt_type
+            else :
+                signature = "(" + "".join(guess_signature(elt) for elt in obj) + ")"
+            #end if
         else :
-            signature = "(" + "".join(guess_signature(elt) for elt in obj) + ")"
+            # doesn’t really matter what elttype I use
+            signature = "as"
         #end if
     elif isinstance(obj, dict) :
-        common_key_type = max_type(tuple(obj.keys()))
-        if common_key_type == None or common_key_type not in DBUS.basic_to_ctypes :
-            raise TypeError("no suitable dict key type for %s" % repr(obj))
-        #end if
-        common_value_type = max_type(tuple(obj.values()))
-        if common_value_type == None :
+        if len(obj) != 0 :
+            common_key_type = max_type(tuple(obj.keys()))
+            if common_key_type == None or common_key_type not in DBUS.basic_to_ctypes :
+                raise TypeError("no suitable dict key type for %s" % repr(obj))
+            #end if
+            common_value_type = max_type(tuple(obj.values()))
+            if common_value_type == None :
+                common_value_type = chr(DBUS.TYPE_VARIANT)
+            #end if
+        else :
+            # doesn’t really matter what I use
+            common_key_type = chr(DBUS.TYPE_STRING)
             common_value_type = chr(DBUS.TYPE_VARIANT)
         #end if
         signature = "%c{%s%s}" % (DBUS.TYPE_ARRAY, common_key_type, common_value_type)

@@ -309,10 +309,10 @@ class Connection :
     #end get_dispatch
 
     def send_signal(self, *, path, interface, name, args) :
-        "sends a signal with the specified interface and name from the" \
-        " specified object path. There must already be a registered" \
-        " interface instance with that name which will handle that" \
-        " signal for that path."
+        "intented for server-side use: sends a signal with the specified" \
+        " interface and name from the specified object path. There must" \
+        " already be a registered interface instance with that name which" \
+        " defines that signal for that path."
         iface = self.get_dispatch(path, interface)
         if iface == None :
             raise TypeError("no suitable interface %s for object %s" % (interface, dbus.unsplit_path(path)))
@@ -344,6 +344,63 @@ class Connection :
           )
         self.connection.send(message)
     #end send_signal
+
+    async def send_method_await_reply(self, *, destination, path, interface, name, args, timeout = DBUS.TIMEOUT_USE_DEFAULT) :
+        "intended for client-side use: sends a method call with the specified" \
+        " interface and name to the specified object path. There must already" \
+        " be a registered interface instance with that name which defines" \
+        " that method for that path.\n" \
+        "\n" \
+        "An exception is raised if the return is an error; otherwise a list of" \
+        " the reply args is returned."
+        iface = self.get_dispatch(path, interface)
+        if iface == None :
+            raise TypeError("no suitable interface %s for object %s" % (interface, dbus.unsplit_path(path)))
+        #end if
+        iface_type = type(iface)
+        if iface_type._interface_kind == INTERFACE.SERVER :
+            raise TypeError("cannot send method call from server side")
+        #end if
+        if name not in iface_type._interface_methods :
+            raise KeyError \
+              (
+                "name %s is not a method of interface %s" % (name, iface_type._interface_name)
+              )
+        #end if
+        call_info = iface_type._interface_methods[name]._method_info
+        message = dbus.Message.new_method_call \
+          (
+            destination = destination,
+            path = dbus.unsplit_path(path),
+            iface = iface_type._interface_name,
+            name = name
+          )
+        if len(args) != 0 :
+          # fixme: pay attention to method._method/signal_info["in_signature"]?
+            message.append_objects \
+              (
+                (
+                    lambda : guess_sequence_signature(args),
+                    lambda : call_info["in_signature"],
+                )[call_info["in_signature"] != None](),
+                args
+              )
+        #end if
+        reply = await self.connection.send_await_reply(message, timeout)
+        if reply != None :
+            if reply.type == DBUS.MESSAGE_TYPE_METHOD_RETURN :
+                result = reply.all_objects
+            elif reply.type == DBUS.MESSAGE_TYPE_ERROR :
+                raise dbus.DBusError(reply.member, reply.all_objects[0])
+            else :
+                raise ValueError("unexpected reply type %d" % reply.type)
+            #end if
+        else :
+            result = None
+        #end if
+        return \
+            result
+    #end send_method_await_reply
 
 #end Connection
 
@@ -504,6 +561,7 @@ class CMethod :
         if reply.type == DBUS.MESSAGE_TYPE_METHOD_RETURN :
             result = reply.all_objects
             if len(result) == 1 :
+                # fixme: is this a good idea?
                 result = result[0]
             #end if
         elif reply.type == DBUS.MESSAGE_TYPE_ERROR :

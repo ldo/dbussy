@@ -552,7 +552,7 @@ class CMethod :
           )
         if len(args) != 0 :
             #print("guess signature for %s = %s" % (repr(args), repr(guess_sequence_signature(args)))) # debug
-            message.append_objects(guess_sequence_signature(args), args)
+            message.append_objects(guess_sequence_signature(args), *args)
         #end if
         return \
             message

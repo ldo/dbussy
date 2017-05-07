@@ -460,7 +460,7 @@ class Server :
 # methods on the fly. The basic call sequence looks like
 #
 #     result = \
-#         «bus».get_object(«bus-name», «object-path») \
+#         «connection».get_object(«bus-name», «object-path») \
 #             .get_interface(«interface-name») \
 #             .«method-name»(«args»)
 #

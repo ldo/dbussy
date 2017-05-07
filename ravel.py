@@ -760,6 +760,46 @@ def interface(kind, *, name) :
                 for f in (getattr(celf, fname),)
                 if hasattr(f, "_signal_info")
               )
+        props = {}
+        for info_type, meth_type in \
+            (
+                ("_propgetter_info", "getter"),
+                ("_propsetter_info", "setter"),
+            ) \
+        :
+            for fname in dir(celf) :
+                func = getattr(celf, fname)
+                if hasattr(func, info_type) :
+                    propinfo = getattr(func, info_type)
+                    propname = propinfo["name"]
+                    if propname not in props :
+                        props[propname] = {}
+                    #end if
+                    propentry = props[propname]
+                    if propinfo["type"] != None :
+                        if "type" in propentry :
+                            if propentry["type"] != propinfo["type"] :
+                                raise ValueError \
+                                  (
+                                        "disagreement on type for property “%s” between"
+                                        " getter and setter: “%s” versus “%s”"
+                                    %
+                                        (
+                                            propname,
+                                            dbus.unparse_signature(propentry["type"]),
+                                            dbus.unparse_signature(propinfo["type"]),
+                                        )
+                                  )
+                            #end if
+                        else :
+                            propentry["type"] = propinfo["type"]
+                        #end if
+                    #end if
+                    propentry[meth_type] = func
+                #end if
+            #end for
+        #end for
+        celf._interface_props = props
         return \
             celf
     #end decorate
@@ -874,6 +914,74 @@ def signal \
     return \
         decorate
 #end signal
+
+def propgetter \
+  (*,
+    name,
+    type = None,
+    name_keyword = None,
+    connection_keyword = None,
+    message_keyword = None,
+    path_keyword = None
+  ) :
+
+    def decorate(func) :
+        if not isinstance(func, types.FunctionType) :
+            raise TypeError("only apply decorator to functions.")
+        #end if
+        assert isinstance(name, str), "property name is mandatory"
+        func._propgetter_info = \
+            {
+                "name" : name,
+                "type" : dbus.parse_single_signature(type),
+                "name_keyword" : name_keyword,
+                "connection_keyword" : connection_keyword,
+                "message_keyword" : message_keyword,
+                "path_keyword" : path_keyword,
+            }
+        return \
+            func
+    #end decorate
+
+#begin propgetter
+    return \
+        decorate
+#end propgetter
+
+def propsetter \
+  (*,
+    name,
+    type = None,
+    name_keyword = None,
+    value_keyword,
+    connection_keyword = None,
+    message_keyword = None,
+    path_keyword = None
+  ) :
+
+    def decorate(func) :
+        if not isinstance(func, types.FunctionType) :
+            raise TypeError("only apply decorator to functions.")
+        #end if
+        assert isinstance(name, str), "property name is mandatory"
+        func._propsetter_info = \
+            {
+                "name" : name,
+                "type" : dbus.parse_single_signature(type),
+                "name_keyword" : name_keyword,
+                "value_keyword" : value_keyword,
+                "connection_keyword" : connection_keyword,
+                "message_keyword" : message_keyword,
+                "path_keyword" : path_keyword,
+            }
+        return \
+            func
+    #end decorate
+
+#begin propsetter
+    return \
+        decorate
+#end propsetter
 
 #+
 # Introspection

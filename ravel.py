@@ -629,9 +629,6 @@ def _message_interface_dispatch(connection, message, bus) :
                         out_signature = dbus.parse_signature(call_info["out_signature"])
                         async def await_result(coro) :
                             result = await coro
-                            if len(out_signature) == 1 :
-                                result = [result]
-                            #end if
                             reply = message.new_method_return()
                             reply.append_objects(out_signature, *result)
                             connection.send(reply)

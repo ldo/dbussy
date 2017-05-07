@@ -1057,7 +1057,7 @@ def introspect(interface) :
 #end introspect
 
 def def_proxy_interface(kind, introspected) :
-    "given an Introspection.Interface object, creates an @interface() object" \
+    "given an Introspection.Interface object, creates an @interface() proxy object" \
     " that can be registered by a client to send method-call messages to a server," \
     " or by a server to send signal messages to clients."
 
@@ -1067,6 +1067,8 @@ def def_proxy_interface(kind, introspected) :
     if not isinstance(introspected, Introspection.Interface) :
         raise TypeError("introspected must be an Introspection.Interface")
     #end if
+
+    # TODO: async method calls?
 
     def def_method(intr_method) :
         # constructs a method stub method,

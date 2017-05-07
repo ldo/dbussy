@@ -4354,7 +4354,6 @@ class Introspection :
     #end ACCESS
 
     class Annotation :
-        # TODO: actually include these
 
         __slots__ = ("name", "value")
         tag_name = "annotation"

@@ -4680,7 +4680,19 @@ standard_interfaces = \
                 name = DBUS.INTERFACE_INTROSPECTABLE,
                 methods =
                     [
-                        Introspection.Interface.Method(name = "Introspect"),
+                        Introspection.Interface.Method
+                          (
+                            name = "Introspect",
+                            args =
+                                [
+                                    Introspection.Interface.Method.Arg
+                                      (
+                                        name = "data",
+                                        type = BasicType(TYPE.STRING),
+                                        direction = Introspection.DIRECTION.OUT,
+                                      ),
+                                ]
+                          ),
                     ],
               ),
         DBUS.INTERFACE_PROPERTIES :

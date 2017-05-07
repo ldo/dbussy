@@ -29,6 +29,8 @@ def max_type(*args) :
     result = None
     i = 0
     while True :
+        if i == len(args) :
+            break
         this_type = guess_signature(args[i])
         #print("guess prev %s this %s" % (repr(result), repr(this_type))) # debug
         if result == None :
@@ -49,8 +51,6 @@ def max_type(*args) :
             break
         #end if
         i += 1
-        if i == len(args) :
-            break
     #end while
     return \
         result
@@ -93,11 +93,11 @@ def guess_signature(obj) :
             signature = "(" + "".join(guess_signature(elt) for elt in obj) + ")"
         #end if
     elif isinstance(obj, dict) :
-        common_key_type = max_type(tuple(dict.keys()))
+        common_key_type = max_type(tuple(obj.keys()))
         if common_key_type == None or common_key_type not in DBUS.basic_to_ctypes :
             raise TypeError("no suitable dict key type for %s" % repr(obj))
         #end if
-        common_value_type = max_type(tuple(dict.values()))
+        common_value_type = max_type(tuple(obj.values()))
         if common_value_type == None :
             common_value_type = chr(DBUS.TYPE_VARIANT)
         #end if

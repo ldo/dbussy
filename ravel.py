@@ -17,7 +17,8 @@ from weakref import \
 import asyncio
 import dbussy as dbus
 from dbussy import \
-    DBUS
+    DBUS, \
+    Introspection
 
 def max_type(*args) :
     if len(args) == 1 and isinstance(args[0], (tuple, list)) :
@@ -454,7 +455,7 @@ class Server :
 #end Server
 
 #+
-# Client-side proxies for server-side objects
+# Ad-hoc client-side proxies for server-side objects
 #
 # These calls provide a simple mechanism for clients to call interface
 # methods on the fly. The basic call sequence looks like
@@ -813,8 +814,8 @@ def method \
         func._method_info = \
             {
                 "name" : func_name,
-                "in_signature" : in_signature,
-                "out_signature" : out_signature,
+                "in_signature" : dbus.unparse_signature(in_signature),
+                "out_signature" : dbus.unparse_signature(out_signature),
                 "args_keyword" : args_keyword,
                 "connection_keyword" : connection_keyword,
                 "message_keyword" : message_keyword,
@@ -859,7 +860,7 @@ def signal \
         func._signal_info =  \
             {
                 "name" : func_name,
-                "in_signature" : in_signature,
+                "in_signature" : dbus.unparse_signature(in_signature),
                 "args_keyword" : args_keyword,
                 "connection_keyword" : connection_keyword,
                 "message_keyword" : message_keyword,
@@ -873,3 +874,161 @@ def signal \
     return \
         decorate
 #end signal
+
+#+
+# Introspection
+#-
+
+def introspect(interface) :
+    "returns an Introspection.Interface object that describes the specified" \
+    " @interface() class."
+
+    if not is_interface(interface) :
+        raise TypeError("interface must be an @sinterface()-type class")
+    #end if
+
+#begin introspect
+    methods = list \
+      (
+        Introspection.Interface.Method
+          (
+            name = name,
+            args =
+                    list
+                      (
+                        Introspection.Interface.Method.Arg
+                          (
+                            type = sig,
+                            direction = Introspection.Direction.IN
+                          )
+                        for sig in dbus.parse_signature
+                          (
+                            interface._interface_methods[name]["in_signature"]
+                          )
+                      )
+                +
+                    list
+                      (
+                        Introspection.Interface.Method.Arg
+                          (
+                            type = sig,
+                            direction = Introspection.Direction.OUT
+                          )
+                        for sig in dbus.parse_signature
+                          (
+                            interface._interface_methods[name]["out_signature"]
+                          )
+                      ),
+          )
+        for name in interface._interface_methods
+      )
+    signals = list \
+      (
+        Introspection.Interface.Signal
+          (
+            name = name,
+            args = list
+              (
+                Introspection.Interface.Signal.Arg(type = sig)
+                for sig in dbus.parse_signature
+                  (
+                    interface._interface_signals[name]["in_signature"]
+                  )
+              ),
+          )
+        for name in interface._interface_signals
+      )
+    # TODO: properties
+    return \
+        Introspection.Interface \
+          (
+            name = interface._interface_name,
+            methods = methods,
+            signals = signal,
+          )
+#end introspect
+
+def def_proxy_interface(kind, introspected) :
+    "given an Introspection.Interface object, creates an @interface() object" \
+    " that can be registered by a client to send method-call messages to a server," \
+    " or by a server to send signal messages to clients."
+
+    if not isinstance(kind, INTERFACE) :
+        raise TypeError("kind must be an INTERFACE enum value")
+    #end if
+    if not isinstance(introspected, Introspection.Interface) :
+        raise TypeError("introspected must be an Introspection.Interface")
+    #end if
+
+    def def_method(intr_method) :
+        # constructs a method stub method,
+
+        def method_stub() :
+            pass
+        #end method_stub
+
+    #begin def_method
+        method_stub.__name__ = intr_method.name
+        return \
+            method \
+              (
+                name = intr_method.name,
+                in_signature =
+                    "".join
+                      (
+                        dbus.unparse_signature(arg.type)
+                        for arg in intr_method.args
+                        if arg.direction == Introspection.DIRECTION.IN
+                      ),
+                out_signature =
+                    "".join
+                      (
+                        dbus.unparse_signature(arg.type)
+                        for arg in intr_method.args
+                        if arg.direction == Introspection.DIRECTION.OUT
+                      ),
+              )(method_stub)
+    #end def_method
+
+    def def_signal(intr_signal) :
+        # constructs a signal stub method,
+
+        def signal_stub() :
+            pass
+        #end signal_stub
+
+    #begin def_signal
+        signal_stub.__name__ = intr_signal.name
+        return \
+            signal \
+              (
+                name = intr_signal.name,
+                in_signature = "".join
+                  (
+                    dbus.unparse_signature(arg.type)
+                    for arg in intr_signal.args
+                  ),
+              )(signal_stub)
+    #end def_signal
+
+    class interface_template :
+        pass
+    #end interface_template
+
+#begin def_proxy_interface
+    result = interface_template
+    result.__name__ = introspected.name
+    if kind != INTERFACE.SERVER :
+        for method in introspected.methods :
+            setattr(result, method.name, def_method(method))
+        #end for
+    #end if
+    if kind != INTERFACE.CLIENT :
+        for signal in introspected.signals :
+            setattr(result, signal.name, def_signal(signal))
+        #end for
+    #end if
+    # TODO: properties
+    return \
+        interface(kind = kind, name = introspected.name)(result)
+#end def_proxy_interface

@@ -1159,3 +1159,280 @@ def def_proxy_interface(kind, introspected) :
     return \
         interface(kind = kind, name = introspected.name)(result)
 #end def_proxy_interface
+
+#+
+# Predefined interfaces
+#-
+
+@interface(INTERFACE.SERVER, name = DBUS.INTERFACE_INTROSPECTABLE)
+class IntrospectionHandler :
+    "register this as a fallback at the root of your object tree to obtain" \
+    " automatic introspection of any point in the tree."
+
+    @method \
+      (
+        name = "Introspect",
+        in_signature = "",
+        out_signature = "s",
+        path_keyword = "path",
+        message_keyword = "message",
+        bus_keyword = "bus",
+      )
+    def introspect(self, message, bus, path) :
+        interfaces = {}
+        children = None # actually redundant
+        level = bus._dispatch
+        levels = iter(dbus.split_path(path))
+        while True :
+            component = next(levels, None)
+            if "dispatch" in level :
+                for entry in level["dispatch"].values() :
+                    if component == None or entry["subdir"] :
+                        interface = type(entry["interface"])
+                        interfaces[interface._interface_name] = interface
+                          # replace any higher-level entry for same name
+                    #end if
+                #end for
+            #end if
+            if (
+                    component == None
+                      # reached bottom of path
+                or
+                    "subdir" not in level
+                      # reached bottom of registered paths
+                or
+                    component not in level["subdir"]
+                      # no handlers to be found further down path
+            ) :
+                children = sorted(level.get("subdir", {}).keys())
+                break
+            #end if
+            level = level["subdir"][component]
+              # search another step down the path
+        #end while
+        introspection = Introspection \
+          (
+            interfaces = list
+              (
+                introspect(iface)
+                for iface in sorted(interfaces.values(), key = lambda iface : iface._interface_name)
+              ),
+            nodes = list
+              (
+                Introspection.Node(name = child) for child in children
+              )
+          )
+        reply = message.new_method_return()
+        reply.append_objects("s", introspection.unparse())
+        bus.connection.send(reply)
+        return \
+            DBUS.HANDLER_RESULT_HANDLED
+    #end introspect
+
+#end IntrospectionHandler
+
+@interface(INTERFACE.SERVER, name = DBUS.INTERFACE_PROPERTIES)
+class PropertyHandler :
+    "register this as a fallback at the root of your object tree to provide" \
+    " automatic dispatching to any @propgetter() and @propsetter() methods" \
+    " defined for registered interfaces appropriate to an object path."
+
+    @method \
+      (
+        name = "Get",
+        in_signature = "ss",
+        out_signature = "v",
+        args_keyword = "args",
+        path_keyword = "path",
+        message_keyword = "message",
+        bus_keyword = "bus"
+      )
+    def getprop(self, bus, message, path, args) :
+        interface_name, propname = args
+        dispatch = bus.get_dispatch(path, interface_name)
+        props = type(dispatch)._interface_props
+        if propname in props :
+            propentry = props[propentry]
+            if "getter" in propentry :
+                getter = propentry["getter"]
+                kwargs = {}
+                for keyword_keyword, value in \
+                    (
+                        ("name_keyword", lambda : propname),
+                        ("connection_keyword", lambda : bus.connection),
+                        ("message_keyword", lambda : message),
+                        ("path_keyword", lambda : path),
+                        ("bus_keyword", lambda : bus),
+                    ) \
+                :
+                    if getter._propgetter_info[keyword_keyword] != None :
+                        kwargs[getter._propgetter_info[keyword_keyword]] = value()
+                    #end if
+                #end for
+                propvalue = getter(**kwargs)
+                if isinstance(propvalue, types.CoroutineType) :
+                    assert bus.loop != None, "no event loop to attach coroutine to"
+                    async def await_return_value(task) :
+                        propvalue = await task
+                        if propentry["type"] != None :
+                            valuesig = propentry["type"]
+                        else :
+                            valuesig = guess_signature(propvalue)
+                        #end if
+                        reply = message.new_method_return()
+                        reply.append_objects(valuesig, propvalue)
+                    #end await_return_value
+                    bus.loop.create_task(await_return_value(propvalue))
+                else :
+                    if propentry["type"] != None :
+                        valuesig = propentry["type"]
+                    else :
+                        valuesig = guess_signature(propvalue)
+                    #end if
+                    reply = message.new_method_return()
+                    reply.append_objects(valuesig, propvalue)
+                #end if
+            else :
+                reply = message.new_error \
+                  (
+                    name = DBUS.ERROR_ACCESS_DENIED,
+                    message = "property “%s” cannot be read" % propname
+                  )
+            #end if
+        else :
+            reply = message.new_error \
+              (
+                name = DBUS.ERROR_UNKNOWN_PROPERTY,
+                message = "property “%s” cannot be found" % propname
+              )
+        #end if
+        bus.connection.send(reply)
+        return \
+            DBUS.HANDLER_RESULT_HANDLED
+    #end getprop
+
+    @method \
+      (
+        name = "Set",
+        in_signature = "ssv",
+        out_signature = "",
+        args_keyword = "args",
+        path_keyword = "path",
+        message_keyword = "message",
+        bus_keyword = "bus"
+      )
+    def setprop(self, bus, path, args) :
+        interface_name, propname, propvalue = args
+        dispatch = bus.get_dispatch(path, interface_name)
+        props = type(dispatch)._interface_props
+        if propname in props :
+            propentry = props[propentry]
+            if "setter" in propentry :
+                setter = propentry["setter"]
+                if propentry["type"] != None :
+                    TBD
+                #end if
+                kwargs = {}
+                for keyword_keyword, value in \
+                    (
+                        ("name_keyword", lambda : propname),
+                        ("value_keyword", lambda : propvalue),
+                        ("connection_keyword", lambda : bus.connection),
+                        ("message_keyword", lambda : message),
+                        ("path_keyword", lambda : path),
+                        ("bus_keyword", lambda : bus),
+                    ) \
+                :
+                    if setter._propsetter_info[keyword_keyword] != None :
+                        kwargs[setter._propsetter_info[keyword_keyword]] = value()
+                    #end if
+                #end for
+                setresult = setter(**kwargs)
+                if isinstance(setresult, types.CoroutineType) :
+                    assert bus.loop != None, "no event loop to attach coroutine to"
+                    async def wait_set_done() :
+                        await setresult
+                        reply = message.new_method_return()
+                        bus.connection.send(reply)
+                    #end wait_set_done
+                    bus.loop.create_task(wait_set_done())
+                    reply = None # for now
+                else :
+                    reply = message.new_method_return()
+                #end if
+            else :
+                reply = message.new_error \
+                  (
+                    name = DBUS.ERROR_PROPERTY_READ_ONLY,
+                    message = "property “%s” cannot be written" % propname
+                  )
+            #end if
+        else :
+            reply = message.new_error \
+              (
+                name = DBUS.ERROR_UNKNOWN_PROPERTY,
+                message = "property “%s” cannot be found" % propname
+              )
+        #end if
+        if reply != None :
+            bus.connection.send(reply)
+        #end if
+        return \
+            DBUS.HANDLER_RESULT_HANDLED
+    #end setprop
+
+    @method \
+      (
+        name = "GetAll",
+        in_signature = "s",
+        out_signature = "a{sv}",
+        args_keyword = "args",
+        path_keyword = "path",
+        message_keyword = "message",
+        bus_keyword = "bus"
+      )
+    def get_all_props(self, bus, path, args) :
+        interface_name, = args
+        dispatch = bus.get_dispatch(path, interface_name)
+        props = type(dispatch)._interface_props
+        propvalues = {}
+        for propname in props :
+            propentry = props[propname]
+            if "getter" in propentry :
+                kwargs = {}
+                for keyword_keyword, value in \
+                    (
+                        ("name_keyword", lambda : propname),
+                        ("connection_keyword", lambda : bus.connection),
+                        ("message_keyword", lambda : message),
+                        ("path_keyword", lambda : path),
+                        ("bus_keyword", lambda : bus),
+                    ) \
+                :
+                    if getter._propgetter_info[keyword_keyword] != None :
+                        kwargs[getter._propgetter_info[keyword_keyword]] = value()
+                    #end if
+                #end for
+                propvalue = getter(**kwargs)
+                if propentry["type"] != None :
+                    valuesig = propentry["type"]
+                else :
+                    valuesig = guess_signature(propvalue)
+                #end if
+                propvalues[propname] = (valuesig, propvalue)
+            #end if
+        #end for
+        reply = message.new_method_return()
+        reply.append_objects("a{sv}", propvalue)
+        bus.connection.send(reply)
+        return \
+            DBUS.HANDLER_RESULT_HANDLED
+    #end get_all_props
+
+    @signal(name = "PropertiesChanged", in_signature = "a{sv}as")
+    def properties_changed(self) :
+        "for use with Connection.send_signal."
+        pass
+    #end properties_changed
+
+#end PropertyHandler

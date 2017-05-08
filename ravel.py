@@ -1015,11 +1015,11 @@ def introspect(interface) :
                         Introspection.Interface.Method.Arg
                           (
                             type = sig,
-                            direction = Introspection.Direction.IN
+                            direction = Introspection.DIRECTION.IN
                           )
                         for sig in dbus.parse_signature
                           (
-                            interface._interface_methods[name]["in_signature"]
+                            interface._interface_methods[name]._method_info["in_signature"]
                           )
                       )
                 +
@@ -1028,11 +1028,11 @@ def introspect(interface) :
                         Introspection.Interface.Method.Arg
                           (
                             type = sig,
-                            direction = Introspection.Direction.OUT
+                            direction = Introspection.DIRECTION.OUT
                           )
                         for sig in dbus.parse_signature
                           (
-                            interface._interface_methods[name]["out_signature"]
+                            interface._interface_methods[name]._method_info["out_signature"]
                           )
                       ),
           )
@@ -1048,7 +1048,7 @@ def introspect(interface) :
                 Introspection.Interface.Signal.Arg(type = sig)
                 for sig in dbus.parse_signature
                   (
-                    interface._interface_signals[name]["in_signature"]
+                    interface._interface_signals[name]._signal_info["in_signature"]
                   )
               ),
           )
@@ -1060,7 +1060,7 @@ def introspect(interface) :
           (
             name = interface._interface_name,
             methods = methods,
-            signals = signal,
+            signals = signals,
           )
 #end introspect
 

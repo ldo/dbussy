@@ -785,7 +785,7 @@ def interface(kind, *, name) :
                     #end if
                     propentry = props[propname]
                     if propinfo["type"] != None :
-                        if "type" in propentry :
+                        if propentry["type"] != None :
                             if propentry["type"] != propinfo["type"] :
                                 raise ValueError \
                                   (

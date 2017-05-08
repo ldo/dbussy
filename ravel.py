@@ -648,6 +648,7 @@ def _message_interface_dispatch(connection, message, bus) :
                         ("connection_keyword", lambda : connection),
                         ("message_keyword", lambda : message),
                         ("path_keyword", lambda : message.path),
+                        ("bus_keyword", lambda : bus),
                     ) \
                 :
                     if call_info[keyword_keyword] != None :
@@ -838,6 +839,7 @@ def method \
     connection_keyword = None,
     message_keyword = None,
     path_keyword = None,
+    bus_keyword = None,
     set_result_keyword = None
   ) :
     "put a call to this function as a decorator for each method of an @interface()" \
@@ -868,6 +870,7 @@ def method \
                 "connection_keyword" : connection_keyword,
                 "message_keyword" : message_keyword,
                 "path_keyword" : path_keyword,
+                "bus_keyword" : bus_keyword,
                 "set_result_keyword" : set_result_keyword,
             }
         return \
@@ -886,7 +889,8 @@ def signal \
     args_keyword = None,
     connection_keyword = None,
     message_keyword = None,
-    path_keyword = None
+    path_keyword = None,
+    bus_keyword = None
   ) :
     "put a call to this function as a decorator for each method of an @interface()" \
     " class that is to be registered as a signal of the interface." \
@@ -913,6 +917,7 @@ def signal \
                 "connection_keyword" : connection_keyword,
                 "message_keyword" : message_keyword,
                 "path_keyword" : path_keyword,
+                "bus_keyword" : bus_keyword,
             }
         return \
             func
@@ -930,7 +935,8 @@ def propgetter \
     name_keyword = None,
     connection_keyword = None,
     message_keyword = None,
-    path_keyword = None
+    path_keyword = None,
+    bus_keyword = None
   ) :
 
     def decorate(func) :
@@ -946,6 +952,7 @@ def propgetter \
                 "connection_keyword" : connection_keyword,
                 "message_keyword" : message_keyword,
                 "path_keyword" : path_keyword,
+                "bus_keyword" : bus_keyword,
             }
         return \
             func
@@ -964,7 +971,8 @@ def propsetter \
     value_keyword,
     connection_keyword = None,
     message_keyword = None,
-    path_keyword = None
+    path_keyword = None,
+    bus_keyword = None
   ) :
 
     def decorate(func) :
@@ -981,6 +989,7 @@ def propsetter \
                 "connection_keyword" : connection_keyword,
                 "message_keyword" : message_keyword,
                 "path_keyword" : path_keyword,
+                "bus_keyword" : bus_keyword,
             }
         return \
             func

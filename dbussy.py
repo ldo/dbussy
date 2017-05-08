@@ -4190,10 +4190,12 @@ def parse_signature(signature) :
     elif isinstance(signature, str) :
         signature_validate(signature)
         result = []
-        sigiter = SignatureIter.init(signature)
-        for elt in sigiter :
-            result.append(process_subsig(elt))
-        #end for
+        if len(signature) != 0 :
+            sigiter = SignatureIter.init(signature)
+            for elt in sigiter :
+                result.append(process_subsig(elt))
+            #end for
+        #end if
     else :
         raise TypeError("signature must be list or str")
     #end if

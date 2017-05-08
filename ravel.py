@@ -365,6 +365,7 @@ class Connection :
         "\n" \
         "An exception is raised if the return is an error; otherwise a list of" \
         " the reply args is returned."
+        assert self.loop != None, "no event loop to attach coroutine to"
         iface = self.get_dispatch(path, interface)
         if iface == None :
             raise TypeError("no suitable interface %s for object %s" % (interface, dbus.unsplit_path(path)))

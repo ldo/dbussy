@@ -4333,7 +4333,30 @@ def validate_utf8(alleged_utf8, error = None) :
 # Standard interfaces
 #-
 
-class Introspection :
+class _TagCommon :
+
+    def __repr__(self) :
+        celf = type(self)
+        return \
+            (
+                    "%s(%s)"
+                %
+                    (
+                        celf.__name__,
+                        ", ".join
+                          (
+                                "%s = %s"
+                            %
+                                (name, repr(getattr(self, name)))
+                            for name in celf.__slots__
+                          ),
+                    )
+            )
+    #end __repr__
+
+#end _TagCommon
+
+class Introspection(_TagCommon) :
     "high-level wrapper for the DBUS.INTERFACE_INTROSPECTABLE interface."
 
     __slots__ = ("name", "interfaces", "nodes", "annotations")
@@ -4355,7 +4378,7 @@ class Introspection :
         READWRITE = "readwrite"
     #end ACCESS
 
-    class Annotation :
+    class Annotation(_TagCommon) :
 
         __slots__ = ("name", "value")
         tag_name = "annotation"
@@ -4378,19 +4401,19 @@ class Introspection :
             annotations
     #end _get_annotations
 
-    class Interface :
+    class Interface(_TagCommon) :
 
         __slots__ = ("name", "methods", "signals", "properties", "annotations")
         tag_name = "interface"
         tag_attrs = ("name",)
 
-        class Method :
+        class Method(_TagCommon) :
 
             __slots__ = ("name", "args", "annotations")
             tag_name = "method"
             tag_attrs = ("name",)
 
-            class Arg :
+            class Arg(_TagCommon) :
 
                 __slots__ = ("name", "type", "direction", "annotations")
                 tag_name = "arg"
@@ -4424,13 +4447,13 @@ class Introspection :
 
         #end Method
 
-        class Signal :
+        class Signal(_TagCommon) :
 
             __slots__ = ("name", "args", "annotations")
             tag_name = "signal"
             tag_attrs = ("name",)
 
-            class Arg :
+            class Arg(_TagCommon) :
 
                 __slots__ = ("name", "type", "annotations")
                 tag_name = "arg"
@@ -4459,7 +4482,7 @@ class Introspection :
 
         #end Signal
 
-        class Property :
+        class Property(_TagCommon) :
 
             __slots__ = ("name", "type", "access", "annotations")
             tag_name = "property"
@@ -4502,7 +4525,7 @@ class Introspection :
     Interface.Method.Arg.attr_convert["direction"] = DIRECTION
     Interface.Property.attr_convert["access"] = ACCESS
 
-    class StubInterface :
+    class StubInterface(_TagCommon) :
         "use this as a replacement for an Interface that you don’t want" \
         " to see expanded, e.g. if it has already been seen."
 
@@ -4518,19 +4541,27 @@ class Introspection :
 
     #end StubInterface
 
-    class Node :
+    class Node(_TagCommon) :
 
-        __slots__ = ("name", "annotations")
+        __slots__ = ("name", "interfaces", "nodes", "annotations")
         tag_name = "node"
         tag_attrs = ("name",)
-        tag_elts = {}
 
-        def __init__(self, name, annotations = ()) :
+        def __init__(self, name, interfaces = (), nodes = (), annotations = ()) :
+            if not all(isinstance(i, (Introspection.Interface, Introspection.StubInterface)) for i in interfaces) :
+                raise TypeError("interfaces must be Interface or StubInterface instances")
+            #end if
+            if not all(isinstance(n, Introspection.Node) for n in nodes) :
+                raise TypeError("nodes must be Node instances")
+            #end if
             self.name = name
+            self.interfaces = interfaces
+            self.nodes = nodes
             self.annotations = Introspection._get_annotations(annotations)
         #end __init__
 
     #end Node
+    Node.tag_elts = {"interfaces" : Interface, "nodes" : Node}
 
     tag_elts = {"interfaces" : Interface, "nodes" : Node}
 
@@ -4662,10 +4693,10 @@ class Introspection :
         #end if
         out.write(">\n")
         for elt in self.interfaces :
-            to_string(elt, 1 * indent_step)
+            to_string(elt, indent_step)
         #end for
         for elt in self.nodes :
-            to_string(elt, 1 * indent_step)
+            to_string(elt, indent_step)
         #end for
         out.write("</node>\n")
         return \
@@ -4673,6 +4704,8 @@ class Introspection :
     #end unparse
 
 #end Introspection
+
+del _TagCommon
 
 standard_interfaces = \
     {

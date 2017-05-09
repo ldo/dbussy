@@ -294,7 +294,7 @@ class Connection :
             ) :
                 iface = level["dispatch"][interface_name]["interface"]
             else :
-                iface = None
+                iface = fallback
             #end if
             if (
                     component == None
@@ -306,9 +306,6 @@ class Connection :
                     component not in level["subdir"]
                       # no handlers to be found further down path
             ) :
-                if iface == None :
-                    iface = fallback
-                #end if
                 break
             #end if
             fallback = iface

@@ -211,10 +211,10 @@ class Connection :
             CObject(self, bus_name, path)
     #end get_object
 
-    def register(self, path, subdir, interface, args = None, kwargs = None) :
+    def register(self, path, fallback, interface, args = None, kwargs = None) :
         "for server-side use; registers an instance of the specified interface" \
         " class for handling method calls on the specified path, and also on subpaths" \
-        " if subdir."
+        " if fallback."
         if not is_interface(interface) :
             raise TypeError("interface must be an @interface() class")
         #end if
@@ -245,13 +245,12 @@ class Connection :
         if kwargs == None :
             kwargs = {}
         #end if
-        level["dispatch"][interface_name] = {"interface" : interface(*args, **kwargs), "subdir" : bool(subdir)}
+        level["dispatch"][interface_name] = {"interface" : interface(*args, **kwargs), "fallback" : bool(fallback)}
     #end register
 
-    def unregister(self, path, subdir, interface = None) :
+    def unregister(self, path, interface = None) :
         "for server-side use; unregisters the specified interface class (or all" \
-        " registered interface classes, if None) from handling method calls on path," \
-        " and also on subpaths if subdir."
+        " registered interface classes, if None) from handling method calls on path."
         if interface != None and not is_interface(interface) :
             raise TypeError("interface must be None or an @interface() class")
         #end if
@@ -291,7 +290,7 @@ class Connection :
                 and
                     interface_name in level["dispatch"]
                 and
-                    (level["dispatch"][interface_name]["subdir"] or component == None)
+                    (level["dispatch"][interface_name]["fallback"] or component == None)
             ) :
                 iface = level["dispatch"][interface_name]["interface"]
             else :
@@ -1187,7 +1186,7 @@ class IntrospectionHandler :
             component = next(levels, None)
             if "dispatch" in level :
                 for entry in level["dispatch"].values() :
-                    if component == None or entry["subdir"] :
+                    if component == None or entry["fallback"] :
                         interface = type(entry["interface"])
                         interfaces[interface._interface_name] = interface
                           # replace any higher-level entry for same name

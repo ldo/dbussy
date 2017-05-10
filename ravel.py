@@ -1005,7 +1005,7 @@ def introspect(interface) :
     " @interface() class."
 
     if not is_interface(interface) :
-        raise TypeError("interface must be an @sinterface()-type class")
+        raise TypeError("interface must be an @interface()-type class")
     #end if
 
 #begin introspect

@@ -469,31 +469,33 @@ class Connection :
     #end send_method_await_reply
 
     def introspect(self, destination, path, timeout = DBUS.TIMEOUT_USE_DEFAULT) :
-        reply = self.send_method_with_reply_and_block \
+        "sends an Introspect request to the specified bus name and object path," \
+        " and returns the resulting parsed Introspection structure."
+        message = dbus.Message.new_method_call \
           (
             destination = destination,
-            path = path,
-            interface = DBUS.INTERFACE_INTROSPECTABLE,
-            name = "Introspect",
-            args = (),
-            timeout = timeout
+            path = dbus.unsplit_path(path),
+            iface = DBUS.INTERFACE_INTROSPECTABLE,
+            method = "Introspect"
           )
+        reply = self.connection.send_with_reply_and_block(message, timeout)
         return \
-            dbus.Introspection.unparse(reply[0])
+            dbus.Introspection.parse(reply.all_objects[0])
     #end introspect
 
     async def introspect_async(self, destination, path, timeout = DBUS.TIMEOUT_USE_DEFAULT) :
-        reply = await self.send_method_await_reply \
+        "sends an Introspect request to the specified bus name and object path," \
+        " and returns the resulting parsed Introspection structure."
+        message = dbus.Message.new_method_call \
           (
             destination = destination,
-            path = path,
-            interface = DBUS.INTERFACE_INTROSPECTABLE,
-            name = "Introspect",
-            args = (),
-            timeout = timeout
+            path = dbus.unsplit_path(path),
+            iface = DBUS.INTERFACE_INTROSPECTABLE,
+            method = "Introspect"
           )
+        reply = await self.connection.send_await_reply(message, timeout)
         return \
-            dbus.Introspection.unparse(reply[0])
+            dbus.Introspection.parse(reply.all_objects[0])
     #end introspect_async
 
 #end Connection

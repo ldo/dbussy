@@ -778,7 +778,7 @@ def interface(kind, *, name) :
                     propinfo = getattr(func, info_type)
                     propname = propinfo["name"]
                     if propname not in props :
-                        props[propname] = {}
+                        props[propname] = {"type" : None}
                     #end if
                     propentry = props[propname]
                     if propinfo["type"] != None :
@@ -1059,13 +1059,33 @@ def introspect(interface) :
           )
         for name in interface._interface_signals
       )
-    # TODO: properties
+    properties = list \
+      (
+        Introspection.Interface.Property
+          (
+            name = name,
+            type = dbus.parse_signature(interface._interface_props[name]["type"]),
+            access =
+                (
+                    None,
+                    Introspection.ACCESS.READ,
+                    Introspection.ACCESS.WRITE,
+                    Introspection.ACCESS.READWRITE,
+                )[
+                        int("getter" in interface._interface_props[name])
+                    |
+                        int("setter" in interface._interface_props[name]) << 1
+                ],
+          )
+        for name in interface._interface_props
+      )
     return \
         Introspection.Interface \
           (
             name = interface._interface_name,
             methods = methods,
             signals = signals,
+            properties = properties,
           )
 #end introspect
 

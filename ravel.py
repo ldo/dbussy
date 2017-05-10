@@ -579,13 +579,41 @@ class CObject :
     #end __init__
 
     def get_interface(self, name, timeout = DBUS.TIMEOUT_USE_DEFAULT) :
+        if name in dbus.standard_interfaces :
+            definition = dbus.standard_interfaces[name]
+        else :
+            introspection = self.conn.introspect(self.name, self.path, timeout)
+            interfaces = dict((iface.name, iface) for iface in introspection.interfaces)
+            if name not in interfaces :
+                raise dbus.DBusError \
+                  (
+                    DBUS.ERROR_UNKNOWN_INTERFACE,
+                    "object “%s” does not understand interface “%s”" % (self.path, name)
+                  )
+            #end if
+            definition = interfaces[name]
+        #end if
         return \
-            CInterface(object = self, name = name, timeout = timeout)
+            CInterface(object = self, name = name, definition = definition, timeout = timeout)
     #end get_interface
 
-    def get_async_interface(self, name, timeout = DBUS.TIMEOUT_USE_DEFAULT) :
+    async def get_async_interface(self, name, timeout = DBUS.TIMEOUT_USE_DEFAULT) :
+        if name in dbus.standard_interfaces :
+            definition = dbus.standard_interfaces[name]
+        else :
+            introspection = await self.conn.introspect_async(self.name, self,path, timeout)
+            interfaces = dict((iface.name, iface) for iface in introspection.interfaces)
+            if name not in interfaces :
+                raise dbus.DBusError \
+                  (
+                    DBUS.ERROR_UNKNOWN_INTERFACE,
+                    "object “%s” does not understand interface “%s”" % (self.path, name)
+                  )
+            #end if
+            definition = interfaces[name]
+        #end if
         return \
-            CAsyncInterface(object = self, name = name, timeout = timeout)
+            CAsyncInterface(object = self, name = name, definition = definition, timeout = timeout)
     #end get_async_interface
 
 #end CObject
@@ -593,20 +621,28 @@ class CObject :
 class CInterface :
     "identifies an interface for communicating synchronously with a CObject."
 
-    __slots__ = ("object", "name", "timeout")
+    __slots__ = ("object", "name", "methods", "timeout")
 
-    def __init__(self, object, name, timeout = DBUS.TIMEOUT_USE_DEFAULT) :
+    def __init__(self, object, name, definition, timeout = DBUS.TIMEOUT_USE_DEFAULT) :
         if not isinstance(object, CObject) :
             raise TypeError("object must be a CObject")
         #end if
         self.object = object
         self.name = name
+        self.methods = dict((meth.name, meth) for meth in definition.methods)
         self.timeout = timeout
     #end __init__
 
     def __getattr__(self, attrname) :
+        if attrname not in self.methods :
+            raise dbus.DBusError \
+              (
+                DBUS.ERROR_UNKNOWN_METHOD,
+                "interface “%s” does not understand method “%s”" % (self.name, attrname)
+              )
+        #end if
         return \
-            CMethod(self, attrname)
+            CMethod(self, self.methods[attrname])
     #end __getattr__
 
 #end CInterface
@@ -616,8 +652,15 @@ class CAsyncInterface(CInterface) :
     " Methods can be called, for example in “await” expressions."
 
     def __getattr__(self, attrname) :
+        if attrname not in self.methods :
+            raise dbus.DBusError \
+              (
+                DBUS.ERROR_UNKNOWN_METHOD,
+                "interface “%s” does not understand method “%s”" % (self.name, attrname)
+              )
+        #end if
         return \
-            CAsyncMethod(self, attrname)
+            CAsyncMethod(self, self.methods[attrname])
     #end __getattr__
 
 #end CAsyncInterface
@@ -643,11 +686,10 @@ class CMethod :
             destination = self.interface.object.name,
             path = self.interface.object.path,
             iface = self.interface.name,
-            method = self.method
+            method = self.method.name
           )
         if len(args) != 0 :
-            #print("guess signature for %s = %s" % (repr(args), repr(guess_sequence_signature(args)))) # debug
-            message.append_objects(guess_sequence_signature(args), *args)
+            message.append_objects(dbus.unparse_signature(self.method.in_signature), *args)
         #end if
         return \
             message

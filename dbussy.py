@@ -3915,7 +3915,7 @@ class Error :
 
 class AddressEntries :
     "wrapper for arrays of DBusAddressEntry values. Do not instantiate directly;" \
-    " get from AddressEntry.parse. This object behaves like an array; you can obtain" \
+    " get from AddressEntries.parse. This object behaves like an array; you can obtain" \
     " the number of elements with len(), and use array subscripting to access the elements."
     # <https://dbus.freedesktop.org/doc/api/html/group__DBusAddress.html>
 
@@ -4618,6 +4618,7 @@ class Introspection(_TagCommon) :
 
     @classmethod
     def parse(celf, s) :
+        "generates an Introspection tree from the given XML string description."
 
         def from_string_elts(celf, attrs, tree) :
             elts = dict((k, attrs[k]) for k in attrs)
@@ -4674,6 +4675,7 @@ class Introspection(_TagCommon) :
     #end parse
 
     def unparse(self, indent_step = 4, max_linelen = 72) :
+        "returns an XML string description of this Introspection tree."
 
         out = io.StringIO()
 

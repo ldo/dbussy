@@ -495,6 +495,7 @@ class DBUS :
 #-
 
 class TYPE(enum.Enum) :
+    "D-Bus type codes wrapped up in an enumeration."
 
     BYTE = ord('y') # 8-bit unsigned integer
     BOOLEAN = ord('b') # boolean
@@ -516,6 +517,7 @@ class TYPE(enum.Enum) :
 
     @property
     def is_basic(self) :
+        "does this code represent a basic (non-container) type."
         return \
             self.value in DBUS.basic_to_ctypes
     #end is_basic
@@ -584,7 +586,7 @@ class VariantType(Type) :
 #end VariantType
 
 class StructType(Type) :
-    "a sequence of one or more arbitrary types."
+    "a sequence of one or more arbitrary types (empty structs are not allowed)."
 
     __slots__ = ("elttypes",)
 
@@ -618,7 +620,7 @@ class StructType(Type) :
 #end StructType
 
 class ArrayType(Type) :
-    "an array of elements all of the same type."
+    "an array of zero or more elements all of the same type."
 
     __slots__ = ("elttype",)
 
@@ -643,7 +645,7 @@ class ArrayType(Type) :
 #end ArrayType
 
 class DictType(Type) :
-    "a dictionary mapping keys to values."
+    "a dictionary mapping zero or more keys to values."
 
     __slots__ = ("keytype", "valuetype")
 
@@ -2502,7 +2504,7 @@ class Server :
     "wrapper around a DBusServer object. Do not instantiate directly; use" \
     " the listen method.\n" \
     "\n" \
-    "You only use this if you want to use D-Bus as a communication mechanism" \
+    "You only need this if you want to use D-Bus as a communication mechanism" \
     " separate from the system/session buses provided by the D-Bus daemon: you" \
     " create a Server object listening on a specified address, and clients can" \
     " use Connection.open() to connect to you on that address."
@@ -2743,8 +2745,9 @@ class Server :
         " is used.\n" \
         "\n" \
         "This call will also automatically attach a new_connection callback. You then use" \
-        " the await_new_connection coroutine to obtain new connections. It is up to you" \
-        " to call Connection.attach_asyncio() to handle events for the new connection."
+        " the await_new_connection coroutine to obtain new connections. If" \
+        " self.autoattach_new_connections, then Connection.attach_asyncio() will" \
+        " automatically be called to handle events for the new connection."
 
         def new_connection(self, conn, user_data) :
             if len(self._await_new_connections) != 0 :
@@ -3285,8 +3288,8 @@ class Message :
             iter
     #end iter_init_append
 
-    def append_objects(self, signature, *val) :
-        "interprets Python values val according to signature and appends" \
+    def append_objects(self, signature, *args) :
+        "interprets Python values args according to signature and appends" \
         " converted item(s) to the message args."
 
         def append_sub(siglist, eltlist, appenditer) :
@@ -3345,7 +3348,7 @@ class Message :
         #end append_sub
 
     #begin append_objects
-        append_sub(parse_signature(signature), val, self.iter_init_append())
+        append_sub(parse_signature(signature), args, self.iter_init_append())
     #end append_objects
 
     @property
@@ -3442,8 +3445,8 @@ class Message :
 
     @property
     def member(self) :
-        "the method name for a DBUS.MESSAGE_TYPE_METHOD_CALL message, the error name for" \
-        " DBUS.MESSAGE_TYPE_ERROR, or the signal name for DBUS.MESSAGE_TYPE_SIGNAL."
+        "the method name for a DBUS.MESSAGE_TYPE_METHOD_CALL message or the signal" \
+        " name for DBUS.MESSAGE_TYPE_SIGNAL."
         result = dbus.dbus_message_get_member(self._dbobj)
         if result != None :
             result = result.decode()
@@ -3466,6 +3469,7 @@ class Message :
 
     @property
     def error_name(self) :
+        "the error name for a DBUS.MESSAGE_TYPE_ERROR message."
         result = dbus.dbus_message_get_error_name(self._dbobj)
         if result != None :
             result = result.decode()
@@ -3574,6 +3578,7 @@ class Message :
 
     @property
     def serial(self) :
+        "the serial number of the Message, to be referenced in replies."
         return \
             dbus.dbus_message_get_serial(self._dbobj)
     #end serial
@@ -3708,7 +3713,7 @@ class Message :
 
 class PendingCall :
     "wrapper around a DBusPendingCall object. This represents a pending reply" \
-    " message that hasn’t been received yet. Do not instantiate directly; lidbus" \
+    " message that hasn’t been received yet. Do not instantiate directly; libdbus" \
     " creates these as the result from calling send_with_reply() on a Message."
     # <https://dbus.freedesktop.org/doc/api/html/group__DBusPendingCall.html>
 

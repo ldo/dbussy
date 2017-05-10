@@ -4335,6 +4335,25 @@ def validate_utf8(alleged_utf8, error = None) :
 
 class _TagCommon :
 
+    def get_annotation(self, name) :
+        "returns the value of the annotation with the specified name, or None" \
+        " if none could be found"
+        annots = iter(self.annotations)
+        while True :
+            annot = next(annots, None)
+            if annot == None :
+                result = None
+                break
+            #end if
+            if annot.name == name :
+                result = annot.value
+                break
+            #end if
+        #end while
+        return \
+            result
+    #end get_annotation
+
     def __repr__(self) :
         celf = type(self)
         return \
@@ -4445,6 +4464,19 @@ class Introspection(_TagCommon) :
                 self.annotations = Introspection._get_annotations(annotations)
             #end __init__
 
+            @property
+            def in_signature(self) :
+                return \
+                    list(a.type for a in self.args if a.direction == Introspection.DIRECTION.IN)
+            #end in_signature
+
+            @property
+            def out_signature(self) :
+                return \
+                    list \
+                      (a.type for a in self.args if a.direction == Introspection.DIRECTION.OUT)
+            #end out_signature
+
         #end Method
 
         class Signal(_TagCommon) :
@@ -4479,6 +4511,12 @@ class Introspection(_TagCommon) :
                 self.args = tuple(args)
                 self.annotations = Introspection._get_annotations(annotations)
             #end __init__
+
+            @property
+            def in_signature(self) :
+                return \
+                    list(a.type for a in self.args)
+            #end in_signature
 
         #end Signal
 

@@ -317,7 +317,7 @@ class Connection :
     #end get_dispatch
 
     def send_signal(self, *, path, interface, name, args) :
-        "intented for server-side use: sends a signal with the specified" \
+        "intended for server-side use: sends a signal with the specified" \
         " interface and name from the specified object path. There must" \
         " already be a registered interface instance with that name which" \
         " defines that signal for that path."

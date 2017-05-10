@@ -348,7 +348,7 @@ class Connection :
                 lambda : guess_sequence_signature(args),
                 lambda : call_info["in_signature"],
             )[call_info["in_signature"] != None](),
-            args
+            *args
           )
         self.connection.send(message)
     #end send_signal
@@ -391,7 +391,7 @@ class Connection :
                     lambda : guess_sequence_signature(args),
                     lambda : call_info["in_signature"],
                 )[call_info["in_signature"] != None](),
-                args
+                *args
               )
         #end if
         reply = await self.connection.send_await_reply(message, timeout)
@@ -680,7 +680,7 @@ def _message_interface_dispatch(connection, message, bus) :
                                 lambda : guess_sequence_signature(to_return_result),
                                 lambda : call_info["out_signature"],
                             )[call_info["out_signature"] != None](),
-                            to_return_result
+                            *to_return_result
                           )
                         connection.send(reply)
                     #end if

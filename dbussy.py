@@ -4868,7 +4868,80 @@ standard_interfaces = \
                                       ),
                                 ],
                           ),
-                    ]
+                    ],
+              ),
+        "org.freedesktop.DBus.ObjectManager" : # no symbolic name for this in standard headers as yet
+            Introspection.Interface
+              (
+                name = "org.freedesktop.DBus.ObjectManager",
+                methods =
+                    [
+                        Introspection.Interface.Method
+                          (
+                            name = "GetManagedObjects",
+                            args =
+                                [
+                                    Introspection.Interface.Method.Arg
+                                      (
+                                        name = "objpath_interfaces_and_properties",
+                                        type = DictType
+                                          (
+                                            BasicType(TYPE.OBJECT_PATH),
+                                            DictType
+                                              (
+                                                BasicType(TYPE.STRING), # interface
+                                                DictType(BasicType(TYPE.STRING), VariantType())
+                                                  # properties and values
+                                              )
+                                          ),
+                                        direction = Introspection.DIRECTION.OUT,
+                                      ),
+                                ],
+                          ),
+                    ],
+                signals =
+                    [
+                        Introspection.Interface.Signal
+                          (
+                            name = "InterfacesAdded",
+                            args =
+                                [
+                                    Introspection.Interface.Signal.Arg
+                                      (
+                                        name = "object_path",
+                                        type = BasicType(TYPE.OBJECT_PATH),
+                                      ),
+                                    Introspection.Interface.Signal.Arg
+                                      (
+                                        name = "interfaces_and_properties",
+                                        type = DictType
+                                          (
+                                            BasicType(TYPE.STRING), # interface added/changed
+                                            DictType(BasicType(TYPE.STRING), VariantType())
+                                              # properties and values added
+                                          ),
+                                      ),
+                                ],
+                          ),
+                        Introspection.Interface.Signal
+                          (
+                            name = "InterfacesRemoved",
+                            args =
+                                [
+                                    Introspection.Interface.Signal.Arg
+                                      (
+                                        name = "object_path",
+                                        type = BasicType(TYPE.OBJECT_PATH),
+                                      ),
+                                    Introspection.Interface.Signal.Arg
+                                      (
+                                        name = "interfaces",
+                                        type = ArrayType(BasicType(TYPE.STRING)),
+                                          # interfaces removed
+                                      ),
+                                ],
+                          ),
+                    ],
               ),
     # could add more
     }

@@ -1289,7 +1289,7 @@ def def_proxy_interface(kind, introspected, is_async) :
     proxy._iface_name = introspected.name
     proxy.__doc__ = \
         (
-                "proxy for a D-Bus interface named %(iname)s. Instantiate as\n"
+                "proxy for a %(kind)s D-Bus interface named %(iname)s. Instantiate as\n"
                 "\n"
                 "    %(cname)s(conn = «conn»[, dest = «dest»[, timeout = «timeout»]])\n"
                 "\n"
@@ -1297,7 +1297,16 @@ def def_proxy_interface(kind, introspected, is_async) :
                 " messages and receiving replies, and «dest» is the destination" \
                 " bus name for sending method calls (not needed for sending signals)."
             %
-                {"iname" : introspected.name, "cname" : class_name}
+                {
+                    "cname" : class_name,
+                    "iname" : introspected.name,
+                    "kind" :
+                        {
+                            INTERFACE.CLIENT : "client-side",
+                            INTERFACE.SERVER : "server-side",
+                            INTERFACE.CLIENT_AND_SERVER : "client-and-server-side",
+                        }[kind]
+                }
         )
     if kind != INTERFACE.SERVER :
         for method in introspected.methods :

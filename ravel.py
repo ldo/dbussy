@@ -778,7 +778,7 @@ def interface(kind, *, name) :
                     propinfo = getattr(func, info_type)
                     propname = propinfo["name"]
                     if propname not in props :
-                        props[propname] = {"type" : None}
+                        props[propname] = {"type" : None, "interface" : None}
                     #end if
                     propentry = props[propname]
                     if propinfo["type"] != None :
@@ -799,6 +799,23 @@ def interface(kind, *, name) :
                         else :
                             propentry["type"] = propinfo["type"]
                         #end if
+                    #end if
+                    if propentry["interface"] != None :
+                        if (
+                                propinfo["interface"] != None
+                            and
+                                propinfo["interface"] != propinfo["interface"]
+                        ) :
+                            raise ValueError \
+                              (
+                                    "disagreement on interface for property “%s” between"
+                                    " getter and setter: “%s” versus “%s”"
+                                %
+                                    (propname, propentry["interface"], propinfo["interface"])
+                              )
+                        #end if
+                    else :
+                        propentry["interface"] = propinfo["interface"]
                     #end if
                     propentry[meth_type] = func
                 #end if

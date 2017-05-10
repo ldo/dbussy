@@ -655,6 +655,7 @@ class CMethod :
 
     def _process_reply(self, reply) :
         if reply.type == DBUS.MESSAGE_TYPE_METHOD_RETURN :
+            # TODO: respect self.method.out_signature?
             result = reply.all_objects
         elif reply.type == DBUS.MESSAGE_TYPE_ERROR :
             raise dbus.DBusError(reply.member, reply.all_objects[0])
@@ -1300,7 +1301,7 @@ def def_proxy_interface(name, kind, introspected, is_async) :
                 message.append_objects("ss", self._iface_name, intr_prop.name)
                 reply = await self.conn.connection.send_await_reply(message, self.timeout)
                 return \
-                    reply.all_objects[0]
+                    reply.all_objects[0] # variant type, so any type is OK
             #end get_prop
 
             async def set_prop(self, path, value) :
@@ -1335,7 +1336,7 @@ def def_proxy_interface(name, kind, introspected, is_async) :
                 message.append_objects("ss", self._iface_name, intr_prop.name)
                 reply = self.conn.connection.send_with_reply_and_block(message, self.timeout)
                 return \
-                    reply.all_objects[0]
+                    reply.all_objects[0] # variant type, so any type is OK
             #end get_prop
 
             def set_prop(self, path, value) :

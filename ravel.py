@@ -1106,9 +1106,9 @@ def introspect(interface) :
           )
 #end introspect
 
-def def_proxy_interface(kind, introspected) :
-    "given an Introspection.Interface object, creates an @interface() proxy object" \
-    " that can be registered by a client to send method-call messages to a server," \
+def def_proxy_interface(kind, introspected, is_async) :
+    "given an Introspection.Interface object, creates a proxy class that can be" \
+    " instantiated by a client to send method-call messages to a server," \
     " or by a server to send signal messages to clients."
 
     if not isinstance(kind, INTERFACE) :
@@ -1118,79 +1118,219 @@ def def_proxy_interface(kind, introspected) :
         raise TypeError("introspected must be an Introspection.Interface")
     #end if
 
-    # TODO: async method calls?
+    class proxy :
+        # class that will be returned.
+
+        # class field _iface_name contains interface name.
+        __slots__ = ("conn", "dest", "timeout")
+
+        def __init__(self, *, conn, dest, timeout = DBUS.TIMEOUT_USE_DEFAULT) :
+            if is_async :
+                assert conn.loop != None, "no event loop to attach coroutines to"
+            #end if
+            self.conn = conn
+            self.dest = dest
+            self.timeout = timeout
+        #end __init__
+
+        # rest filled in dynamically below.
+
+    #end proxy
 
     def def_method(intr_method) :
-        # constructs a method stub method,
+        # constructs a method-call method,
 
-        def method_stub() :
-            pass
-        #end method_stub
+        expect_reply = intr_method.get_annotation("org.freedesktop.DBus.Method.NoReply") != "true"
+
+        if is_async :
+
+            async def call_method(self, path, *args) :
+                message = dbus.Message.new_method_call \
+                  (
+                    destination = self.dest,
+                    path = dbus.unsplit_path(path),
+                    iface = self._iface_name,
+                    name = intr_method.name
+                  )
+                message.append_objects(dbus.unparse_signature(intr_method.in_signature), *args)
+                if expect_reply :
+                    reply = await self.conn.connection.send_await_reply(message, self.timeout)
+                    result = reply.all_objects # TODO: respect out_signature?
+                else :
+                    message.no_reply = True
+                    self.conn.connection.send(message)
+                    result = None
+                #end if
+                return \
+                    result
+            #end call_method
+
+        else :
+
+            def call_method(self, path, *args) :
+                message = dbus.Message.new_method_call \
+                  (
+                    destination = self.dest,
+                    path = dbus.unsplit_path(path),
+                    iface = self._iface_name,
+                    name = intr_method.name
+                  )
+                message.append_objects(dbus.unparse_signature(intr_method.in_signature), *args)
+                if expect_reply :
+                    reply = self.conn.connection.send_with_reply_and_block(message, self.timeout)
+                    result = reply.all_objects # TODO: respect out_signature?
+                else :
+                    message.no_reply = True
+                    self.conn.connection.send(message)
+                    result = None
+                #end if
+                return \
+                    result
+            #end call_method
+
+        #end if
 
     #begin def_method
-        method_stub.__name__ = intr_method.name
-        return \
-            method \
-              (
-                name = intr_method.name,
-                in_signature =
-                    "".join
-                      (
-                        dbus.unparse_signature(arg.type)
-                        for arg in intr_method.args
-                        if arg.direction == Introspection.DIRECTION.IN
-                      ),
-                out_signature =
-                    "".join
-                      (
-                        dbus.unparse_signature(arg.type)
-                        for arg in intr_method.args
-                        if arg.direction == Introspection.DIRECTION.OUT
-                      ),
-              )(method_stub)
+        call_method.__name__ = intr_method.name
+        setattr(proxy, intr_method.name, call_method)
     #end def_method
 
     def def_signal(intr_signal) :
-        # constructs a signal stub method,
+        # constructs a signal method. These are never async, since messages
+        # are queued and there is no reply.
 
-        def signal_stub() :
-            pass
-        #end signal_stub
+        def send_signal(self, path, *args) :
+            message = dbus.Message.new_signal \
+              (
+                path = dbus.unsplit_path(path),
+                iface = self._iface_name,
+                name = intr_signal.name
+              )
+            message.append_objects(dbus.unparse_signature(intr_signal.in_signature), *args)
+            self.conn.connection.send(message)
+        #end send_signal
 
     #begin def_signal
-        signal_stub.__name__ = intr_signal.name
-        return \
-            signal \
-              (
-                name = intr_signal.name,
-                in_signature = "".join
-                  (
-                    dbus.unparse_signature(arg.type)
-                    for arg in intr_signal.args
-                  ),
-              )(signal_stub)
+        send_signal.__name__ = intr_signal.name
+        setattr(proxy, signal.name, send_signal)
     #end def_signal
 
-    class interface_template :
-        pass
-    #end interface_template
+    def def_prop(intr_prop) :
+
+        if is_async :
+
+            async def get_prop(self, path) :
+                message = dbus.Message.new_method_call \
+                  (
+                    destination = self.dest,
+                    path = dbus.unsplit_path(path),
+                    iface = DBUS.INTERFACE_PROPERTIES,
+                    name = "Get"
+                  )
+                message.append_objects("ss", self._iface_name, intr_prop.name)
+                reply = await self.conn.connection.send_await_reply(message, self.timeout)
+                return \
+                    reply.all_objects[0]
+            #end get_prop
+
+            async def set_prop(self, path, value) :
+                message = dbus.Message.new_method_call \
+                  (
+                    destination = self.dest,
+                    path = dbus.unsplit_path(path),
+                    iface = DBUS.INTERFACE_PROPERTIES,
+                    name = "Set"
+                  )
+                message.append_objects("ssv", self._iface_name, intr_prop.name, value)
+                reply = await self.conn.connection.send_await_reply(message, self.timeout)
+                if reply.type == DBUS.MESSAGE_TYPE_METHOD_RETURN :
+                    pass
+                elif reply.type == DBUS.MESSAGE_TYPE_ERROR :
+                    raise dbus.DBusError(reply.member, reply.all_objects[0])
+                else :
+                    raise ValueError("unexpected reply type %d" % reply.type)
+                #end if
+            #end set_prop
+
+        else :
+
+            def get_prop(self, path) :
+                message = dbus.Message.new_method_call \
+                  (
+                    destination = self.dest,
+                    path = dbus.unsplit_path(path),
+                    iface = DBUS.INTERFACE_PROPERTIES,
+                    name = "Get"
+                  )
+                message.append_objects("ss", self._iface_name, intr_prop.name)
+                reply = self.conn.connection.send_with_reply_and_block(message, self.timeout)
+                return \
+                    reply.all_objects[0]
+            #end get_prop
+
+            def set_prop(self, path, value) :
+                message = dbus.Message.new_method_call \
+                  (
+                    destination = self.dest,
+                    path = dbus.unsplit_path(path),
+                    iface = DBUS.INTERFACE_PROPERTIES,
+                    name = "Set"
+                  )
+                message.append_objects("ssv", self._iface_name, intr_prop.name, value)
+                reply = self.conn.connection.send_with_reply_and_block(message, self.timeout)
+                if reply.type == DBUS.MESSAGE_TYPE_METHOD_RETURN :
+                    pass
+                elif reply.type == DBUS.MESSAGE_TYPE_ERROR :
+                    raise dbus.DBusError(reply.member, reply.all_objects[0])
+                else :
+                    raise ValueError("unexpected reply type %d" % reply.type)
+                #end if
+            #end set_prop
+
+        #end if
+
+    #begin def_prop
+        if intr_prop.access != Introspection.ACCESS.WRITE :
+            get_prop.__name__ = "get_%s" % intr_prop.name
+            setattr(proxy, get_prop.__name, get_prop)
+        #end if
+        if intr_prop.access != Introspection.ACCESS.READ :
+            set_prop.__name__ = "set_%s" % intr_prop.name
+            setattr(proxy, set_prop.__name, set_prop)
+        #end if
+    #end def_prop
 
 #begin def_proxy_interface
-    result = interface_template
-    result.__name__ = introspected.name
+    class_name = introspected.name.replace(".", "_")
+    proxy.__name__ = class_name
+    proxy._iface_name = introspected.name
+    proxy.__doc__ = \
+        (
+                "proxy for a D-Bus interface named %(iname)s. Instantiate as\n"
+                "\n"
+                "    %(cname)s(conn = «conn»[, dest = «dest»[, timeout = «timeout»]])\n"
+                "\n"
+                "where «conn» is the ravel.Connection instance to use for sending"
+                " messages and receiving replies, and «dest» is the destination" \
+                " bus name for sending method calls (not needed for sending signals)."
+            %
+                {"iname" : introspected.name, "cname" : class_name}
+        )
     if kind != INTERFACE.SERVER :
         for method in introspected.methods :
-            setattr(result, method.name, def_method(method))
+            def_method(method)
+        #end for
+        for prop in introspect.properties :
+            def_prop(prop)
         #end for
     #end if
     if kind != INTERFACE.CLIENT :
         for signal in introspected.signals :
-            setattr(result, signal.name, def_signal(signal))
+            def_signal(signal)
         #end for
     #end if
-    # TODO: properties
     return \
-        interface(kind = kind, name = introspected.name)(result)
+        proxy
 #end def_proxy_interface
 
 #+
@@ -1362,9 +1502,7 @@ class PropertyHandler :
             propentry = props[propentry]
             if "setter" in propentry :
                 setter = propentry["setter"]
-                if propentry["type"] != None :
-                    TBD
-                #end if
+                # TODO: respect propentry["type"]?
                 kwargs = {}
                 for keyword_keyword, value in \
                     (

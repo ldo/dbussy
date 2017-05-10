@@ -1303,7 +1303,7 @@ def def_proxy_interface(kind, introspected, is_async) :
         for method in introspected.methods :
             def_method(method)
         #end for
-        for prop in introspect.properties :
+        for prop in introspected.properties :
             def_prop(prop)
         #end for
     #end if

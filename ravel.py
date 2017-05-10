@@ -385,7 +385,6 @@ class Connection :
             name = name
           )
         if len(args) != 0 :
-          # fixme: pay attention to method._method/signal_info["in_signature"]?
             message.append_objects \
               (
                 (
@@ -637,7 +636,7 @@ def _message_interface_dispatch(connection, message, bus) :
                 method = methods[method_name]
                 call_info = getattr(method, ("_signal_info", "_method_info")[is_method])
                 args = message.all_objects
-                  # fixme: pay attention to method._method/signal_info["in_signature"]?
+                  # TODO: pay attention to method._method/signal_info["in_signature"]?
                 kwargs = {}
                 for keyword_keyword, value in \
                     (

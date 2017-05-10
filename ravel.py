@@ -1089,7 +1089,7 @@ def introspect(interface) :
           )
 #end introspect
 
-def def_proxy_interface(kind, introspected, is_async) :
+def def_proxy_interface(name, kind, introspected, is_async) :
     "given an Introspection.Interface object, creates a proxy class that can be" \
     " instantiated by a client to send method-call messages to a server," \
     " or by a server to send signal messages to clients."
@@ -1284,7 +1284,11 @@ def def_proxy_interface(kind, introspected, is_async) :
     #end def_prop
 
 #begin def_proxy_interface
-    class_name = introspected.name.replace(".", "_")
+    if name != None :
+        class_name = name
+    else :
+        class_name = introspected.name.replace(".", "_")
+    #end if
     proxy.__name__ = class_name
     proxy._iface_name = introspected.name
     proxy.__doc__ = \

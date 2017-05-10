@@ -396,6 +396,7 @@ class Connection :
         reply = self.send_with_reply_and_block(message, timeout)
         if reply != None :
             if reply.type == DBUS.MESSAGE_TYPE_METHOD_RETURN :
+                # TODO: respect call_info["out_signature"]?
                 result = reply.all_objects
             elif reply.type == DBUS.MESSAGE_TYPE_ERROR :
                 raise dbus.DBusError(reply.member, reply.all_objects[0])
@@ -453,6 +454,7 @@ class Connection :
         reply = await self.connection.send_await_reply(message, timeout)
         if reply != None :
             if reply.type == DBUS.MESSAGE_TYPE_METHOD_RETURN :
+                # TODO: respect call_info["out_signature"]?
                 result = reply.all_objects
             elif reply.type == DBUS.MESSAGE_TYPE_ERROR :
                 raise dbus.DBusError(reply.member, reply.all_objects[0])

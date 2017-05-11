@@ -150,6 +150,10 @@ def guess_sequence_signature(args) :
 #end guess_sequence_signature
 
 class Connection :
+    "higher-level wrapper around dbussy.Connection. Provides various functions," \
+    " some more suited to client-side use and some more suitable to the server side." \
+    " Allows for registering of @interface() classes for automatic dispatching of" \
+    " method calls at appropriate points in the object hierarchy."
 
     __slots__ = ("__weakref__", "connection", "loop", "_dispatch") # to forestall typos
 
@@ -197,6 +201,9 @@ class Connection :
     #end Name
 
     def request_name(self, bus_name, flags) :
+        "registers a bus name, returning a Connection.Name object; hold on" \
+        " to this for as long as you want the name registered. When Python" \
+        " disposes of the object, the name will be released."
         self.connection.bus_request_name(bus_name, flags)
         return \
             type(self).Name(self, bus_name)
@@ -204,15 +211,15 @@ class Connection :
 
     def get_object(self, bus_name, path) :
         "for client-side use; returns a CObject instance for communicating" \
-        " with a specified server object. Pass the result, along with the interface" \
-        " name, to CInterface to create an object that can be used to call any" \
-        " method defined on the server by that interface."
+        " with a specified server object. You can then call get_interface" \
+        " on the result to create an interface object that can be used to" \
+        " call any method defined on the server by that interface."
         return \
             CObject(self, bus_name, path)
     #end get_object
 
     def register(self, path, fallback, interface, args = None, kwargs = None) :
-        "for server-side use; registers an instance of the specified interface" \
+        "for server-side use; registers an instance of the specified @interface()" \
         " class for handling method calls on the specified path, and also on subpaths" \
         " if fallback."
         if not is_interface(interface) :
@@ -1133,12 +1140,9 @@ def propsetter \
 def introspect(interface) :
     "returns an Introspection.Interface object that describes the specified" \
     " @interface() class."
-
     if not is_interface(interface) :
         raise TypeError("interface must be an @interface()-type class")
     #end if
-
-#begin introspect
     methods = list \
       (
         Introspection.Interface.Method
@@ -1329,6 +1333,7 @@ def def_proxy_interface(name, kind, introspected, is_async) :
     #end def_signal
 
     def def_prop(intr_prop) :
+        # defines getter and/or setter methods as appropriate for a property.
 
         if is_async :
 

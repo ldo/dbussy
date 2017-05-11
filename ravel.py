@@ -525,20 +525,13 @@ class Connection :
                 entry = self._props_changed[key]
                 path, interface = key
                 if entry["at"] <= now :
-                    message = dbus.Message.new_signal \
+                    self.send_signal \
                       (
-                        path = dbus.unsplit_path(path),
-                        iface = DBUS.INTERFACE_PROPERTIES,
-                        name = "PropertiesChanged"
+                        path = path,
+                        interface = DBUS.DBUS.INTERFACE_PROPERTIES,
+                        name = "PropertiesChanged",
+                        args = (interface, entry["changed"], sorted(entry["invalidated"]))
                       )
-                    message.append_objects \
-                      (
-                        "sa{sv}as",
-                        interface,
-                        entry["changed"],
-                        sorted(entry["invalidated"]),
-                      )
-                    self.connection.send(message)
                     done.add(key)
                 #end if
             #end for

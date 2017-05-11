@@ -4405,7 +4405,7 @@ class Introspection(_TagCommon) :
     class PROP_CHANGE_NOTIFICATION(enum.Enum) :
         "how/if a changed property emits a notification signal."
         NEW_VALUE = "true" # notification includes new value
-        INVALIDATES = "invalidates"# notification does not include new value
+        INVALIDATES = "invalidates" # notification does not include new value
         CONST = "const" # property shouldn’t change
         NONE = "false" # does not notify changes
     #end PROP_CHANGE_NOTIFICATION

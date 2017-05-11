@@ -1068,7 +1068,11 @@ def interface \
                           )
                     #end if
                     if meth_type == "getter" :
-                        propentry["change_notification"] = propinfo["change_notification"]
+                        if propinfo["change_notification"] != None :
+                            propentry["change_notification"] = propinfo["change_notification"]
+                        else :
+                            propentry["change_notification"] = property_change_notification
+                        #end if
                     #end if
                     propentry[meth_type] = func
                 #end if
@@ -1205,7 +1209,7 @@ def propgetter \
     message_keyword = None,
     path_keyword = None,
     bus_keyword = None,
-    change_notification = Introspection.PROP_CHANGE_NOTIFICATION.NEW_VALUE
+    change_notification = None
   ) :
 
     def decorate(func) :
@@ -1213,8 +1217,16 @@ def propgetter \
             raise TypeError("only apply decorator to functions.")
         #end if
         assert isinstance(name, str), "property name is mandatory"
-        if not isinstance(change_notification, Introspection.PROP_CHANGE_NOTIFICATION) :
-            raise TypeError("change_notification must be an Introspection.PROP_CHANGE_NOTIFICATION value")
+        if (
+                change_notification != None
+            and
+                not isinstance(change_notification, Introspection.PROP_CHANGE_NOTIFICATION)
+        ) :
+            raise TypeError \
+              (
+                "change_notification must be None or an Introspection."
+                "PROP_CHANGE_NOTIFICATION value"
+              )
         #end if
         func._propgetter_info = \
             {

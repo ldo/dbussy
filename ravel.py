@@ -1162,7 +1162,8 @@ def signal \
     connection_keyword = None,
     message_keyword = None,
     path_keyword = None,
-    bus_keyword = None
+    bus_keyword = None,
+    deprecated = False # can signals be deprecated?
   ) :
     "put a call to this function as a decorator for each method of an @interface()" \
     " class that is to be registered as a signal of the interface." \
@@ -1190,6 +1191,7 @@ def signal \
                 "message_keyword" : message_keyword,
                 "path_keyword" : path_keyword,
                 "bus_keyword" : bus_keyword,
+                "deprecated" : deprecated,
             }
         return \
             func
@@ -1295,16 +1297,22 @@ def introspect(interface) :
     if not is_interface(interface) :
         raise TypeError("interface must be an @interface()-type class")
     #end if
-    methods = []
-    for name in interface._interface_methods :
-        method = interface._interface_methods[name]
-        annots = []
-        if method._method_info["deprecated"] :
+
+    def add_deprecated(annots, deprecated) :
+        if deprecated :
             annots.append \
               (
                 Introspection.Annotation(name = "org.freedesktop.DBus.Deprecated", value = "true")
               )
         #end if
+    #end add_deprecated
+
+#begin introspect
+    methods = []
+    for name in interface._interface_methods :
+        method = interface._interface_methods[name]
+        annots = []
+        add_deprecated(annots, method._method_info["deprecated"])
         methods.append \
           (
             Introspection.Interface.Method
@@ -1340,23 +1348,28 @@ def introspect(interface) :
               )
           )
     #end for
-    # can signals be deprecated?
-    signals = list \
-      (
-        Introspection.Interface.Signal
+    signals = []
+    for name in interface._interface_signals :
+        signal = interface._interface_signals[name]
+        annots = []
+        add_deprecated(annots, signal._signal_info["deprecated"])
+        signals.append \
           (
-            name = name,
-            args = list
+            Introspection.Interface.Signal
               (
-                Introspection.Interface.Signal.Arg(type = sig)
-                for sig in dbus.parse_signature
+                name = name,
+                args = list
                   (
-                    interface._interface_signals[name]._signal_info["in_signature"]
-                  )
-              ),
+                    Introspection.Interface.Signal.Arg(type = sig)
+                    for sig in dbus.parse_signature
+                      (
+                        signal._signal_info["in_signature"]
+                      )
+                  ),
+                annotations = annots
+              )
           )
-        for name in interface._interface_signals
-      )
+    #end for
     properties = []
     for name in interface._interface_props :
         prop = interface._interface_props[name]
@@ -1411,12 +1424,7 @@ def introspect(interface) :
               )
           )
     #end if
-    if interface._interface_deprecated :
-        annots.append \
-          (
-            Introspection.Annotation(name = "org.freedesktop.DBus.Deprecated", value = "true")
-          )
-    #end if
+    add_deprecated(annots, interface._interface_deprecated)
     return \
         Introspection.Interface \
           (

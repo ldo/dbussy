@@ -990,6 +990,13 @@ def interface \
         if not isinstance(celf, type) :
             raise TypeError("only apply decorator to classes.")
         #end if
+        if not isinstance(property_change_notification, Introspection.PROP_CHANGE_NOTIFICATION) :
+            raise TypeError \
+              (
+                "property_change_notification must be an Introspection."
+                "PROP_CHANGE_NOTIFICATION value"
+              )
+        #end if
         celf._interface_kind = kind
         celf._interface_name = name
         celf._interface_property_change_notification = property_change_notification

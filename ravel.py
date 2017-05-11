@@ -957,7 +957,13 @@ def _message_interface_dispatch(connection, message, bus) :
          result
 #end _message_interface_dispatch
 
-def interface(kind, *, name, deprecated = False) :
+def interface \
+  (
+    kind, *,
+    name,
+    property_change_notification = Introspection.PROP_CHANGE_NOTIFICATION.NEW_VALUE,
+    deprecated = False
+  ) :
     "class decorator creator for defining interface classes. “kind” is an" \
     " INTERFACE.xxx value indicating whether this is for use on the client side" \
     " (send methods, receive signals), server side (receive methods, send signals)" \
@@ -986,6 +992,7 @@ def interface(kind, *, name, deprecated = False) :
         #end if
         celf._interface_kind = kind
         celf._interface_name = name
+        celf._interface_property_change_notification = property_change_notification
         celf._interface_deprecated = deprecated
         celf._interface_methods = \
             dict \
@@ -1335,7 +1342,11 @@ def introspect(interface) :
     for name in interface._interface_props :
         prop = interface._interface_props[name]
         annots = []
-        if "getter" in prop :
+        if (
+                "getter" in prop
+            and
+                prop["change_notification"] != interface._interface_property_change_notification
+        ) :
             annots.append \
               (
                 Introspection.Annotation
@@ -1367,6 +1378,20 @@ def introspect(interface) :
           )
     #end for
     annots = []
+    if (
+            interface._interface_property_change_notification
+        !=
+            Introspection.PROP_CHANGE_NOTIFICATION.NEW_VALUE
+    ) :
+        annots.append \
+          (
+            Introspection.Annotation
+              (
+                name = "org.freedesktop.DBus.Property.EmitsChangedSignal",
+                value = interface._interface_property_change_notification.value
+              )
+          )
+    #end if
     if interface._interface_deprecated :
         annots.append \
           (

@@ -4500,15 +4500,20 @@ class Introspection(_TagCommon) :
 
             class Arg(_TagCommon) :
 
-                __slots__ = ("name", "type", "annotations")
+                __slots__ = ("name", "type", "direction", "annotations")
                 tag_name = "arg"
-                tag_attrs = ("name", "type")
-                tag_attrs_optional = {"name"}
+                tag_attrs = ("name", "type", "direction")
+                tag_attrs_optional = {"name", "direction"}
                 tag_elts = {}
+                attr_convert = {} # {"direction" : Introspection.DIRECTION} assigned below
 
-                def __init__(self, *, name = None, type, annotations = ()) :
+                def __init__(self, *, name = None, type, direction = None, annotations = ()) :
+                    if direction != None and direction != Introspection.DIRECTION.OUT :
+                        raise ValueError("direction can only be Introspection.DIRECTION.OUT")
+                    #end if
                     self.name = name
                     self.type = parse_single_signature(type)
+                    self.direction = direction
                     self.annotations = Introspection._get_annotations(annotations)
                 #end __init__
 
@@ -4574,6 +4579,7 @@ class Introspection(_TagCommon) :
 
     #end Interface
     Interface.Method.Arg.attr_convert["direction"] = DIRECTION
+    Interface.Signal.Arg.attr_convert["direction"] = lambda x : (lambda : None, lambda : Introspection.DIRECTION(x))[x != None]()
     Interface.Property.attr_convert["access"] = ACCESS
 
     class StubInterface(_TagCommon) :

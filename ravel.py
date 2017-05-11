@@ -393,6 +393,9 @@ class Connection :
               )
         #end if
         call_info = iface_type._interface_methods[name]._method_info
+        if not call_info["reply"] :
+            raise TypeError("method %s does not reply" % name)
+        #end if
         message = dbus.Message.new_method_call \
           (
             destination = destination,
@@ -451,6 +454,9 @@ class Connection :
               )
         #end if
         call_info = iface_type._interface_methods[name]._method_info
+        if not call_info["reply"] :
+            raise TypeError("method %s does not reply" % name)
+        #end if
         message = dbus.Message.new_method_call \
           (
             destination = destination,
@@ -1111,6 +1117,7 @@ def method \
     path_keyword = None,
     bus_keyword = None,
     set_result_keyword = None,
+    reply = True,
     deprecated = False
   ) :
     "put a call to this function as a decorator for each method of an @interface()" \
@@ -1143,6 +1150,7 @@ def method \
                 "path_keyword" : path_keyword,
                 "bus_keyword" : bus_keyword,
                 "set_result_keyword" : set_result_keyword,
+                "reply" : reply,
                 "deprecated" : deprecated,
             }
         return \
@@ -1313,6 +1321,16 @@ def introspect(interface) :
         method = interface._interface_methods[name]
         annots = []
         add_deprecated(annots, method._method_info["deprecated"])
+        if not method._method_info["reply"] :
+            annots.append \
+              (
+                Introspection.Annotation
+                  (
+                    name = "org.freedesktop.DBus.Method.NoReply",
+                    value = "true"
+                  )
+              )
+        #end if
         methods.append \
           (
             Introspection.Interface.Method

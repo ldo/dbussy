@@ -155,7 +155,15 @@ class Connection :
     " Allows for registering of @interface() classes for automatic dispatching of" \
     " method calls at appropriate points in the object hierarchy."
 
-    __slots__ = ("__weakref__", "connection", "loop", "_dispatch") # to forestall typos
+    __slots__ = \
+        (
+            "__weakref__",
+            "connection",
+            "loop",
+            "props_change_notify_delay",
+            "_dispatch",
+            "_props_changed",
+        ) # to forestall typos
 
     _instances = WeakValueDictionary()
 
@@ -169,7 +177,9 @@ class Connection :
             self = super().__new__(celf)
             self.connection = connection
             self.loop = None
+            self.props_change_notify_delay = 0
             self._dispatch = None # only used server-side
+            self._props_changed = None
             celf._instances[connection] = self
         #end if
         return \
@@ -504,6 +514,103 @@ class Connection :
         return \
             dbus.Introspection.parse(reply.all_objects[0])
     #end introspect_async
+
+    def _notify_props_changed(self) :
+        # callback that is queued on the event loop to actually send the
+        # properties-changed notification signals.
+        if self._props_changed != None :
+            done = set()
+            now = self.loop.time()
+            for key in self._props_changed :
+                entry = self._props_changed[key]
+                path, interface = key
+                if entry["at"] <= now :
+                    message = dbus.Message.new_signal \
+                      (
+                        path = dbus.unsplit_path(path),
+                        iface = DBUS.INTERFACE_PROPERTIES,
+                        name = "PropertiesChanged"
+                      )
+                    message.append_objects \
+                      (
+                        "sa{sv}as",
+                        interface,
+                        entry["changed"],
+                        sorted(entry["invalidated"]),
+                      )
+                    self.connection.send(message)
+                    done.add(key)
+                #end if
+            #end for
+            for key in done :
+                del self._props_changed[key]
+            #end for
+            if len(self._props_changed) == 0 :
+                # all done for now
+                self._props_changed = None # indicates I am not pending to be called any more
+            else :
+                # another notification waiting to be sent later
+                next_time = min(entry["at"] for entry in self._props_changed.values())
+                self.loop.call_at(next_time, self._notify_props_changed)
+            #end if
+        #end if
+    #end _notify_props_changed
+
+    def prop_changed(self, path, interface, propname, propvalue) :
+        "indicates that a signal should be sent notifying of a change to the specified" \
+        " property of the specified object path in the specified interface. propvalue" \
+        " is either the new value to be included in the signal, or None to indicate" \
+        " that the property has merely become invalidated, and its new value needs" \
+        " to be obtained explicitly.\n" \
+        "\n" \
+        "If there is an event loop attached, then multiple calls to this with different" \
+        " properties on the same path and interface can be batched up into a single" \
+        " signal notification."
+        if self.loop != None :
+            queue_task = False
+            if self._props_changed == None :
+                self._props_changed = {}
+                queue_task = True
+            #end if
+            key = (path, interface)
+            if key not in self._props_changed :
+                self._props_changed[key] = \
+                    {
+                        "at" : self.loop.time() + self.props_change_notify_delay,
+                        "changed" : {},
+                        "invalidated" : set(),
+                    }
+            #end if
+            if propvalue != None :
+                self._props_changed[key]["changed"][propname] = propvalue
+            else :
+                self._props_changed[key]["invalidated"].add(propname)
+            #end if
+            if queue_task :
+                if self.props_change_notify_delay != 0 :
+                    self.loop.call_later(self.props_change_notify_delay, self._notify_props_changed)
+                else :
+                    self.loop.call_soon(self._notify_props_changed)
+                #end if
+            #end if
+        else :
+            # cannot batch them up--send message immediately
+            changed = {}
+            invalidated = []
+            if propvalue != None :
+                changed[propname] = (guess_signature(propvalue), propvalue)
+            else :
+                invalidated.append(propname)
+            #end if
+            self.send_signal \
+              (
+                path = path,
+                interface = DBUS.DBUS.INTERFACE_PROPERTIES,
+                name = "PropertiesChanged",
+                args = (interface, changed, invalidated)
+              )
+        #end if
+    #end prop_changed
 
 #end Connection
 

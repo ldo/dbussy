@@ -957,7 +957,7 @@ def _message_interface_dispatch(connection, message, bus) :
          result
 #end _message_interface_dispatch
 
-def interface(kind, *, name) :
+def interface(kind, *, name, deprecated = False) :
     "class decorator creator for defining interface classes. “kind” is an" \
     " INTERFACE.xxx value indicating whether this is for use on the client side" \
     " (send methods, receive signals), server side (receive methods, send signals)" \
@@ -986,6 +986,7 @@ def interface(kind, *, name) :
         #end if
         celf._interface_kind = kind
         celf._interface_name = name
+        celf._interface_deprecated = deprecated
         celf._interface_methods = \
             dict \
               (
@@ -1005,7 +1006,7 @@ def interface(kind, *, name) :
         props = {}
         for info_type, meth_type in \
             (
-                ("_propgetter_info", "getter"),
+                ("_propgetter_info", "getter"), # do first so setter can check change_notification
                 ("_propsetter_info", "setter"),
             ) \
         :
@@ -1036,6 +1037,24 @@ def interface(kind, *, name) :
                         else :
                             propentry["type"] = propinfo["type"]
                         #end if
+                    #end if
+                    if (
+                            meth_type == "setter"
+                        and
+                            "getter" in propentry
+                        and
+                                propentry["change_notification"]
+                            ==
+                                Introspection.PROP_CHANGE_NOTIFICATION.CONST
+                    ) :
+                        raise ValueError \
+                          (
+                            "mustn’t specify @propsetter() for a"
+                            " PROP_CHANGE_NOTIFICATION.CONST property"
+                          )
+                    #end if
+                    if meth_type == "getter" :
+                        propentry["change_notification"] = propinfo["change_notification"]
                     #end if
                     propentry[meth_type] = func
                 #end if
@@ -1073,7 +1092,8 @@ def method \
     message_keyword = None,
     path_keyword = None,
     bus_keyword = None,
-    set_result_keyword = None
+    set_result_keyword = None,
+    deprecated = False
   ) :
     "put a call to this function as a decorator for each method of an @interface()" \
     " class that is to be registered as a method of the interface." \
@@ -1105,6 +1125,7 @@ def method \
                 "path_keyword" : path_keyword,
                 "bus_keyword" : bus_keyword,
                 "set_result_keyword" : set_result_keyword,
+                "deprecated" : deprecated,
             }
         return \
             func
@@ -1169,7 +1190,8 @@ def propgetter \
     connection_keyword = None,
     message_keyword = None,
     path_keyword = None,
-    bus_keyword = None
+    bus_keyword = None,
+    change_notification = Introspection.PROP_CHANGE_NOTIFICATION.NEW_VALUE
   ) :
 
     def decorate(func) :
@@ -1177,6 +1199,9 @@ def propgetter \
             raise TypeError("only apply decorator to functions.")
         #end if
         assert isinstance(name, str), "property name is mandatory"
+        if not isinstance(change_notification, Introspection.PROP_CHANGE_NOTIFICATION) :
+            raise TypeError("change_notification must be an Introspection.PROP_CHANGE_NOTIFICATION value")
+        #end if
         func._propgetter_info = \
             {
                 "name" : name,
@@ -1186,6 +1211,7 @@ def propgetter \
                 "message_keyword" : message_keyword,
                 "path_keyword" : path_keyword,
                 "bus_keyword" : bus_keyword,
+                "change_notification" : change_notification,
             }
         return \
             func
@@ -1243,40 +1269,52 @@ def introspect(interface) :
     if not is_interface(interface) :
         raise TypeError("interface must be an @interface()-type class")
     #end if
-    methods = list \
-      (
-        Introspection.Interface.Method
+    methods = []
+    for name in interface._interface_methods :
+        method = interface._interface_methods[name]
+        annots = []
+        if method._method_info["deprecated"] :
+            annots.append \
+              (
+                Introspection.Annotation(name = "org.freedesktop.DBus.Deprecated", value = "true")
+              )
+        #end if
+        methods.append \
           (
-            name = name,
-            args =
-                    list
-                      (
-                        Introspection.Interface.Method.Arg
+            Introspection.Interface.Method
+              (
+                name = name,
+                args =
+                        list
                           (
-                            type = sig,
-                            direction = Introspection.DIRECTION.IN
+                            Introspection.Interface.Method.Arg
+                              (
+                                type = sig,
+                                direction = Introspection.DIRECTION.IN
+                              )
+                            for sig in dbus.parse_signature
+                              (
+                                method._method_info["in_signature"]
+                              )
                           )
-                        for sig in dbus.parse_signature
+                    +
+                        list
                           (
-                            interface._interface_methods[name]._method_info["in_signature"]
-                          )
-                      )
-                +
-                    list
-                      (
-                        Introspection.Interface.Method.Arg
-                          (
-                            type = sig,
-                            direction = Introspection.DIRECTION.OUT
-                          )
-                        for sig in dbus.parse_signature
-                          (
-                            interface._interface_methods[name]._method_info["out_signature"]
-                          )
-                      ),
+                            Introspection.Interface.Method.Arg
+                              (
+                                type = sig,
+                                direction = Introspection.DIRECTION.OUT
+                              )
+                            for sig in dbus.parse_signature
+                              (
+                                method._method_info["out_signature"]
+                              )
+                          ),
+                annotations = annots
+              )
           )
-        for name in interface._interface_methods
-      )
+    #end for
+    # can signals be deprecated?
     signals = list \
       (
         Introspection.Interface.Signal
@@ -1293,26 +1331,48 @@ def introspect(interface) :
           )
         for name in interface._interface_signals
       )
-    properties = list \
-      (
-        Introspection.Interface.Property
+    properties = []
+    for name in interface._interface_props :
+        prop = interface._interface_props[name]
+        annots = []
+        if "getter" in prop :
+            annots.append \
+              (
+                Introspection.Annotation
+                  (
+                    name = "org.freedesktop.DBus.Property.EmitsChangedSignal",
+                    value = prop["change_notification"].value
+                  )
+              )
+        #end if
+        properties.append \
           (
-            name = name,
-            type = dbus.parse_signature(interface._interface_props[name]["type"]),
-            access =
-                (
-                    None,
-                    Introspection.ACCESS.READ,
-                    Introspection.ACCESS.WRITE,
-                    Introspection.ACCESS.READWRITE,
-                )[
-                        int("getter" in interface._interface_props[name])
-                    |
-                        int("setter" in interface._interface_props[name]) << 1
-                ],
+            Introspection.Interface.Property
+              (
+                name = name,
+                type = dbus.parse_signature(prop["type"]),
+                access =
+                    (
+                        None,
+                        Introspection.ACCESS.READ,
+                        Introspection.ACCESS.WRITE,
+                        Introspection.ACCESS.READWRITE,
+                    )[
+                            int("getter" in prop)
+                        |
+                            int("setter" in prop) << 1
+                    ],
+                annotations = annots
+              )
           )
-        for name in interface._interface_props
-      )
+    #end for
+    annots = []
+    if interface._interface_deprecated :
+        annots.append \
+          (
+            Introspection.Annotation(name = "org.freedesktop.DBus.Deprecated", value = "true")
+          )
+    #end if
     return \
         Introspection.Interface \
           (
@@ -1320,6 +1380,7 @@ def introspect(interface) :
             methods = methods,
             signals = signals,
             properties = properties,
+            annotations = annots
           )
 #end introspect
 

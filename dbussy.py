@@ -4418,7 +4418,7 @@ class Introspection(_TagCommon) :
 
     def _get_annotations(annotations) :
         # common validation of annotations arguments.
-        if not all(isinstance(a, Annotation) for a in annotations) :
+        if not all(isinstance(a, Introspection.Annotation) for a in annotations) :
             raise TypeError("annotations must be Annotation instances")
         #end if
         return \
@@ -4658,7 +4658,7 @@ class Introspection(_TagCommon) :
                 #end if
                 children.append(from_string_elts(childclass, childattrs, child))
             #end for
-            for child_tag, childclass in celf.tag_elts.items() :
+            for child_tag, childclass in tuple(celf.tag_elts.items()) + ((), (("annotations", Introspection.Annotation),))[tree.tag != "annotation"] :
                 for child in children :
                     if isinstance(child, childclass) :
                         if child_tag not in elts :
@@ -4700,7 +4700,20 @@ class Introspection(_TagCommon) :
                     attrs.append("%s=\"%s\"" % (attrname, xml_escape(attr)))
                 #end if
             #end for
-            has_elts = sum(len(getattr(obj, attrname)) for attrname in tuple(obj.tag_elts.keys()) + ("annotations",)) != 0
+            has_elts = \
+              (
+                    sum
+                      (
+                        len(getattr(obj, attrname))
+                        for attrname in
+                                tuple(obj.tag_elts.keys())
+                            +
+                                ((), ("annotations",))
+                                    [not isinstance(obj, Introspection.Annotation)]
+                      )
+                !=
+                    0
+              )
             out.write(" " * indent + "<" + tag_name)
             if indent + len(tag_name) + sum((len(s) + 1) for s in attrs) + 2 + int(has_elts) > max_linelen :
                 out.write("\n")
@@ -4721,7 +4734,7 @@ class Introspection(_TagCommon) :
             #end if
             out.write(">\n")
             if has_elts :
-                for attrname in obj.tag_elts :
+                for attrname in sorted(obj.tag_elts.keys()) + ["annotations"] :
                     for elt in getattr(obj, attrname) :
                         to_string(elt, indent + indent_step)
                     #end for

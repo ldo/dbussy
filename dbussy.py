@@ -3349,6 +3349,8 @@ class Message :
 
     #begin append_objects
         append_sub(parse_signature(signature), args, self.iter_init_append())
+        return \
+            self
     #end append_objects
 
     @property

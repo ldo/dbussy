@@ -861,9 +861,36 @@ class INTERFACE(enum.Enum) :
     CLIENT_AND_SERVER = 3
 #end INTERFACE
 
+def _send_method_return(connection, message, sig, args) :
+    reply = message.new_method_return()
+    reply.append_objects(dbus.unparse_signature(sig), *args)
+    connection.send(reply)
+#end _send_method_return
+
 def _message_interface_dispatch(connection, message, bus) :
     # installed as message filter on a connection to handle dispatch
     # to registered @interface() classes.
+
+    def return_result_args(call_info, result) :
+        # handles tuple or dict returned from method handler; packs into
+        # reply message and sends it off.
+        sig = dbus.parse_signature(call_info["out_signature"])
+        if isinstance(result, dict) and call_info["result_keys"] != None :
+            result = list(result[key] for key in call_info["result_keys"])
+              # convert result items to list in right order
+        elif not isinstance(result, (tuple, list)) :
+            raise ValueError("invalid handler result %s" % repr(result))
+        #end if
+        _send_method_return \
+          (
+            connection = connection,
+            message = message,
+            sig = sig,
+            args = result
+          )
+    #end return_result_args
+
+#begin _message_interface_dispatch
     result = DBUS.HANDLER_RESULT_NOT_YET_HANDLED # to begin with
     if message.type in (DBUS.MESSAGE_TYPE_METHOD_CALL, DBUS.MESSAGE_TYPE_SIGNAL) :
         is_method = message.type == DBUS.MESSAGE_TYPE_METHOD_CALL
@@ -895,12 +922,28 @@ def _message_interface_dispatch(connection, message, bus) :
                     #end if
                 #end for
                 if call_info["args_keyword"] != None :
-                    kwargs[call_info["args_keyword"]] = args
+                    if call_info["arg_keys"] != None :
+                        kwargs[call_info["args_keyword"]] = dict \
+                          (
+                            (key, value)
+                            for key, value in zip(call_info["arg_keys"], args)
+                          )
+                    else :
+                        kwargs[call_info["args_keyword"]] = args
+                    #end if
                     args = ()
+                else :
+                    if call_info["arg_keys"] != None :
+                        for key, value in zip(call_info["arg_keys"], args) :
+                            kwargs[key] = value
+                        #end for
+                        args = ()
+                    #end if
                 #end if
                 to_return_result = None
                 allow_set_result = True
                 if is_method and call_info["set_result_keyword"] != None :
+                    # caller wants to return result via callback
                     def set_result(the_result) :
                         "Call this to set the args for the reply message."
                         nonlocal to_return_result
@@ -916,45 +959,40 @@ def _message_interface_dispatch(connection, message, bus) :
                   # block further calls to this instance of set_result from this point
                 if result == None :
                     if to_return_result != None :
-                        # handler used set_result mechanism
-                        reply = message.new_method_return()
-                        reply.append_objects \
-                          (
-                            (
-                                lambda : guess_sequence_signature(to_return_result),
-                                lambda : call_info["out_signature"],
-                            )[call_info["out_signature"] != None](),
-                            *to_return_result
-                          )
-                        connection.send(reply)
+                        # method handler used set_result mechanism
+                        return_result_args(call_info, to_return_result)
                     #end if
                     result = DBUS.HANDLER_RESULT_HANDLED
                 elif isinstance(result, types.CoroutineType) :
-                    assert bus.loop != None, "no event loop to attach coroutine to"
-                    if call_info["out_signature"] != None :
-                        # await function result and generate reply message on behalf of handler
-                        out_signature = dbus.parse_signature(call_info["out_signature"])
+                    if is_method :
+                        assert bus.loop != None, "no event loop to attach coroutine to"
+                        # wait for result
                         async def await_result(coro) :
-                            result = await coro
-                            reply = message.new_method_return()
-                            reply.append_objects(out_signature, *result)
-                            connection.send(reply)
+                            return_result_args(call_info, await coro)
                         #end await_result
                         bus.loop.create_task(await_result(result))
+                        result = DBUS.HANDLER_RESULT_HANDLED
                     else :
-                        bus.loop.create_task(result)
+                        raise RuntimeError("signal handler cannot return a coroutine")
                     #end if
-                    result = DBUS.HANDLER_RESULT_HANDLED
+                elif isinstance(result, bool) :
+                    # slightly tricky: interpret True as handled, False as not handled,
+                    # even though DBUS.HANDLER_RESULT_HANDLED is zero and
+                    # DBUS.HANDLER_RESULT_NOT_YET_HANDLED is nonzero.
+                    result = \
+                        (DBUS.HANDLER_RESULT_NOT_YET_HANDLED, DBUS.HANDLER_RESULT_HANDLED)[result]
                 elif (
                         result
-                    not in
+                    in
                         (
                             DBUS.HANDLER_RESULT_HANDLED,
                             DBUS.HANDLER_RESULT_NOT_YET_HANDLED,
                             DBUS.HANDLER_RESULT_NEED_MEMORY,
                         )
                 ) :
-                    raise ValueError("invalid handler result %s" % repr(result))
+                    pass
+                else :
+                    return_result_args(call_info, result)
                 #end if
             #end if
         #end if
@@ -1112,6 +1150,8 @@ def method \
     in_signature = None,
     out_signature = None,
     args_keyword = None,
+    arg_keys = None,
+    result_keys = None,
     connection_keyword = None,
     message_keyword = None,
     path_keyword = None,
@@ -1145,6 +1185,8 @@ def method \
                 "in_signature" : dbus.unparse_signature(in_signature),
                 "out_signature" : dbus.unparse_signature(out_signature),
                 "args_keyword" : args_keyword,
+                "arg_keys" : arg_keys,
+                "result_keys" : result_keys,
                 "connection_keyword" : connection_keyword,
                 "message_keyword" : message_keyword,
                 "path_keyword" : path_keyword,
@@ -1153,6 +1195,15 @@ def method \
                 "reply" : reply,
                 "deprecated" : deprecated,
             }
+        if result_keys != None and not reply :
+            raise ValueError("result_keys is meaningless if method does not reply")
+        #end if
+        if arg_keys != None and len(arg_keys) != len(func._method_info["in_signature"]) :
+            raise ValueError("number of arg_keys should match number of items in in_signature")
+        #end if
+        if result_keys != None and len(result_keys) != len(func._method_info["out_signature"]) :
+            raise ValueError("number of result_keys should match number of items in out_signature")
+        #end if
         return \
             func
     #end decorate
@@ -1167,6 +1218,7 @@ def signal \
     name = None,
     in_signature = None,
     args_keyword = None,
+    arg_keys = None,
     connection_keyword = None,
     message_keyword = None,
     path_keyword = None,
@@ -1195,12 +1247,16 @@ def signal \
                 "name" : func_name,
                 "in_signature" : dbus.unparse_signature(in_signature),
                 "args_keyword" : args_keyword,
+                "arg_keys" : arg_keys,
                 "connection_keyword" : connection_keyword,
                 "message_keyword" : message_keyword,
                 "path_keyword" : path_keyword,
                 "bus_keyword" : bus_keyword,
                 "deprecated" : deprecated,
             }
+        if arg_keys != None and len(arg_keys) != len(func._signal_info["in_signature"]) :
+            raise ValueError("number of arg_keys should match number of items in in_signature")
+        #end if
         return \
             func
     #end decorate
@@ -1331,37 +1387,36 @@ def introspect(interface) :
                   )
               )
         #end if
+        args = []
+        for keys_keyword, sig_keyword, direction in \
+            (
+                ("arg_keys", "in_signature", Introspection.DIRECTION.IN),
+                ("result_keys", "out_signature", Introspection.DIRECTION.OUT),
+            ) \
+        :
+            arg_sigs = dbus.parse_signature(method._method_info[sig_keyword])
+            arg_names = method._method_info[keys_keyword]
+            if arg_names == None :
+                arg_names = [None] * len(arg_sigs)
+            #end if
+            for arg_name, arg_sig in zip(arg_names, arg_sigs) :
+                args.append \
+                  (
+                    Introspection.Interface.Method.Arg
+                      (
+                        name = arg_name,
+                        type = arg_sig,
+                        direction = direction
+                      )
+                  )
+            #end for
+        #end for
         methods.append \
           (
             Introspection.Interface.Method
               (
                 name = name,
-                args =
-                        list
-                          (
-                            Introspection.Interface.Method.Arg
-                              (
-                                type = sig,
-                                direction = Introspection.DIRECTION.IN
-                              )
-                            for sig in dbus.parse_signature
-                              (
-                                method._method_info["in_signature"]
-                              )
-                          )
-                    +
-                        list
-                          (
-                            Introspection.Interface.Method.Arg
-                              (
-                                type = sig,
-                                direction = Introspection.DIRECTION.OUT
-                              )
-                            for sig in dbus.parse_signature
-                              (
-                                method._method_info["out_signature"]
-                              )
-                          ),
+                args = args,
                 annotations = annots
               )
           )
@@ -1371,19 +1426,24 @@ def introspect(interface) :
         signal = interface._interface_signals[name]
         annots = []
         add_deprecated(annots, signal._signal_info["deprecated"])
+        args = []
+        arg_sigs = dbus.parse_signature(signal._signal_info["in_signature"])
+        arg_names = signal._signal_info["arg_keys"]
+        if arg_names == None :
+            arg_names = [None] * len(arg_sigs)
+        #end if
+        for arg_name, arg_sig in zip(arg_names, arg_sigs) :
+            args.append \
+              (
+                Introspection.Interface.Signal.Arg(name = arg_name, type = arg_sig)
+              )
+        #end for
         signals.append \
           (
             Introspection.Interface.Signal
               (
                 name = name,
-                args = list
-                  (
-                    Introspection.Interface.Signal.Arg(type = sig)
-                    for sig in dbus.parse_signature
-                      (
-                        signal._signal_info["in_signature"]
-                      )
-                  ),
+                args = args,
                 annotations = annots
               )
           )
@@ -1757,9 +1817,7 @@ class IntrospectionHandler :
                 Introspection.Node(name = child) for child in children
               )
           )
-        reply = message.new_method_return()
-        reply.append_objects("s", introspection.unparse())
-        bus.connection.send(reply)
+        _send_method_return(bus.connection, message, "s", [introspection.unparse()])
         return \
             DBUS.HANDLER_RESULT_HANDLED
     #end introspect
@@ -1814,18 +1872,18 @@ class PropertyHandler :
                         else :
                             valuesig = guess_signature(propvalue)
                         #end if
-                        reply = message.new_method_return()
-                        reply.append_objects(valuesig, propvalue)
+                        _send_method_return(bus.connection, message, valuesig, [propvalue])
                     #end await_return_value
                     bus.loop.create_task(await_return_value(propvalue))
+                    reply = None
                 else :
                     if propentry["type"] != None :
                         valuesig = propentry["type"]
                     else :
                         valuesig = guess_signature(propvalue)
                     #end if
-                    reply = message.new_method_return()
-                    reply.append_objects(valuesig, propvalue)
+                    _send_method_return(bus.connection, message, valuesig, [propvalue])
+                    reply = None
                 #end if
             else :
                 reply = message.new_error \
@@ -1841,7 +1899,9 @@ class PropertyHandler :
                 message = "property “%s” cannot be found" % propname
               )
         #end if
-        bus.connection.send(reply)
+        if reply != None :
+            bus.connection.send(reply)
+        #end if
         return \
             DBUS.HANDLER_RESULT_HANDLED
     #end getprop
@@ -1955,9 +2015,7 @@ class PropertyHandler :
                 propvalues[propname] = (valuesig, propvalue)
             #end if
         #end for
-        reply = message.new_method_return()
-        reply.append_objects("a{sv}", propvalue)
-        bus.connection.send(reply)
+        _send_method_return(bus.connection, message, "a{sv}", [propvalue])
         return \
             DBUS.HANDLER_RESULT_HANDLED
     #end get_all_props

@@ -807,9 +807,10 @@ class CAsyncInterface(CInterface) :
 #end CAsyncInterface
 
 class CMethod :
-    "names a method of a CInterface that is to be called synchronously. The" \
-    " calling thread is blocked until the reply is received. Do not instantiate" \
-    " directly; call the appropriate method name on the parent CInterface."
+    "names a method of a CInterface that is to be called synchronously. If a" \
+    " reply is expected, the calling thread is blocked until it is received." \
+    " Do not instantiate directly; call the appropriate method name on the" \
+    " parent CInterface."
 
     __slots__ = ("interface", "method")
 
@@ -850,9 +851,19 @@ class CMethod :
 
     def __call__(self, *args) :
         message = self._construct_message(args)
-        reply = self.interface.object.conn.connection.send_with_reply_and_block(message, timeout = self.interface.timeout)
+        if self.method.expect_reply :
+            reply = self.interface.object.conn.connection.send_with_reply_and_block \
+              (
+                message = message,
+                timeout = self.interface.timeout
+              )
+            result = self._process_reply(reply)
+        else :
+            self.interface.object.conn.connection.send(message)
+            result = None
+        #end if
         return \
-            self._process_reply(reply)
+            result
     #end __call__
 
 #end CMethod
@@ -864,9 +875,19 @@ class CAsyncMethod(CMethod) :
 
     async def __call__(self, *args) :
         message = self._construct_message(args)
-        reply = await self.interface.object.conn.connection.send_await_reply(message, timeout = self.interface.timeout)
+        if self.method.expect_reply :
+            reply = await self.interface.object.conn.connection.send_await_reply \
+              (
+                message = message,
+                timeout = self.interface.timeout
+              )
+            result = self._process_reply(reply)
+        else :
+            self.interface.object.conn.connection.send(message)
+            result = None
+        #end if
         return \
-            self._process_reply(reply)
+            result
     #end _call__
 
 #end CAsyncMethod

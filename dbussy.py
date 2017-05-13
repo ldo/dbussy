@@ -4571,6 +4571,13 @@ class Introspection(_TagCommon) :
                       (a.type for a in self.args if a.direction == Introspection.DIRECTION.OUT)
             #end out_signature
 
+            @property
+            def expect_reply(self) :
+                "will there be replies to this request method."
+                return \
+                    self.get_annotation("org.freedesktop.DBus.Method.NoReply") != "true"
+            #end expect_reply
+
         #end Method
 
         class Signal(_TagCommon) :

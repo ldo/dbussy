@@ -1631,8 +1631,6 @@ def def_proxy_interface(name, kind, introspected, is_async) :
     def def_method(intr_method) :
         # constructs a method-call method,
 
-        expect_reply = intr_method.get_annotation("org.freedesktop.DBus.Method.NoReply") != "true"
-
         if is_async :
 
             async def call_method(self, path, *args) :
@@ -1644,7 +1642,7 @@ def def_proxy_interface(name, kind, introspected, is_async) :
                     name = intr_method.name
                   )
                 message.append_objects(dbus.unparse_signature(intr_method.in_signature), *args)
-                if expect_reply :
+                if intr_method.expect_reply :
                     reply = await self.conn.connection.send_await_reply(message, self.timeout)
                     result = reply.expect_objects(intr_method.out_signature)
                 else :
@@ -1667,7 +1665,7 @@ def def_proxy_interface(name, kind, introspected, is_async) :
                     name = intr_method.name
                   )
                 message.append_objects(dbus.unparse_signature(intr_method.in_signature), *args)
-                if expect_reply :
+                if intr_method.expect_reply :
                     reply = self.conn.connection.send_with_reply_and_block(message, self.timeout)
                     result = reply.expect_objects(intr_method.out_signature)
                 else :

@@ -960,6 +960,13 @@ def _message_interface_dispatch(connection, message, bus) :
                     #end if
                     kwargs[call_info["args_keyword"]] = args
                     args = ()
+                else :
+                    if call_info["arg_keys"] != None :
+                        for key, value in zip(call_info["arg_keys"], args) :
+                            kwargs[key] = value
+                        #end for
+                        args = ()
+                    #end if
                 #end if
                 to_return_result = None
                 allow_set_result = True
@@ -1209,8 +1216,8 @@ def method \
     if arg_keys != None and arg_attrs != None :
         raise ValueError("specify arg_keys or arg_attrs, not both")
     #end if
-    if (arg_keys != None or arg_attrs != None) and args_keyword == None :
-        raise ValueError("need args_keyword with arg_keys or arg_attrs")
+    if arg_attrs != None and args_keyword == None :
+        raise ValueError("need args_keyword with arg_attrs")
     #end if
     if arg_keys != None and len(arg_keys) != len(in_signature) :
         raise ValueError("number of arg_keys should match number of items in in_signature")
@@ -1284,8 +1291,8 @@ def signal \
     " a placeholder for storing the information used by Connection.send_signal()."
 
     in_signature = dbus.parse_signature(in_signature)
-    if (arg_keys != None or arg_attrs != None) and args_keyword == None :
-        raise ValueError("need args_keyword with arg_keys or arg_attrs")
+    if arg_attrs != None and args_keyword == None :
+        raise ValueError("need args_keyword with arg_attrs")
     #end if
     if arg_keys != None and len(arg_keys) != len(in_signature) :
         raise ValueError("number of arg_keys should match number of items in in_signature")

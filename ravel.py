@@ -898,24 +898,30 @@ def _message_interface_dispatch(connection, message, bus) :
     # installed as message filter on a connection to handle dispatch
     # to registered @interface() classes.
 
-    def return_result_args(call_info, result) :
-        # handles tuple or dict returned from method handler; packs into
-        # reply message and sends it off.
-        sig = dbus.parse_signature(call_info["out_signature"])
-        if isinstance(result, dict) and call_info["result_keys"] != None :
-            result = list(result[key] for key in call_info["result_keys"])
-              # convert result items to list in right order
-        elif not isinstance(result, (tuple, list)) :
-            raise ValueError("invalid handler result %s" % repr(result))
+    def return_result_common(call_info, result) :
+        # handles list, tuple, dict or Error returned from method handler;
+        # packs into reply message and sends it off.
+        if isinstance(result, dbus.Error) :
+            assert result.is_set, "unset Error object returned from handler"
+            reply = message.new_error(result.name, result.message)
+            connection.send(reply)
+        else :
+            sig = dbus.parse_signature(call_info["out_signature"])
+            if isinstance(result, dict) and call_info["result_keys"] != None :
+                result = list(result[key] for key in call_info["result_keys"])
+                  # convert result items to list in right order
+            elif not isinstance(result, (tuple, list)) :
+                raise ValueError("invalid handler result %s" % repr(result))
+            #end if
+            _send_method_return \
+              (
+                connection = connection,
+                message = message,
+                sig = sig,
+                args = result
+              )
         #end if
-        _send_method_return \
-          (
-            connection = connection,
-            message = message,
-            sig = sig,
-            args = result
-          )
-    #end return_result_args
+    #end return_result_common
 
 #begin _message_interface_dispatch
     result = DBUS.HANDLER_RESULT_NOT_YET_HANDLED # to begin with
@@ -992,7 +998,7 @@ def _message_interface_dispatch(connection, message, bus) :
                 if result == None :
                     if to_return_result != None :
                         # method handler used set_result mechanism
-                        return_result_args(call_info, to_return_result)
+                        return_result_common(call_info, to_return_result)
                     #end if
                     result = DBUS.HANDLER_RESULT_HANDLED
                 elif isinstance(result, types.CoroutineType) :
@@ -1000,18 +1006,18 @@ def _message_interface_dispatch(connection, message, bus) :
                         assert bus.loop != None, "no event loop to attach coroutine to"
                         # wait for result
                         async def await_result(coro) :
-                            return_result_args(call_info, await coro)
+                            try :
+                                result = await coro
+                            except HandlerError as err :
+                                result = err.as_error()
+                            #end try
+                            return_result_common(call_info, result)
                         #end await_result
                         bus.loop.create_task(await_result(result))
                         result = DBUS.HANDLER_RESULT_HANDLED
                     else :
                         raise RuntimeError("signal handler cannot return a coroutine")
                     #end if
-                elif isinstance(result, dbus.Error) :
-                    assert result.is_set, "unset Error object returned"
-                    reply = message.new_error(result.name, result.nessage)
-                    connection.send(reply)
-                    result = DBUS.HANDLER_RESULT_HANDLED
                 elif isinstance(result, bool) :
                     # slightly tricky: interpret True as handled, False as not handled,
                     # even though DBUS.HANDLER_RESULT_HANDLED is zero and
@@ -1029,7 +1035,8 @@ def _message_interface_dispatch(connection, message, bus) :
                 ) :
                     pass
                 else :
-                    return_result_args(call_info, result)
+                    return_result_common(call_info, result)
+                    result = DBUS.HANDLER_RESULT_HANDLED
                 #end if
             #end if
         #end if

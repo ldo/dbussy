@@ -157,6 +157,24 @@ def guess_sequence_signature(args) :
 # High-level bus connection
 #-
 
+class HandlerError(Exception) :
+    "Dispatch handlers can raise this to report an error that will be returned" \
+    " in a message back to the other end of the connection."
+
+    def __init__(self, name, message) :
+        self.args = (name, message)
+    #end __init__
+
+    def as_error(self) :
+        "fills in and returns an Error object that reports the specified error name and message."
+        result = dbus.Error.init()
+        result.set(self.args[0], self.args[1])
+        return \
+            result
+    #end as_error
+
+#end HandlerError
+
 class Connection :
     "higher-level wrapper around dbussy.Connection. Provides various functions," \
     " some more suited to client-side use and some more suitable to the server side." \
@@ -963,7 +981,11 @@ def _message_interface_dispatch(connection, message, bus) :
                     #end set_result
                     kwargs[call_info["set_result_keyword"]] = set_result
                 #end if
-                result = method(iface, *args, **kwargs)
+                try :
+                    result = method(iface, *args, **kwargs)
+                except HandlerError as err :
+                    result = err.as_error()
+                #end try
                 allow_set_result = False
                   # block further calls to this instance of set_result from this point
                 if result == None :
@@ -984,6 +1006,11 @@ def _message_interface_dispatch(connection, message, bus) :
                     else :
                         raise RuntimeError("signal handler cannot return a coroutine")
                     #end if
+                elif isinstance(result, dbus.Error) :
+                    assert result.is_set, "unset Error object returned"
+                    reply = message.new_error(result.name, result.nessage)
+                    connection.send(reply)
+                    result = DBUS.HANDLER_RESULT_HANDLED
                 elif isinstance(result, bool) :
                     # slightly tricky: interpret True as handled, False as not handled,
                     # even though DBUS.HANDLER_RESULT_HANDLED is zero and
@@ -1876,7 +1903,11 @@ class PropertyHandler :
                         kwargs[getter._propgetter_info[keyword_keyword]] = value()
                     #end if
                 #end for
-                propvalue = getter(**kwargs)
+                try :
+                    propvalue = getter(**kwargs)
+                except HandlerError as err :
+                    propvalue = err.as_error()
+                #end try
                 if isinstance(propvalue, types.CoroutineType) :
                     assert bus.loop != None, "no event loop to attach coroutine to"
                     async def await_return_value(task) :
@@ -1890,6 +1921,9 @@ class PropertyHandler :
                     #end await_return_value
                     bus.loop.create_task(await_return_value(propvalue))
                     reply = None
+                elif isinstance(propvalue, dbus.Error) :
+                    assert propvalue.is_set, "unset Error object returned from propgetter"
+                    reply = message.new_error(propvalue.name, propvalue.nessage)
                 else :
                     if propentry["type"] != None :
                         valuesig = propentry["type"]
@@ -1930,7 +1964,7 @@ class PropertyHandler :
         message_keyword = "message",
         bus_keyword = "bus"
       )
-    def setprop(self, bus, path, args) :
+    def setprop(self, bus, message, path, args) :
         interface_name, propname, propvalue = args
         dispatch = bus.get_dispatch(path, interface_name)
         props = type(dispatch)._interface_props
@@ -1954,7 +1988,11 @@ class PropertyHandler :
                         kwargs[setter._propsetter_info[keyword_keyword]] = value()
                     #end if
                 #end for
-                setresult = setter(**kwargs)
+                try :
+                    setresult = setter(**kwargs)
+                except HandlerError as err :
+                    setresult = err.as_error()
+                #end try
                 if isinstance(setresult, types.CoroutineType) :
                     assert bus.loop != None, "no event loop to attach coroutine to"
                     async def wait_set_done() :
@@ -1964,8 +2002,13 @@ class PropertyHandler :
                     #end wait_set_done
                     bus.loop.create_task(wait_set_done())
                     reply = None # for now
-                else :
+                elif isinstance(setresult, dbus.Error) :
+                    assert setresult.is_set, "unset Error object returned"
+                    reply = message.new_error(setresult.name, setresult.nessage)
+                elif setresult == None :
                     reply = message.new_method_return()
+                else :
+                    raise ValueError("invalid propsetter result %s" % repr(setresult))
                 #end if
             else :
                 reply = message.new_error \
@@ -1998,12 +2041,17 @@ class PropertyHandler :
         message_keyword = "message",
         bus_keyword = "bus"
       )
-    def get_all_props(self, bus, path, args) :
+    def get_all_props(self, bus, message, path, args) :
         interface_name, = args
         dispatch = bus.get_dispatch(path, interface_name)
         props = type(dispatch)._interface_props
+        propnames = iter(props.keys())
+        properror = None
         propvalues = {}
-        for propname in props :
+        while True :
+            propname = next(propnames, None)
+            if propname == None :
+                break
             propentry = props[propname]
             if "getter" in propentry :
                 kwargs = {}
@@ -2020,7 +2068,12 @@ class PropertyHandler :
                         kwargs[getter._propgetter_info[keyword_keyword]] = value()
                     #end if
                 #end for
-                propvalue = getter(**kwargs)
+                try :
+                    propvalue = getter(**kwargs)
+                except HandlerError as err :
+                    properror = err.as_error()
+                    break
+                #end try
                 if propentry["type"] != None :
                     valuesig = propentry["type"]
                 else :
@@ -2029,7 +2082,12 @@ class PropertyHandler :
                 propvalues[propname] = (valuesig, propvalue)
             #end if
         #end for
-        _send_method_return(bus.connection, message, "a{sv}", [propvalue])
+        if properror != None :
+            reply = message.new_error(properror.name, properror.nessage)
+            bus.connection.send(reply)
+        else :
+            _send_method_return(bus.connection, message, "a{sv}", [propvalue])
+        #end if
         return \
             DBUS.HANDLER_RESULT_HANDLED
     #end get_all_props

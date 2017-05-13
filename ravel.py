@@ -1191,8 +1191,8 @@ def is_interface_instance(obj) :
 def method \
   (*,
     name = None,
-    in_signature = None,
-    out_signature = None,
+    in_signature,
+    out_signature,
     args_keyword = None,
     arg_keys = None,
     arg_attrs = None,
@@ -1279,7 +1279,7 @@ def method \
 def signal \
   (*,
     name = None,
-    in_signature = None,
+    in_signature,
     args_keyword = None,
     arg_keys = None,
     arg_attrs = None,

@@ -12,6 +12,8 @@ asyncio event loop.
 
 import types
 import enum
+from collections import \
+    namedtuple
 from weakref import \
     WeakValueDictionary
 import asyncio
@@ -947,22 +949,17 @@ def _message_interface_dispatch(connection, message, bus) :
                 #end for
                 if call_info["args_keyword"] != None :
                     if call_info["arg_keys"] != None :
-                        kwargs[call_info["args_keyword"]] = dict \
+                        args =  dict \
                           (
                             (key, value)
                             for key, value in zip(call_info["arg_keys"], args)
                           )
-                    else :
-                        kwargs[call_info["args_keyword"]] = args
+                        if "args_constructor" in call_info :
+                            args = call_info["args_constructor"](**args)
+                        #end if
                     #end if
+                    kwargs[call_info["args_keyword"]] = args
                     args = ()
-                else :
-                    if call_info["arg_keys"] != None :
-                        for key, value in zip(call_info["arg_keys"], args) :
-                            kwargs[key] = value
-                        #end for
-                        args = ()
-                    #end if
                 #end if
                 to_return_result = None
                 allow_set_result = True
@@ -1184,6 +1181,7 @@ def method \
     out_signature = None,
     args_keyword = None,
     arg_keys = None,
+    arg_attrs = None,
     result_keys = None,
     connection_keyword = None,
     message_keyword = None,
@@ -1203,6 +1201,30 @@ def method \
     " altogether, unless you want to receive signals from the server; instead, use" \
     " Connection.get_object() to send method calls to the server."
 
+    in_signature = dbus.parse_signature(in_signature)
+    out_signature = dbus.parse_signature(out_signature)
+    if result_keys != None and not reply :
+        raise ValueError("result_keys is meaningless if method does not reply")
+    #end if
+    if arg_keys != None and arg_attrs != None :
+        raise ValueError("specify arg_keys or arg_attrs, not both")
+    #end if
+    if (arg_keys != None or arg_attrs != None) and args_keyword == None :
+        raise ValueError("need args_keyword with arg_keys or arg_attrs")
+    #end if
+    if arg_keys != None and len(arg_keys) != len(in_signature) :
+        raise ValueError("number of arg_keys should match number of items in in_signature")
+    #end if
+    if arg_attrs != None and len(arg_attrs) != len(in_signature) :
+        raise ValueError("number of arg_attrs should match number of items in in_signature")
+    #end if
+    if result_keys != None and len(result_keys) != len(out_signature) :
+        raise ValueError("number of result_keys should match number of items in out_signature")
+    #end if
+    if arg_keys == None :
+        args_keys = arg_attrs
+    #end if
+
     def decorate(func) :
         if not isinstance(func, types.FunctionType) :
             raise TypeError("only apply decorator to functions.")
@@ -1215,8 +1237,8 @@ def method \
         func._method_info = \
             {
                 "name" : func_name,
-                "in_signature" : dbus.unparse_signature(in_signature),
-                "out_signature" : dbus.unparse_signature(out_signature),
+                "in_signature" : in_signature,
+                "out_signature" : out_signature,
                 "args_keyword" : args_keyword,
                 "arg_keys" : arg_keys,
                 "result_keys" : result_keys,
@@ -1228,14 +1250,8 @@ def method \
                 "reply" : reply,
                 "deprecated" : deprecated,
             }
-        if result_keys != None and not reply :
-            raise ValueError("result_keys is meaningless if method does not reply")
-        #end if
-        if arg_keys != None and len(arg_keys) != len(func._method_info["in_signature"]) :
-            raise ValueError("number of arg_keys should match number of items in in_signature")
-        #end if
-        if result_keys != None and len(result_keys) != len(func._method_info["out_signature"]) :
-            raise ValueError("number of result_keys should match number of items in out_signature")
+        if arg_attrs != None :
+            func._method_info["args_constructor"] = namedtuple("%s_args" % func_name, arg_attrs)
         #end if
         return \
             func
@@ -1252,6 +1268,7 @@ def signal \
     in_signature = None,
     args_keyword = None,
     arg_keys = None,
+    arg_attrs = None,
     connection_keyword = None,
     message_keyword = None,
     path_keyword = None,
@@ -1266,6 +1283,20 @@ def signal \
     "On the server side, the actual function need only be a dummy, since it is just" \
     " a placeholder for storing the information used by Connection.send_signal()."
 
+    in_signature = dbus.parse_signature(in_signature)
+    if (arg_keys != None or arg_attrs != None) and args_keyword == None :
+        raise ValueError("need args_keyword with arg_keys or arg_attrs")
+    #end if
+    if arg_keys != None and len(arg_keys) != len(in_signature) :
+        raise ValueError("number of arg_keys should match number of items in in_signature")
+    #end if
+    if arg_attrs != None and len(arg_attrs) != len(in_signature) :
+        raise ValueError("number of arg_attrs should match number of items in in_signature")
+    #end if
+    if arg_keys == None :
+        args_keys = arg_attrs
+    #end if
+
     def decorate(func) :
         if not isinstance(func, types.FunctionType) :
             raise TypeError("only apply decorator to functions.")
@@ -1278,7 +1309,7 @@ def signal \
         func._signal_info =  \
             {
                 "name" : func_name,
-                "in_signature" : dbus.unparse_signature(in_signature),
+                "in_signature" : in_signature,
                 "args_keyword" : args_keyword,
                 "arg_keys" : arg_keys,
                 "connection_keyword" : connection_keyword,
@@ -1287,8 +1318,8 @@ def signal \
                 "bus_keyword" : bus_keyword,
                 "deprecated" : deprecated,
             }
-        if arg_keys != None and len(arg_keys) != len(func._signal_info["in_signature"]) :
-            raise ValueError("number of arg_keys should match number of items in in_signature")
+        if arg_attrs != None :
+            func._signal_info["args_constructor"] = namedtuple("%s_args" % func_name, arg_attrs)
         #end if
         return \
             func

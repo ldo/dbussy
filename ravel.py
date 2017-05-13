@@ -443,8 +443,7 @@ class Connection :
         reply = self.send_with_reply_and_block(message, timeout)
         if reply != None :
             if reply.type == DBUS.MESSAGE_TYPE_METHOD_RETURN :
-                # TODO: respect call_info["out_signature"]?
-                result = reply.all_objects
+                result = reply.expect_objects(call_info["out_signature"])
             elif reply.type == DBUS.MESSAGE_TYPE_ERROR :
                 raise dbus.DBusError(reply.member, reply.all_objects[0])
             else :
@@ -505,7 +504,7 @@ class Connection :
         if reply != None :
             if reply.type == DBUS.MESSAGE_TYPE_METHOD_RETURN :
                 # TODO: respect call_info["out_signature"]?
-                result = reply.all_objects
+                result = reply.expect_objects(call_info["out_signature"])
             elif reply.type == DBUS.MESSAGE_TYPE_ERROR :
                 raise dbus.DBusError(reply.member, reply.all_objects[0])
             else :
@@ -837,8 +836,7 @@ class CMethod :
 
     def _process_reply(self, reply) :
         if reply.type == DBUS.MESSAGE_TYPE_METHOD_RETURN :
-            # TODO: respect self.method.out_signature?
-            result = reply.all_objects
+            result = reply.expect_objects(self.method.out_signature)
         elif reply.type == DBUS.MESSAGE_TYPE_ERROR :
             raise dbus.DBusError(reply.member, reply.all_objects[0])
         else :
@@ -933,8 +931,7 @@ def _message_interface_dispatch(connection, message, bus) :
             ) :
                 method = methods[method_name]
                 call_info = getattr(method, ("_signal_info", "_method_info")[is_method])
-                args = message.all_objects
-                  # TODO: pay attention to method._method/signal_info["in_signature"]?
+                args = message.expect_objects(call_info["in_signature"])
                 kwargs = {}
                 for keyword_keyword, value in \
                     (
@@ -1604,7 +1601,7 @@ def def_proxy_interface(name, kind, introspected, is_async) :
                 message.append_objects(dbus.unparse_signature(intr_method.in_signature), *args)
                 if expect_reply :
                     reply = await self.conn.connection.send_await_reply(message, self.timeout)
-                    result = reply.all_objects # TODO: respect out_signature?
+                    result = reply.expect_objects(intr_method.out_signature)
                 else :
                     message.no_reply = True
                     self.conn.connection.send(message)
@@ -1627,7 +1624,7 @@ def def_proxy_interface(name, kind, introspected, is_async) :
                 message.append_objects(dbus.unparse_signature(intr_method.in_signature), *args)
                 if expect_reply :
                     reply = self.conn.connection.send_with_reply_and_block(message, self.timeout)
-                    result = reply.all_objects # TODO: respect out_signature?
+                    result = reply.expect_objects(intr_method.out_signature)
                 else :
                     message.no_reply = True
                     self.conn.connection.send(message)

@@ -534,8 +534,14 @@ class Type :
     #end signature
 
     def __eq__(t1, t2) :
-        raise NotImplementedError("subclass forgot to override __eq__ property")
+        raise NotImplementedError("subclass forgot to override __eq__ method")
     #end __eq__
+
+    def validate(self, val) :
+        "returns val if it is an acceptable value of this Type, else raises" \
+        " TypeError or ValueError."
+        raise NotImplementedError("subclass forgot to override validate method")
+    #end validate
 
     def __repr__(self) :
         return \
@@ -567,6 +573,26 @@ class BasicType(Type) :
             isinstance(t2, BasicType) and t1.code == t2.code
     #end __eq__
 
+    def validate(self, val) :
+        if self.code.value in DBUS.int_convert :
+            val = DBUS.int_convert[self.code.value](val)
+        elif self.code == TYPE.DOUBLE :
+            if not isinstance(val, float) :
+                raise TypeError("expecting a float, not %s: %s" % (type(val).__name__, repr(val)))
+            #end if
+        elif self.code == TYPE.UNIX_FD :
+            val = DBUS.subtype_uint32(val)
+        elif DBUS.basic_to_ctypes(self.code.value) == ct.c_char_p :
+            if not isinstance(val, str) :
+                raise TypeError("expecting a string, not %s: %s" % (type(val).__name__, repr(val)))
+            #end if
+        else :
+            raise RuntimError("unknown basic type %s" % repr(self.code))
+        #end if
+        return \
+            val
+    #end validate
+
 #end BasicType
 
 class VariantType(Type) :
@@ -582,6 +608,17 @@ class VariantType(Type) :
         return \
             isinstance(t2, VariantType)
     #end __eq__
+
+    def validate(self, val) :
+        if not isinstance(val, (bool, int, float, string, tuple, list, dict)) :
+            raise TypeError \
+              (
+                "type %s not representable in D-Bus for value %s" % (type(val).__name__, repr(val))
+              )
+        #end if
+        return \
+            val
+    #end validate
 
 #end VariantType
 
@@ -617,6 +654,17 @@ class StructType(Type) :
             )
     #end __eq__
 
+    def validate(self, val) :
+        if not isinstance(val, (tuple, list)) or len(val) != len(self.elttypes) :
+            raise TypeError \
+              (
+                "need a list or tuple of %d elements, not %s" % (len(self.elttypes), repr(val))
+              )
+        #end if
+        return \
+            type(val)(elttype.validate(elt) for elttype, elt in zip(self.elttypes, val))
+    #end validate
+
 #end StructType
 
 class ArrayType(Type) :
@@ -641,6 +689,14 @@ class ArrayType(Type) :
         return \
             isinstance(t2, ArrayType) and t1.elttype == t2.elttype
     #end __eq__
+
+    def validate(self, val) :
+        if not isinstance(val, (tuple, list)) :
+            raise TypeError("need a tuple or list, not %s: %s" % (type(val).__name__, repr(val)))
+        #end if
+        return \
+            type(val)(self.elttype.validate(elt) for elt in val)
+    #end validate
 
 #end ArrayType
 
@@ -674,6 +730,18 @@ class DictType(Type) :
         return \
             isinstance(t2, DictType) and t1.keytype == t2.keytype and t1.valuetype == t2.valuetype
     #end __eq__
+
+    def validate(self, val) :
+        if not isinstance(val, dict) :
+            raise TypeError("need a dict, not %s: %s" % (type(val).__name__, repr(val)))
+        #end if
+        return \
+            type(val) \
+              (
+                (self.keytype.validate(key), self.valuetype.validate(val[key]))
+                for key in val
+              )
+    #end validate
 
 #end DictType
 

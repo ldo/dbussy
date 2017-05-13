@@ -20,6 +20,10 @@ from dbussy import \
     DBUS, \
     Introspection
 
+#+
+# Signature-guessing
+#-
+
 def max_type(*args) :
     if len(args) == 1 and isinstance(args[0], (tuple, list)) :
         args = args[0]
@@ -149,6 +153,10 @@ def guess_sequence_signature(args) :
         result
 #end guess_sequence_signature
 
+#+
+# High-level bus connection
+#-
+
 class Connection :
     "higher-level wrapper around dbussy.Connection. Provides various functions," \
     " some more suited to client-side use and some more suitable to the server side." \
@@ -229,7 +237,8 @@ class Connection :
     #end get_object
 
     def register(self, path, fallback, interface, args = None, kwargs = None) :
-        "for server-side use; registers an instance of the specified @interface()" \
+        "for server-side use; registers an instance (instantiated as" \
+        " interface(*args, **kwargs)) of the specified @interface()" \
         " class for handling method calls on the specified path, and also on subpaths" \
         " if fallback."
         if not is_interface(interface) :
@@ -1160,7 +1169,7 @@ def method \
     reply = True,
     deprecated = False
   ) :
-    "put a call to this function as a decorator for each method of an @interface()" \
+    "Put a call to this function as a decorator for each method of an @interface()" \
     " class that is to be registered as a method of the interface." \
     " “name” is the name of the method as specified in the D-Bus message; if omitted," \
     " it defaults to the name of the function.\n" \
@@ -1225,7 +1234,7 @@ def signal \
     bus_keyword = None,
     deprecated = False # can signals be deprecated?
   ) :
-    "put a call to this function as a decorator for each method of an @interface()" \
+    "Put a call to this function as a decorator for each method of an @interface()" \
     " class that is to be registered as a signal of the interface." \
     " “name” is the name of the signal as specified in the D-Bus message; if omitted," \
     " it defaults to the name of the function.\n" \
@@ -1277,6 +1286,8 @@ def propgetter \
     bus_keyword = None,
     change_notification = None
   ) :
+    "Put a call to this function as a decorator for a method of an @interface()" \
+    " class that is to be the getter of the named property."
 
     def decorate(func) :
         if not isinstance(func, types.FunctionType) :
@@ -1325,6 +1336,8 @@ def propsetter \
     path_keyword = None,
     bus_keyword = None
   ) :
+    "Put a call to this function as a decorator for a method of an @interface()" \
+    " class that is to be the setter of the named property."
 
     def decorate(func) :
         if not isinstance(func, types.FunctionType) :
@@ -1363,6 +1376,7 @@ def introspect(interface) :
     #end if
 
     def add_deprecated(annots, deprecated) :
+        # common routine for generating “deprecated” annotations.
         if deprecated :
             annots.append \
               (
@@ -1761,7 +1775,7 @@ def def_proxy_interface(name, kind, introspected, is_async) :
 
 @interface(INTERFACE.SERVER, name = DBUS.INTERFACE_INTROSPECTABLE)
 class IntrospectionHandler :
-    "register this as a fallback at the root of your object tree to obtain" \
+    "Register this as a fallback at the root of your object tree to obtain" \
     " automatic introspection of any point in the tree."
 
     @method \
@@ -1826,7 +1840,7 @@ class IntrospectionHandler :
 
 @interface(INTERFACE.SERVER, name = DBUS.INTERFACE_PROPERTIES)
 class PropertyHandler :
-    "register this as a fallback at the root of your object tree to provide" \
+    "Register this as a fallback at the root of your object tree to provide" \
     " automatic dispatching to any @propgetter() and @propsetter() methods" \
     " defined for registered interfaces appropriate to an object path."
 

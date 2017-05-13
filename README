@@ -92,17 +92,18 @@ by the object path, as well as listing all the available child objects
 that can be accessed by appending a slash and the child name to the
 parent object path, if any.
 
-D-Bus also includes an extensive type system for encoding data in a
-message. This data represents arguments to the method call or signal,
-return results for a method return or the error name and message for
-an error. A message contains a sequence of 0, 1 or more items of such
-data, each of which can be of various types: “basic” types (e.g. integer,
-float, string) or “container” types (structs, arrays, dictionaries)
-which in turn contain more values, each of which in turn can be of a
-basic or (recursively) another container type. A “signature” is a
-string encoding the type of a value, or sequence of values; there is
-also a “variant” type, which means the type of the value is encoded
-dynamically with the value itself, separate from the signature.
+D-Bus also includes an extensive, but not extensible, type system for
+encoding data in a message. This data represents arguments to the
+method call or signal, return results for a method return or the error
+name and message for an error. A message contains a sequence of 0, 1
+or more items of such data, each of which can be of various types:
+“basic” types (e.g. integer, float, string) or “container” types
+(structs, arrays, dictionaries) which in turn contain more values,
+each of which in turn can be of a basic or (recursively) another
+container type. A “signature” is a string encoding the type of a
+value, or sequence of values; there is also a “variant” type, which
+means the type of the value is encoded dynamically with the value
+itself, separate from the signature.
 
 The importance of type signatures is really up to the particular
 programs that are trying to communicate: some might insist on values
@@ -159,11 +160,192 @@ creating a task to execute the coroutine on the event loop. The
 coroutine can then go on to handle the actual processing of the
 request, and return the reply at some later stage.
 
+The dbussy module also offers several more Pythonic facilities beyond
+those of the underlying libdbus, including a higher-level
+representation of type signatures as Type objects (and subclasses
+thereof), and an Introspection object hierarchy that can be easily
+converted to and from the standard D-Bus introspection XML
+representation.
+
+
+Ravel: The Higher-Level Interface
+=================================
+
+Rather than directly manipulating D-Bus message objects, it can often
+be more convenient to have a representation where D-Bus object paths
+are directly mapped to Python objects, and D-Bus method calls are
+similarly mapped to calls on methods of those Python objects.
+
+Such a representation is provides by the “ravel” module. It actually
+defines two such representations: a more ad-hoc one, suitable for
+client use, where object and interface references are constructed
+on-the-fly, and a more structured one where interfaces have to be
+defined and registered with a bus connection, so that their methods
+can be automatically invoked in response to incoming messages. The
+latter can be used by servers to receive and respond to method calls,
+and by clients to handle signals.
+
+Both systems start by creating a ravel.Connection object, which is a
+wrapper around a lower-level dbussy.Connection object. You can get one
+for the session or system bus by calling ravel.session_bus() and
+ravel.system_bus() respectively, or you can use a ravel.Server object
+(wrapping around the corresponding dbussy.Server) to accept
+connections on your own network address, separate from the D-Bus
+daemon.
+
+
+Ad-Hoc Higher-Level Calls
+-------------------------
+
+The basic method for using these calls, having obtained a connection
+«bus», and wanting to access an object path «path» at a bus name «bus_name»,
+is to get a reference to the bus object with
+
+    «bus».get_object(«bus_name», «path»)
+
+which returns a ravel.CObject object, which I will refer to as
+«object». From this, you get a reference to the particular interface
+named «interface_name» you want to access with
+«object».get_interface(«interface_name»), which returns a
+ravel.CInterface object «interface» which has automatically
+introspected the interface on that bus name to obtain information on
+the valid methods to call. Then you can call a method named «method»
+on this object exactly as though it were a Python object.
+
+Or, you can put it all together in a single Python expression if you
+have no need to reuse any of the intermediate objects, thus:
+
+    «bus».get_object(«bus_name», «path») \
+        .get_interface(«interface_name») \
+        .«method»(«args»)
+
+If the method call returns a result (as defined by its introspection
+signature), then the above Python expression returns that result,
+which can then be assigned to a variable or otherwise processed in all
+the usual ways.
+
+Note that the method result is always a list.
+
+The above is a *blocking* call, which means the current thread is
+blocked while waiting for the reply to the method call. If you want to
+do things in a more event-loop-friendly fashion, then use the
+get_async_interface of the CObject instead of get_interface, which
+returns a coroutine object that yields a CAsyncInterface object when
+it finally completes. Method calls on this are automatically also
+coroutine calls, so you can use them in await-constructs in your
+coroutines, or create asyncio tasks to run them etc.
+
+
+Structured Interface Definitions
+--------------------------------
+
+The more structured high-level interface offered by Ravel is built
+around the concept of an *interface class*, which is a Python class
+that you define to implement a D-Bus interface. You can then
+register instances of this class on a bus connection at selected
+points in your object path hierarchy, to handle either only specific
+objects at those paths or as a fallback to also deal with objects
+at points below those, that do not have their own instance of this
+class registered.
+
+An interface class is identified by applying the @ravel.interface()
+decorator to the class definition, specifying the kind of interface
+(for use client-side, server-side or both), and the interface name, e.g.
+
+    @ravel.interface(ravel.INTERFACE.SERVER, name = "com.example.my_interface")
+    class MyClass :
+        ...
+    #end MyClass
+
+Within such a class, Python methods that are to handle D-Bus method
+calls are identified with the @ravel.method() decorator, e.g.:
+
+    @ravel.method \
+      (
+        name = ...,
+        in_signature = ...,
+        out_signature = ...,
+        args_keyword = ...,
+        arg_keys = ...,
+        arg_attrs = ...,
+        result_keys = ...,
+        connection_keyword = ...,
+        message_keyword = ...,
+        path_keyword = ...,
+        bus_keyword = ...,
+        set_result_keyword = ...,
+        ...
+      )
+    def my_method(...) :
+        ...
+    #end my_method
+
+As you can see, there are a large number of options for implementing
+such a method. It can also be defined as a coroutine with async def if
+you have an event loop attached, and Ravel will automatically queue
+the task for execution and await any returned result. Summary of
+arguments:
+  * name -- the D-Bus method name. If omitted, defaults to the Python
+    function name.
+  * in_signature -- the D-Bus signature specifying the arguments (zero or more)
+    to the method.
+  * out_signature -- the D-Bus signature specifying the results (zero
+    or more) the method will return.
+  * args_keyword -- the name of an argument to the Python function that will
+    be set to the arguments from the message method call. The arguments
+    will be passed as a list, or a dict, or a namedtuple, depending the
+    specification of arg_keys and arg_attrs (see below).
+  * path_keyword -- if specified, then the object path field from the
+    incoming method call will be passed to the Python function as the
+    value of the argument with this name.
+  * message_keyword -- if specified, then the dbussy.Message object
+    for the incoming method call will be passed to the Python function
+    as the value of the argument with this name.
+  * connection_keyword -- if specified, then the dbussy.Connection object
+    will be passed to the Python function as the value of the argument
+    with this name.
+  * bus_keyword -- if specified, then the ravel.Connection object
+    will be passed to the Python function as the value of the argument
+    with this name.
+  * set_result_keyword -- if specified, then a function of a single
+    argument will be passed to the Python function as the value of the
+    argument with this name; the argument passed by calling this
+    function becomes the method result.
+
+Passing arguments: the argument with the name given by args_keyword
+will hold the extracted arguments from the method call message. If
+neither of arg_keys or arg_attrs is specified, then the arguments are
+passed as a list. If arg_keys is specified, then it must be a sequence
+of names that must match the number of types specified by the in_signature;
+in this case, the args will be passed as a dict with the keys given
+in arg_keys associated in order with the argument values.
+
+If arg_attrs is specified instead of arg_keys, then it must be a
+sequence of names that must match the number of types specified by the
+in_signature; a namedtuple
+<https://docs.python.org/3/library/collections.html#collections.namedtuple>
+object is created, with the attribute names taken from arg_keys assigned
+in order to the argument values.
+
+Returning results: the function can return the result values to be
+inserted into the method-return message as the function result, or by
+calling the set_result function that was passed via the
+set_result_keyword (above); only the former method is available to
+coroutines.
+
+The result is expected to be a list or tuple of values matching the
+out_signature. But if result_keys is specified, then this must be
+a sequence of names that match the number of types in the out_signature;
+in this case, the result is expected to be a dict that associates
+these names with the corresponding result component values; they
+will be extracted and rearranged into a list matching the order
+of the names in result_keys.
+
 
 DBussy Examples
 ===============
 
-Sample code illustrating how to use DBussy is available in my
+Sample code illustrating how to use DBussy/Ravel is available in my
 dbussy_examples repo on GitLab <https://gitlab.com/ldo/dbussy_examples>
 and GitHub <https://github.com/ldo/dbussy_examples>.
 
@@ -178,4 +360,4 @@ it.
 
 
 Lawrence D'Oliveiro <ldo@geek-central.gen.nz>
-2017 April 30
+2017 May 13

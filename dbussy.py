@@ -3280,6 +3280,17 @@ class Message :
             list(self.objects)
     #end all_objects
 
+    def expect_objects(self, signature) :
+        "expects the arguments of the Message to conform to the given signature," \
+        " raising a TypeError if not. If they match, returns them as a list."
+        signature = unparse_signature(signature)
+        if self.signature != signature :
+            raise TypeError("message args don’t match: expected “%s”, got “%s”" % (signature, self.signature))
+        #end if
+        return \
+            self.all_objects
+    #end expect_objects
+
     def iter_init_append(self) :
         "creates a Message.AppendIter for appending arguments to the Message."
         iter = self.AppendIter(None)

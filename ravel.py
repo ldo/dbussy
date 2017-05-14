@@ -933,6 +933,12 @@ def _message_interface_dispatch(connection, message, bus) :
             if isinstance(result, dict) and call_info["result_keys"] != None :
                 result = list(result[key] for key in call_info["result_keys"])
                   # convert result items to list in right order
+            elif (
+                    "result_constructor" in call_info
+                and
+                    isinstance(result, call_info["result_constructor"])
+            ) :
+                result = list(result)
             elif not isinstance(result, (tuple, list)) :
                 raise ValueError("invalid handler result %s" % repr(result))
             #end if
@@ -999,17 +1005,33 @@ def _message_interface_dispatch(connection, message, bus) :
                 #end if
                 to_return_result = None
                 allow_set_result = True
-                if is_method and call_info["set_result_keyword"] != None :
-                    # caller wants to return result via callback
-                    def set_result(the_result) :
-                        "Call this to set the args for the reply message."
-                        nonlocal to_return_result
-                        if not allow_set_result :
-                            raise RuntimeError("set_result must not be called from a coroutine")
+                if is_method :
+                    if call_info["result_keyword"] != None :
+                        # construct a mutable result object that handler will update in place
+                        to_return_result = [None] * len(call_info["out_signature"])
+                        if call_info["result_keys"] != None :
+                            to_return_result = dict \
+                              (
+                                (key, val)
+                                for key, val in zip(call_info["result_keys"], to_return_result)
+                              )
+                            if "result_constructor" in call_info :
+                                to_return_result = call_info["result_constructor"](**to_return_result)
+                            #end if
                         #end if
-                        to_return_result = the_result
-                    #end set_result
-                    kwargs[call_info["set_result_keyword"]] = set_result
+                        kwargs[call_info["result_keyword"]] = to_return_result
+                    elif call_info["set_result_keyword"] != None :
+                        # caller wants to return result via callback
+                        def set_result(the_result) :
+                            "Call this to set the args for the reply message."
+                            nonlocal to_return_result
+                            if not allow_set_result :
+                                raise RuntimeError("set_result must not be called from a coroutine")
+                            #end if
+                            to_return_result = the_result
+                        #end set_result
+                        kwargs[call_info["set_result_keyword"]] = set_result
+                    #end if
                 #end if
                 try :
                     result = method(iface, *args, **kwargs)
@@ -1219,7 +1241,9 @@ def method \
     args_keyword = None,
     arg_keys = None,
     arg_attrs = None,
+    result_keyword = None,
     result_keys = None,
+    result_attrs = None,
     connection_keyword = None,
     message_keyword = None,
     path_keyword = None,
@@ -1240,8 +1264,12 @@ def method \
 
     in_signature = dbus.parse_signature(in_signature)
     out_signature = dbus.parse_signature(out_signature)
-    if result_keys != None and not reply :
-        raise ValueError("result_keys is meaningless if method does not reply")
+    if (result_keyword != None or result_keys != None or result_attrs != None) and not reply :
+        raise ValueError \
+          (
+            "result_keyword, result_keys and result_attrs are"
+            " meaningless if method does not reply"
+          )
     #end if
     if arg_keys != None and arg_attrs != None :
         raise ValueError("specify arg_keys or arg_attrs, not both")
@@ -1255,11 +1283,29 @@ def method \
     if arg_attrs != None and len(arg_attrs) != len(in_signature) :
         raise ValueError("number of arg_attrs should match number of items in in_signature")
     #end if
+    if set_result_keyword != None and result_keyword != None :
+        raise ValueError("specify set_result_keyword or result_keyword, not both")
+    #end if
+    if result_keys != None and result_attrs != None :
+        raise ValueError("specify result_keys or result_attrs, not both")
+    #end if
+    if result_keys != None and result_keyword == None :
+        raise ValueError("need result_keyword with result_keys")
+    #end if
+    if result_attrs != None and result_keyword == None :
+        raise ValueError("need result_keyword with result_attrs")
+    #end if
     if result_keys != None and len(result_keys) != len(out_signature) :
         raise ValueError("number of result_keys should match number of items in out_signature")
     #end if
+    if result_attrs != None and len(result_attrs) != len(out_signature) :
+        raise ValueError("number of result_attrs should match number of items in out_signature")
+    #end if
     if arg_keys == None :
         args_keys = arg_attrs
+    #end if
+    if result_keys == None :
+        result_keys = result_attrs
     #end if
 
     def decorate(func) :
@@ -1278,6 +1324,7 @@ def method \
                 "out_signature" : out_signature,
                 "args_keyword" : args_keyword,
                 "arg_keys" : arg_keys,
+                "result_keyword" : result_keyword,
                 "result_keys" : result_keys,
                 "connection_keyword" : connection_keyword,
                 "message_keyword" : message_keyword,
@@ -1289,6 +1336,10 @@ def method \
             }
         if arg_attrs != None :
             func._method_info["args_constructor"] = namedtuple("%s_args" % func_name, arg_attrs)
+        #end if
+        if result_attrs != None :
+            func._method_info["result_constructor"] = \
+                namedtuple("%s_result" % func_name, result_attrs)
         #end if
         return \
             func

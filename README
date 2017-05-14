@@ -293,7 +293,7 @@ arguments:
     or more) the method will return.
   * args_keyword -- the name of an argument to the Python function that will
     be set to the arguments from the message method call. The arguments
-    will be passed as a list, or a dict, or a namedtuple, depending the
+    will be passed as a list, or a dict, or an attributed class, depending the
     specification of arg_keys and arg_attrs (see below).
   * path_keyword -- if specified, then the object path field from the
     incoming method call will be passed to the Python function as the
@@ -322,10 +322,9 @@ in arg_keys associated in order with the argument values.
 
 If arg_attrs is specified instead of arg_keys, then it must be a
 sequence of names that must match the number of types specified by the
-in_signature; a namedtuple
-<https://docs.python.org/3/library/collections.html#collections.namedtuple>
-object is created, with the attribute names taken from arg_keys assigned
-in order to the argument values.
+in_signature; a mutable attributed class object is created by calling
+ravel.def_attr_class, with the attribute names taken from arg_keys
+assigned in order to the argument values.
 
 Returning results: the function can return the result values to be
 inserted into the method-return message as the function result, or by
@@ -360,4 +359,4 @@ it.
 
 
 Lawrence D'Oliveiro <ldo@geek-central.gen.nz>
-2017 May 13
+2017 May 14

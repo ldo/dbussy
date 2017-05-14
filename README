@@ -268,7 +268,9 @@ calls are identified with the @ravel.method() decorator, e.g.:
         args_keyword = ...,
         arg_keys = ...,
         arg_attrs = ...,
+        result_keyword = ...,
         result_keys = ...,
+        result_attrs = ...,
         connection_keyword = ...,
         message_keyword = ...,
         path_keyword = ...,
@@ -283,8 +285,8 @@ calls are identified with the @ravel.method() decorator, e.g.:
 As you can see, there are a large number of options for implementing
 such a method. It can also be defined as a coroutine with async def if
 you have an event loop attached, and Ravel will automatically queue
-the task for execution and await any returned result. Summary of
-arguments:
+the task for execution and await any returned result. Partial summary
+of arguments:
   * name -- the D-Bus method name. If omitted, defaults to the Python
     function name.
   * in_signature -- the D-Bus signature specifying the arguments (zero or more)
@@ -316,9 +318,9 @@ Passing arguments: the argument with the name given by args_keyword
 will hold the extracted arguments from the method call message. If
 neither of arg_keys or arg_attrs is specified, then the arguments are
 passed as a list. If arg_keys is specified, then it must be a sequence
-of names that must match the number of types specified by the in_signature;
-in this case, the args will be passed as a dict with the keys given
-in arg_keys associated in order with the argument values.
+of names that must match the number of types specified by the
+in_signature; in this case, the args will be passed as a dict with the
+keys given in arg_keys associated in order with the argument values.
 
 If arg_attrs is specified instead of arg_keys, then it must be a
 sequence of names that must match the number of types specified by the
@@ -327,18 +329,28 @@ ravel.def_attr_class, with the attribute names taken from arg_keys
 assigned in order to the argument values.
 
 Returning results: the function can return the result values to be
-inserted into the method-return message as the function result, or by
-calling the set_result function that was passed via the
-set_result_keyword (above); only the former method is available to
-coroutines.
+inserted into the method-return message as the function result, by
+assigning to elements of a mutable result argument (passed as the
+argument named by result_keyword, or by calling the set_result
+function that was passed via the set_result_keyword (above); the last
+method is not currently available to coroutines.
 
-The result is expected to be a list or tuple of values matching the
-out_signature. But if result_keys is specified, then this must be
-a sequence of names that match the number of types in the out_signature;
-in this case, the result is expected to be a dict that associates
-these names with the corresponding result component values; they
-will be extracted and rearranged into a list matching the order
-of the names in result_keys.
+If neither result_keys nor result_attrs is specified, then the result
+is expected to be a sequence of values matching the out_signature. If
+it is returned as the function result, then it can be a tuple or list;
+but if result_keyword is specified, then the value of this is a list,
+and the values in the sequence must be assigned to the elements of
+this list in-place.
+
+If result_keys is specified, then the result is a dict mapping the
+names from result_keys to the values of the result sequence in order.
+If result_attrs is specified, then the result is a mutable attributed
+class object created by calling ravel.def_attr_class, mapping the
+names from result_attrs to the values of the result sequence in order.
+If result_keyword is not specified, then the result object is expected
+to be returned as the function result; otherwise, it is passed as the
+value of the argument named by result_keyword, and the handler is
+supposed to update its elements in-place.
 
 
 DBussy Examples

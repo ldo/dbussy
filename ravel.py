@@ -1089,6 +1089,9 @@ def _message_interface_dispatch(connection, message, bus) :
 #end _message_interface_dispatch
 
 def def_attr_class(name, attrs) :
+    "defines a class with read/write attributes with names from the sequence attrs." \
+    " Objects of this class can be coerced to lists or tuples, and attributes can" \
+    " also be accessed by index, like a list."
 
     class result :
         __slots__ = tuple(attrs)
@@ -1129,6 +1132,10 @@ def def_attr_class(name, attrs) :
             return \
                 getattr(self, type(self).__slots__[i])
         #end __getitem__
+
+        def  __setitem__(self, i, val) :
+            setattr(self, type(self).__slots__[i], val)
+        #end __setitem__
 
     #end class
 

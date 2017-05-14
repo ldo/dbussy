@@ -12,8 +12,6 @@ asyncio event loop.
 
 import types
 import enum
-from collections import \
-    namedtuple
 from weakref import \
     WeakValueDictionary
 import asyncio
@@ -1090,6 +1088,56 @@ def _message_interface_dispatch(connection, message, bus) :
          result
 #end _message_interface_dispatch
 
+def def_attr_class(name, attrs) :
+
+    class result :
+        __slots__ = tuple(attrs)
+
+        def __init__(self, **kwargs) :
+            for name in type(self).__slots__ :
+                setattr(self, name, None)
+            #end for
+            for name in kwargs :
+                setattr(self, name, kwargs[name])
+            #end for
+        #end __init__
+
+        def __repr__(self) :
+            return \
+                (
+                        "%s(%s)"
+                    %
+                        (
+                            type(self).__name__,
+                            ", ".join
+                              (
+                                    "%s = %s"
+                                %
+                                    (name, repr(getattr(self, name)))
+                                    for name in type(self).__slots__
+                              ),
+                        )
+                )
+        #end __repr__
+
+        def __len__(self) :
+            return \
+                len(type(self).__slots__)
+        #end __len__
+
+        def __getitem__(self, i) :
+            return \
+                getattr(self, type(self).__slots__[i])
+        #end __getitem__
+
+    #end class
+
+#begin def_attr_class
+    result.__name__ = name
+    return \
+        result
+#end def_attr_class
+
 def interface \
   (
     kind, *,
@@ -1292,10 +1340,6 @@ def method \
                 "specify result_keys or result_attrs, not both",
             ),
             (
-                result_keys != None and result_keyword == None,
-                "need result_keyword with result_keys",
-            ),
-            (
                 result_attrs != None and result_keyword == None,
                 "need result_keyword with result_attrs",
             ),
@@ -1347,11 +1391,11 @@ def method \
                 "deprecated" : deprecated,
             }
         if arg_attrs != None :
-            func._method_info["args_constructor"] = namedtuple("%s_args" % func_name, arg_attrs)
+            func._method_info["args_constructor"] = def_attr_class("%s_args" % func_name, arg_attrs)
         #end if
         if result_attrs != None :
             func._method_info["result_constructor"] = \
-                namedtuple("%s_result" % func_name, result_attrs)
+                def_attr_class("%s_result" % func_name, result_attrs)
         #end if
         return \
             func
@@ -1419,7 +1463,7 @@ def signal \
                 "deprecated" : deprecated,
             }
         if arg_attrs != None :
-            func._signal_info["args_constructor"] = namedtuple("%s_args" % func_name, arg_attrs)
+            func._signal_info["args_constructor"] = def_attr_class("%s_args" % func_name, arg_attrs)
         #end if
         return \
             func

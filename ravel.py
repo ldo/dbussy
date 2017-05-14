@@ -1264,43 +1264,55 @@ def method \
 
     in_signature = dbus.parse_signature(in_signature)
     out_signature = dbus.parse_signature(out_signature)
-    if (result_keyword != None or result_keys != None or result_attrs != None) and not reply :
-        raise ValueError \
-          (
-            "result_keyword, result_keys and result_attrs are"
-            " meaningless if method does not reply"
-          )
-    #end if
-    if arg_keys != None and arg_attrs != None :
-        raise ValueError("specify arg_keys or arg_attrs, not both")
-    #end if
-    if arg_attrs != None and args_keyword == None :
-        raise ValueError("need args_keyword with arg_attrs")
-    #end if
-    if arg_keys != None and len(arg_keys) != len(in_signature) :
-        raise ValueError("number of arg_keys should match number of items in in_signature")
-    #end if
-    if arg_attrs != None and len(arg_attrs) != len(in_signature) :
-        raise ValueError("number of arg_attrs should match number of items in in_signature")
-    #end if
-    if set_result_keyword != None and result_keyword != None :
-        raise ValueError("specify set_result_keyword or result_keyword, not both")
-    #end if
-    if result_keys != None and result_attrs != None :
-        raise ValueError("specify result_keys or result_attrs, not both")
-    #end if
-    if result_keys != None and result_keyword == None :
-        raise ValueError("need result_keyword with result_keys")
-    #end if
-    if result_attrs != None and result_keyword == None :
-        raise ValueError("need result_keyword with result_attrs")
-    #end if
-    if result_keys != None and len(result_keys) != len(out_signature) :
-        raise ValueError("number of result_keys should match number of items in out_signature")
-    #end if
-    if result_attrs != None and len(result_attrs) != len(out_signature) :
-        raise ValueError("number of result_attrs should match number of items in out_signature")
-    #end if
+    for cond, msg in \
+        (
+            (
+                    (result_keyword != None or result_keys != None or result_attrs != None)
+                and
+                    not reply,
+                "result_keyword, result_keys and result_attrs are"
+                " meaningless if method does not reply",
+            ),
+            (arg_keys != None and arg_attrs != None, "specify arg_keys or arg_attrs, not both"),
+            (arg_attrs != None and args_keyword == None, "need args_keyword with arg_attrs"),
+            (
+                arg_keys != None and len(arg_keys) != len(in_signature),
+                "number of arg_keys should match number of items in in_signature",
+            ),
+            (
+                arg_attrs != None and len(arg_attrs) != len(in_signature),
+                "number of arg_attrs should match number of items in in_signature",
+            ),
+            (
+                set_result_keyword != None and result_keyword != None,
+                "specify set_result_keyword or result_keyword, not both",
+            ),
+            (
+                result_keys != None and result_attrs != None,
+                "specify result_keys or result_attrs, not both",
+            ),
+            (
+                result_keys != None and result_keyword == None,
+                "need result_keyword with result_keys",
+            ),
+            (
+                result_attrs != None and result_keyword == None,
+                "need result_keyword with result_attrs",
+            ),
+            (
+                result_keys != None and len(result_keys) != len(out_signature),
+                "number of result_keys should match number of items in out_signature",
+            ),
+            (
+                result_attrs != None and len(result_attrs) != len(out_signature),
+                "number of result_attrs should match number of items in out_signature",
+            ),
+        ) \
+    :
+        if cond :
+            raise ValueError(msg)
+        #end if
+    #end for
     if arg_keys == None :
         args_keys = arg_attrs
     #end if

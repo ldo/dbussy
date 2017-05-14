@@ -2087,7 +2087,13 @@ class PropertyHandler :
                         else :
                             valuesig = guess_signature(propvalue)
                         #end if
-                        _send_method_return(bus.connection, message, valuesig, [propvalue])
+                        _send_method_return \
+                          (
+                            connection = bus.connection,
+                            message = message,
+                            sig = [dbus.VariantType()],
+                            args = [(valuesig, propvalue)]
+                          )
                     #end await_return_value
                     bus.loop.create_task(await_return_value(propvalue))
                     reply = None
@@ -2100,7 +2106,13 @@ class PropertyHandler :
                     else :
                         valuesig = guess_signature(propvalue)
                     #end if
-                    _send_method_return(bus.connection, message, valuesig, [propvalue])
+                    _send_method_return \
+                      (
+                        connection = bus.connection,
+                        message = message,
+                        sig = [dbus.VariantType()],
+                        args = [(valuesig, propvalue)]
+                      )
                     reply = None
                 #end if
             else :

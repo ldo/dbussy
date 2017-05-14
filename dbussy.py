@@ -1255,8 +1255,12 @@ dbus.dbus_server_set_data.argtypes = (ct.c_void_p, ct.c_int)
 class DBusError(Exception) :
     "for raising an exception that reports a D-Bus error name and accompanying message."
 
+    __slots__ = ("name", "message")
+
     def __init__(self, name, message) :
         self.args = ("%s -- %s" % (name, message),)
+        self.name = name
+        self.message = message
     #end __init__
 
 #end DBusError

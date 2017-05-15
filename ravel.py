@@ -2040,8 +2040,10 @@ class IntrospectionHandler :
                 for entry in level["dispatch"].values() :
                     if component == None or entry["fallback"] :
                         interface = type(entry["interface"])
-                        interfaces[interface._interface_name] = interface
-                          # replace any higher-level entry for same name
+                        if interface._interface_kind != INTERFACE.CLIENT :
+                            interfaces[interface._interface_name] = interface
+                              # replace any higher-level entry for same name
+                        #end if
                     #end if
                 #end for
             #end if

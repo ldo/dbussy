@@ -857,6 +857,7 @@ class CMethod :
               )
             result = self._process_reply(reply)
         else :
+            message.no_reply = True
             self.interface.object.conn.connection.send(message)
             self.interface.object.conn.connection.read_write() # ensure it has gone out
             result = None
@@ -882,6 +883,7 @@ class CAsyncMethod(CMethod) :
               )
             result = self._process_reply(reply)
         else :
+            message.no_reply = True
             self.interface.object.conn.connection.send(message)
               # event loop should get around to actually sending it
             result = None

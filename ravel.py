@@ -272,8 +272,13 @@ class Connection :
         "for server-side use; registers the specified instance of an @interface()" \
         " class for handling method calls on the specified path, and also on subpaths" \
         " if fallback."
-        if not is_interface_instance(interface) :
-            raise TypeError("interface must be an instance of an @interface() class")
+        if is_interface_instance(interface) :
+            pass
+        elif is_interface(interface) :
+            # assume can instantiate without arguments
+            interface = interface()
+        else :
+            raise TypeError("interface must be an @interface() class or instance thereof")
         #end if
         if self._dispatch == None :
             self._dispatch = {}

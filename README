@@ -353,6 +353,29 @@ value of the argument named by result_keyword, and the handler is
 supposed to update its elements in-place.
 
 
+Predefined Interface Classes
+----------------------------
+
+Ravel provides predefined interface classes for the
+org.freedesktop.DBus.Peer, org.freedesktop.DBus.Introspectable and
+org.freedesktop.DBus.Properties interfaces, and these are
+automatically registered on Connection instances. The Peer interface
+is just a stub, since the actual implementation is hard-coded into
+libdbus itself; it is there to provide automatic introspection of this
+interface.
+
+The ravel.IntrospectionHandler class defines the standard
+Introspectable interface, and provides automatic introspection of all
+interfaces registered with a ravel.Connection. It extracts the
+information specified to the class, method, signal and
+property-handler decorators, and generates the appropriate XML form
+for returning to D-Bus queries.
+
+The ravel.PropertyHandler class defines the standard Properties
+interface, and automatically dispatches to @propgetter() and
+@propsetter() methods as defined in your interface classes.
+
+
 DBussy Examples
 ===============
 
@@ -371,4 +394,4 @@ it.
 
 
 Lawrence D'Oliveiro <ldo@geek-central.gen.nz>
-2017 May 14
+2017 May 15

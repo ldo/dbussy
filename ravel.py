@@ -832,7 +832,7 @@ class CMethod :
         self.method = method
     #end __init__
 
-    def _construct_message(self, args) :
+    def _construct_message(self, args, kwargs) :
         message = dbus.Message.new_method_call \
           (
             destination = self.interface.object.name,
@@ -840,9 +840,43 @@ class CMethod :
             iface = self.interface.name,
             method = self.method.name
           )
+        message_args = [None] * len(self.method.in_signature)
         if len(args) != 0 :
-            message.append_objects(dbus.unparse_signature(self.method.in_signature), *args)
+            if len(args) > len(message_args) :
+                raise ValueError("too many args")
+            #end if
+            message_args[:len(args)] = args
         #end if
+        if len(kwargs) != 0 :
+            arg_positions = {}
+            idx = 0
+            for arg in self.method.args :
+                if arg.direction == Introspection.DIRECTION.IN :
+                    arg_positions[arg.name] = idx
+                    idx += 1
+                #end if
+            #end for
+            for arg_name in kwargs :
+                if arg_name not in arg_positions :
+                    raise KeyError("no such arg name “%s”" % arg_name)
+                #end if
+                pos = arg_positions[arg_name]
+                if message_args[pos] != None :
+                    raise ValueError("duplicate value for arg %d" % pos)
+                #end if
+                message_args[pos] = kwargs[arg_name]
+            #end for
+        #end if
+        missing = set(pos for pos in range(len(message_args)) if message_args[pos] == None)
+        if len(missing) != 0 :
+            raise ValueError \
+              (
+                    "too few args specified: missing %s"
+                %
+                    ", ".join("%d" % pos for pos in sorted(missing))
+              )
+        #end if
+        message.append_objects(self.method.in_signature, *message_args)
         return \
             message
     #end _construct_message
@@ -859,8 +893,8 @@ class CMethod :
             result
     #end _process_reply
 
-    def __call__(self, *args) :
-        message = self._construct_message(args)
+    def __call__(self, *args, **kwargs) :
+        message = self._construct_message(args, kwargs)
         if self.method.expect_reply :
             reply = self.interface.object.conn.connection.send_with_reply_and_block \
               (
@@ -885,8 +919,8 @@ class CAsyncMethod(CMethod) :
     " for example in an “await” expression. Do not instantiate directly;" \
     " call the appropriate method name on the parent CAsyncInterface."
 
-    async def __call__(self, *args) :
-        message = self._construct_message(args)
+    async def __call__(self, *args, **kwargs) :
+        message = self._construct_message(args, kwargs)
         if self.method.expect_reply :
             reply = await self.interface.object.conn.connection.send_await_reply \
               (

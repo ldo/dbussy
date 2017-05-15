@@ -366,10 +366,10 @@ interface.
 
 The ravel.IntrospectionHandler class defines the standard
 Introspectable interface, and provides automatic introspection of all
-interfaces registered with a ravel.Connection. It extracts the
-information specified to the class, method, signal and
-property-handler decorators, and generates the appropriate XML form
-for returning to D-Bus queries.
+interfaces registered with a ravel.Connection (including itself and
+the other standard interfaces). It extracts the information specified
+to the class, method, signal and property-handler decorators, and
+generates the appropriate XML form for returning to D-Bus queries.
 
 The ravel.PropertyHandler class defines the standard Properties
 interface, and automatically dispatches to @propgetter() and

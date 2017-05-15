@@ -235,6 +235,26 @@ it finally completes. Method calls on this are automatically also
 coroutine calls, so you can use them in await-constructs in your
 coroutines, or create asyncio tasks to run them etc.
 
+Here is an example use of the ad-hoc calls, which pops up a GUI
+notification displaying a short message for 5 seconds. Because the
+introspection of this interface supplies names for the arguments, it
+is possible to pass them to the method call by keyword:
+
+    ravel.session_bus() \
+        .get_object("org.freedesktop.Notifications", "/org/freedesktop/Notifications") \
+        .get_interface("org.freedesktop.Notifications") \
+        .Notify \
+          (
+            app_name = "test",
+            replaces_id = 0,
+            app_icon = "dialog-information",
+            summary = "Hello World!",
+            body = "DBussy works!",
+            actions = [],
+            hints = {},
+            timeout = 5000,
+          )
+
 
 Structured Interface Definitions
 --------------------------------

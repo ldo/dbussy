@@ -2242,6 +2242,20 @@ class PropertyHandler :
         bus_keyword = "bus"
       )
     def setprop(self, bus, message, path, args) :
+
+        def notify_changed() :
+            # sends property-changed signal if appropriate.
+            if "getter" in propentry :
+                notify = propentry["change_notification"]
+                if notify == Introspection.PROP_CHANGE_NOTIFICATION.NEW_VALUE :
+                    bus.prop_changed(path, interface_name, propname, propvalue)
+                elif notify == Introspection.PROP_CHANGE_NOTIFICATION.INVALIDATES :
+                    bus.prop_changed(path, interface_name, propname, None)
+                #end if
+            #end if
+        #end notify_changed
+
+    #begin setprop
         interface_name, propname, propvalue = args
         dispatch = bus.get_dispatch(path, interface_name)
         props = type(dispatch)._interface_props
@@ -2286,6 +2300,7 @@ class PropertyHandler :
                         await setresult
                         reply = message.new_method_return()
                         bus.connection.send(reply)
+                        notify_changed()
                     #end wait_set_done
                     bus.loop.create_task(wait_set_done())
                     reply = None # for now
@@ -2294,6 +2309,7 @@ class PropertyHandler :
                     reply = message.new_error(setresult.name, setresult.nessage)
                 elif setresult == None :
                     reply = message.new_method_return()
+                    notify_changed()
                 else :
                     raise ValueError("invalid propsetter result %s" % repr(setresult))
                 #end if

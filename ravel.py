@@ -217,7 +217,7 @@ class Connection :
                 self.register \
                   (
                     path = "/",
-                    interface = interface,
+                    interface = interface(),
                     fallback = True
                   )
             #end for
@@ -268,13 +268,12 @@ class Connection :
             CObject(self, bus_name, path)
     #end get_object
 
-    def register(self, path, fallback, interface, args = None, kwargs = None) :
-        "for server-side use; registers an instance (instantiated as" \
-        " interface(*args, **kwargs)) of the specified @interface()" \
+    def register(self, path, fallback, interface) :
+        "for server-side use; registers the specified instance of an @interface()" \
         " class for handling method calls on the specified path, and also on subpaths" \
         " if fallback."
-        if not is_interface(interface) :
-            raise TypeError("interface must be an @interface() class")
+        if not is_interface_instance(interface) :
+            raise TypeError("interface must be an instance of an @interface() class")
         #end if
         if self._dispatch == None :
             self._dispatch = {}
@@ -293,17 +292,11 @@ class Connection :
         if "dispatch" not in level :
             level["dispatch"] = {}
         #end if
-        interface_name = interface._interface_name
+        interface_name = type(interface)._interface_name
         if interface_name in level["dispatch"] :
             raise KeyError("already registered an interface named “%s”" % interface_name)
         #end if
-        if args == None :
-            args = ()
-        #end if
-        if kwargs == None :
-            kwargs = {}
-        #end if
-        level["dispatch"][interface_name] = {"interface" : interface(*args, **kwargs), "fallback" : bool(fallback)}
+        level["dispatch"][interface_name] = {"interface" : interface, "fallback" : bool(fallback)}
     #end register
 
     def unregister(self, path, interface = None) :

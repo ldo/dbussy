@@ -1015,7 +1015,6 @@ def _message_interface_dispatch(connection, message, bus) :
                 method = methods[method_name]
                 call_info = getattr(method, ("_signal_info", "_method_info")[is_method])
                 to_return_result = None
-                allow_set_result = True
                 try :
                     try :
                         args = message.expect_objects(call_info["in_signature"])
@@ -1080,9 +1079,6 @@ def _message_interface_dispatch(connection, message, bus) :
                             def set_result(the_result) :
                                 "Call this to set the args for the reply message."
                                 nonlocal to_return_result
-                                if not allow_set_result :
-                                    raise RuntimeError("set_result must not be called from a coroutine")
-                                #end if
                                 to_return_result = the_result
                             #end set_result
                             kwargs[call_info["set_result_keyword"]] = set_result
@@ -1110,6 +1106,10 @@ def _message_interface_dispatch(connection, message, bus) :
                             except HandlerError as err :
                                 result = err.as_error()
                             #end try
+                            if result == None and to_return_result != None :
+                                # method handler used set_result mechanism
+                                result = to_return_result
+                            #end if
                             return_result_common(call_info, result)
                         #end await_result
                         bus.loop.create_task(await_result(result))

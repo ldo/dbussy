@@ -332,8 +332,7 @@ Returning results: the function can return the result values to be
 inserted into the method-return message as the function result, by
 assigning to elements of a mutable result argument (passed as the
 argument named by result_keyword, or by calling the set_result
-function that was passed via the set_result_keyword (above); the last
-method is not currently available to coroutines.
+function that was passed via the set_result_keyword (above).
 
 If neither result_keys nor result_attrs is specified, then the result
 is expected to be a sequence of values matching the out_signature. If

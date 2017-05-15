@@ -4444,6 +4444,13 @@ class _TagCommon :
             result
     #end get_annotation
 
+    @property
+    def is_deprecated(self) :
+        "is this interface/method/signal etc deprecated."
+        return \
+            self.get_annotation("org.freedesktop.DBus.Deprecated") == "true"
+    #end is_deprecated
+
     def __repr__(self) :
         celf = type(self)
         return \

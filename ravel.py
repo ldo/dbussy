@@ -985,7 +985,7 @@ def _message_interface_dispatch(connection, message, bus) :
                 try :
                     try :
                         args = message.expect_objects(call_info["in_signature"])
-                    except TypeError :
+                    except (TypeError, ValueError) :
                         raise HandlerError \
                           (
                             name = DBUS.ERROR_INVALID_ARGS,

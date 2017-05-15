@@ -4558,7 +4558,7 @@ class Introspection(_TagCommon) :
                     raise TypeError("args must be Arg instances")
                 #end if
                 self.name = name
-                self.args = tuple(args)
+                self.args = list(args)
                 self.annotations = Introspection._get_annotations(annotations)
             #end __init__
 
@@ -4618,7 +4618,7 @@ class Introspection(_TagCommon) :
                     raise TypeError("args must be Arg instances")
                 #end if
                 self.name = name
-                self.args = tuple(args)
+                self.args = list(args)
                 self.annotations = Introspection._get_annotations(annotations)
             #end __init__
 
@@ -4663,9 +4663,9 @@ class Introspection(_TagCommon) :
                 raise TypeError("properties must be Property instances")
             #end if
             self.name = name
-            self.methods = tuple(methods)
-            self.signals = tuple(signals)
-            self.properties = tuple(properties)
+            self.methods = list(methods)
+            self.signals = list(signals)
+            self.properties = list(properties)
             self.annotations = Introspection._get_annotations(annotations)
         #end __init__
 
@@ -4722,8 +4722,8 @@ class Introspection(_TagCommon) :
             raise TypeError("nodes must be Node instances")
         #end if
         self.name = name
-        self.interfaces = tuple(interfaces)
-        self.nodes = tuple(nodes)
+        self.interfaces = list(interfaces)
+        self.nodes = list(nodes)
         self.annotations =  Introspection._get_annotations(annotations)
     #end __init__
 

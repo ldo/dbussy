@@ -984,7 +984,7 @@ def _message_interface_dispatch(connection, message, bus) :
                         raise HandlerError \
                           (
                             name = DBUS.ERROR_INVALID_ARGS,
-                            message = "method-call arguments do not match expected signature"
+                            message = "message arguments do not match expected signature"
                           )
                     #end try
                     kwargs = {}

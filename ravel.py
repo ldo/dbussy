@@ -959,7 +959,7 @@ class INTERFACE(enum.Enum) :
 
 def _send_method_return(connection, message, sig, args) :
     reply = message.new_method_return()
-    reply.append_objects(dbus.unparse_signature(sig), *args)
+    reply.append_objects(sig, *args)
     connection.send(reply)
 #end _send_method_return
 
@@ -1834,7 +1834,7 @@ def def_proxy_interface(name, kind, introspected, is_async) :
                     iface = self._iface_name,
                     name = intr_method.name
                   )
-                message.append_objects(dbus.unparse_signature(intr_method.in_signature), *args)
+                message.append_objects(intr_method.in_signature, *args)
                 if intr_method.expect_reply :
                     reply = await self.conn.connection.send_await_reply(message, self.timeout)
                     result = reply.expect_objects(intr_method.out_signature)
@@ -1857,7 +1857,7 @@ def def_proxy_interface(name, kind, introspected, is_async) :
                     iface = self._iface_name,
                     name = intr_method.name
                   )
-                message.append_objects(dbus.unparse_signature(intr_method.in_signature), *args)
+                message.append_objects(intr_method.in_signature, *args)
                 if intr_method.expect_reply :
                     reply = self.conn.connection.send_with_reply_and_block(message, self.timeout)
                     result = reply.expect_objects(intr_method.out_signature)
@@ -1888,7 +1888,7 @@ def def_proxy_interface(name, kind, introspected, is_async) :
                 iface = self._iface_name,
                 name = intr_signal.name
               )
-            message.append_objects(dbus.unparse_signature(intr_signal.in_signature), *args)
+            message.append_objects(intr_signal.in_signature, *args)
             self.conn.connection.send(message)
         #end send_signal
 

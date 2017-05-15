@@ -975,72 +975,80 @@ def _message_interface_dispatch(connection, message, bus) :
             ) :
                 method = methods[method_name]
                 call_info = getattr(method, ("_signal_info", "_method_info")[is_method])
-                args = message.expect_objects(call_info["in_signature"])
-                kwargs = {}
-                for keyword_keyword, value in \
-                    (
-                        ("connection_keyword", lambda : connection),
-                        ("message_keyword", lambda : message),
-                        ("path_keyword", lambda : message.path),
-                        ("bus_keyword", lambda : bus),
-                    ) \
-                :
-                    if call_info[keyword_keyword] != None :
-                        kwargs[call_info[keyword_keyword]] = value()
-                    #end if
-                #end for
-                if call_info["args_keyword"] != None :
-                    if call_info["arg_keys"] != None :
-                        args =  dict \
-                          (
-                            (key, value)
-                            for key, value in zip(call_info["arg_keys"], args)
-                          )
-                        if "args_constructor" in call_info :
-                            args = call_info["args_constructor"](**args)
-                        #end if
-                    #end if
-                    kwargs[call_info["args_keyword"]] = args
-                    args = ()
-                else :
-                    if call_info["arg_keys"] != None :
-                        for key, value in zip(call_info["arg_keys"], args) :
-                            kwargs[key] = value
-                        #end for
-                        args = ()
-                    #end if
-                #end if
                 to_return_result = None
                 allow_set_result = True
-                if is_method :
-                    if call_info["result_keyword"] != None :
-                        # construct a mutable result object that handler will update in place
-                        to_return_result = [None] * len(call_info["out_signature"])
-                        if call_info["result_keys"] != None :
-                            to_return_result = dict \
+                try :
+                    try :
+                        args = message.expect_objects(call_info["in_signature"])
+                    except TypeError :
+                        raise HandlerError \
+                          (
+                            name = DBUS.ERROR_INVALID_ARGS,
+                            message = "method-call arguments do not match expected signature"
+                          )
+                    #end try
+                    kwargs = {}
+                    for keyword_keyword, value in \
+                        (
+                            ("connection_keyword", lambda : connection),
+                            ("message_keyword", lambda : message),
+                            ("path_keyword", lambda : message.path),
+                            ("bus_keyword", lambda : bus),
+                        ) \
+                    :
+                        if call_info[keyword_keyword] != None :
+                            kwargs[call_info[keyword_keyword]] = value()
+                        #end if
+                    #end for
+                    if call_info["args_keyword"] != None :
+                        if call_info["arg_keys"] != None :
+                            args =  dict \
                               (
-                                (key, val)
-                                for key, val in zip(call_info["result_keys"], to_return_result)
+                                (key, value)
+                                for key, value in zip(call_info["arg_keys"], args)
                               )
-                            if "result_constructor" in call_info :
-                                to_return_result = call_info["result_constructor"](**to_return_result)
+                            if "args_constructor" in call_info :
+                                args = call_info["args_constructor"](**args)
                             #end if
                         #end if
-                        kwargs[call_info["result_keyword"]] = to_return_result
-                    elif call_info["set_result_keyword"] != None :
-                        # caller wants to return result via callback
-                        def set_result(the_result) :
-                            "Call this to set the args for the reply message."
-                            nonlocal to_return_result
-                            if not allow_set_result :
-                                raise RuntimeError("set_result must not be called from a coroutine")
-                            #end if
-                            to_return_result = the_result
-                        #end set_result
-                        kwargs[call_info["set_result_keyword"]] = set_result
+                        kwargs[call_info["args_keyword"]] = args
+                        args = ()
+                    else :
+                        if call_info["arg_keys"] != None :
+                            for key, value in zip(call_info["arg_keys"], args) :
+                                kwargs[key] = value
+                            #end for
+                            args = ()
+                        #end if
                     #end if
-                #end if
-                try :
+                    if is_method :
+                        if call_info["result_keyword"] != None :
+                            # construct a mutable result object that handler will update in place
+                            to_return_result = [None] * len(call_info["out_signature"])
+                            if call_info["result_keys"] != None :
+                                to_return_result = dict \
+                                  (
+                                    (key, val)
+                                    for key, val in zip(call_info["result_keys"], to_return_result)
+                                  )
+                                if "result_constructor" in call_info :
+                                    to_return_result = call_info["result_constructor"](**to_return_result)
+                                #end if
+                            #end if
+                            kwargs[call_info["result_keyword"]] = to_return_result
+                        elif call_info["set_result_keyword"] != None :
+                            # caller wants to return result via callback
+                            def set_result(the_result) :
+                                "Call this to set the args for the reply message."
+                                nonlocal to_return_result
+                                if not allow_set_result :
+                                    raise RuntimeError("set_result must not be called from a coroutine")
+                                #end if
+                                to_return_result = the_result
+                            #end set_result
+                            kwargs[call_info["set_result_keyword"]] = set_result
+                        #end if
+                    #end if
                     result = method(iface, *args, **kwargs)
                 except HandlerError as err :
                     result = err.as_error()

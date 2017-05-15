@@ -207,12 +207,20 @@ class Connection :
             self._dispatch = None # only used server-side
             self._props_changed = None
             celf._instances[connection] = self
-            self.register \
-              (
-                path = "/",
-                fallback = True,
-                interface = PeerStub,
-              )
+            for interface in \
+                (
+                    PeerStub,
+                    IntrospectionHandler,
+                    PropertyHandler,
+                ) \
+            :
+                self.register \
+                  (
+                    path = "/",
+                    interface = interface,
+                    fallback = True
+                  )
+            #end for
         #end if
         return \
             self

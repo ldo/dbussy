@@ -207,6 +207,12 @@ class Connection :
             self._dispatch = None # only used server-side
             self._props_changed = None
             celf._instances[connection] = self
+            self.register \
+              (
+                path = "/",
+                fallback = True,
+                interface = PeerStub,
+              )
         #end if
         return \
             self
@@ -1978,6 +1984,36 @@ def def_proxy_interface(name, kind, introspected, is_async) :
 #+
 # Predefined interfaces
 #-
+
+@interface(INTERFACE.SERVER, name = DBUS.INTERFACE_PEER)
+class PeerStub :
+    "This is registered as a fallback at the root of your object tree to get" \
+    " automatic introspection of the DBUS.INTERFACE_PEER interface. The" \
+    " implementation is hard-coded inside libdbus itself, so the methods" \
+    " here will never be called."
+
+    @method \
+      (
+        name = "Ping",
+        in_signature = "",
+        out_signature = "",
+      )
+    def ping(self) :
+        raise NotImplementedError("How did you get here?")
+    #end ping
+
+    @method \
+      (
+        name = "GetMachineId",
+        in_signature = "",
+        out_signature = "s",
+        result_keys = ["machine_uuid"],
+      )
+    def get_machine_id(self) :
+        raise NotImplementedError("How did you get here?")
+    #end get_machine_id
+
+#end PeerStub
 
 @interface(INTERFACE.SERVER, name = DBUS.INTERFACE_INTROSPECTABLE)
 class IntrospectionHandler :

@@ -4873,6 +4873,29 @@ del _TagCommon
 
 standard_interfaces = \
     {
+        DBUS.INTERFACE_PEER :
+            # note implementation of this is hard-coded inside libdbus
+            Introspection.Interface
+              (
+                name = DBUS.INTERFACE_PEER,
+                methods =
+                    [
+                        Introspection.Interface.Method(name = "Ping"),
+                        Introspection.Interface.Method
+                          (
+                            name = "GetMachineId",
+                            args =
+                                [
+                                    Introspection.Interface.Method.Arg
+                                      (
+                                        name = "machine_uuid",
+                                        type = BasicType(TYPE.STRING),
+                                        direction = Introspection.DIRECTION.OUT,
+                                      ),
+                                ]
+                          ),
+                    ],
+              ),
         DBUS.INTERFACE_INTROSPECTABLE :
             Introspection.Interface
               (

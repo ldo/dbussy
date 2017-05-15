@@ -2249,23 +2249,33 @@ class PropertyHandler :
             propentry = props[propentry]
             if "setter" in propentry :
                 setter = propentry["setter"]
-                # TODO: respect propentry["type"]?
-                kwargs = {}
-                for keyword_keyword, value in \
-                    (
-                        ("name_keyword", lambda : propname),
-                        ("value_keyword", lambda : propvalue),
-                        ("connection_keyword", lambda : bus.connection),
-                        ("message_keyword", lambda : message),
-                        ("path_keyword", lambda : path),
-                        ("bus_keyword", lambda : bus),
-                    ) \
-                :
-                    if setter._propsetter_info[keyword_keyword] != None :
-                        kwargs[setter._propsetter_info[keyword_keyword]] = value()
-                    #end if
-                #end for
                 try :
+                    if propentry["type"] != None :
+                        try :
+                            propvalue = propentry["type"].validate(propvalue)
+                        except (TypeError, ValueError) :
+                            raise HandlerError \
+                              (
+                                name = DBUS.ERROR_INVALID_ARGS,
+                                message = "new property value does not match expected signature"
+                              )
+                        #end try
+                    #end if
+                    kwargs = {}
+                    for keyword_keyword, value in \
+                        (
+                            ("name_keyword", lambda : propname),
+                            ("value_keyword", lambda : propvalue),
+                            ("connection_keyword", lambda : bus.connection),
+                            ("message_keyword", lambda : message),
+                            ("path_keyword", lambda : path),
+                            ("bus_keyword", lambda : bus),
+                        ) \
+                    :
+                        if setter._propsetter_info[keyword_keyword] != None :
+                            kwargs[setter._propsetter_info[keyword_keyword]] = value()
+                        #end if
+                    #end for
                     setresult = setter(**kwargs)
                 except HandlerError as err :
                     setresult = err.as_error()

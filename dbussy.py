@@ -3257,6 +3257,12 @@ class Message :
             #end if
             c_type = DBUS.basic_to_ctypes[type]
             if c_type == ct.c_char_p :
+                if not isinstance(value, str) :
+                    raise TypeError \
+                      (
+                        "expecting type %s, got %s" % (TYPE(type), builtins.type(value).__name__)
+                      )
+                #end if
                 value = value.encode()
             #end if
             c_value = c_type(value)

@@ -440,7 +440,7 @@ class Connection :
             destination = destination,
             path = dbus.unsplit_path(path),
             iface = iface_type._interface_name,
-            name = name
+            method = name
           )
         if len(args) != 0 :
             message.append_objects \
@@ -500,7 +500,7 @@ class Connection :
             destination = destination,
             path = dbus.unsplit_path(path),
             iface = iface_type._interface_name,
-            name = name
+            method = name
           )
         if len(args) != 0 :
             message.append_objects \
@@ -1832,7 +1832,7 @@ def def_proxy_interface(name, kind, introspected, is_async) :
                     destination = self.dest,
                     path = dbus.unsplit_path(path),
                     iface = self._iface_name,
-                    name = intr_method.name
+                    method = intr_method.name
                   )
                 message.append_objects(intr_method.in_signature, *args)
                 if intr_method.expect_reply :
@@ -1855,7 +1855,7 @@ def def_proxy_interface(name, kind, introspected, is_async) :
                     destination = self.dest,
                     path = dbus.unsplit_path(path),
                     iface = self._iface_name,
-                    name = intr_method.name
+                    method = intr_method.name
                   )
                 message.append_objects(intr_method.in_signature, *args)
                 if intr_method.expect_reply :
@@ -1908,7 +1908,7 @@ def def_proxy_interface(name, kind, introspected, is_async) :
                     destination = self.dest,
                     path = dbus.unsplit_path(path),
                     iface = DBUS.INTERFACE_PROPERTIES,
-                    name = "Get"
+                    method = "Get"
                   )
                 message.append_objects("ss", self._iface_name, intr_prop.name)
                 reply = await self.conn.connection.send_await_reply(message, self.timeout)
@@ -1922,7 +1922,7 @@ def def_proxy_interface(name, kind, introspected, is_async) :
                     destination = self.dest,
                     path = dbus.unsplit_path(path),
                     iface = DBUS.INTERFACE_PROPERTIES,
-                    name = "Set"
+                    method = "Set"
                   )
                 message.append_objects("ssv", self._iface_name, intr_prop.name, value)
                 reply = await self.conn.connection.send_await_reply(message, self.timeout)
@@ -1943,7 +1943,7 @@ def def_proxy_interface(name, kind, introspected, is_async) :
                     destination = self.dest,
                     path = dbus.unsplit_path(path),
                     iface = DBUS.INTERFACE_PROPERTIES,
-                    name = "Get"
+                    method = "Get"
                   )
                 message.append_objects("ss", self._iface_name, intr_prop.name)
                 reply = self.conn.connection.send_with_reply_and_block(message, self.timeout)
@@ -1957,7 +1957,7 @@ def def_proxy_interface(name, kind, introspected, is_async) :
                     destination = self.dest,
                     path = dbus.unsplit_path(path),
                     iface = DBUS.INTERFACE_PROPERTIES,
-                    name = "Set"
+                    method = "Set"
                   )
                 message.append_objects("ssv", self._iface_name, intr_prop.name, value)
                 reply = self.conn.connection.send_with_reply_and_block(message, self.timeout)

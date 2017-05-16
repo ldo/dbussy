@@ -4149,6 +4149,134 @@ def format_rule(rule) :
         rule
 #end format_rule
 
+class _RuleParser :
+    # internal definitions for rule parsing.
+
+    class PARSE(enum.Enum) :
+        EXPECT_NAME = 1
+        EXPECT_UNQUOTED_VALUE = 2
+        EXPECT_ESCAPED = 3
+        EXPECT_QUOTED_VALUE = 4
+    #end PARSE
+
+    @classmethod
+    def unformat_rule(celf, rule) :
+        "converts a match rule string from the standard syntax to a dict of {key : value} entries."
+        if isinstance(rule, dict) :
+            pass
+        elif isinstance(rule, str) :
+            PARSE = celf.PARSE
+            parsed = {}
+            chars = iter(rule)
+            state = PARSE.EXPECT_NAME
+            curname = None
+            curval = None
+            while True :
+                ch = next(chars, None)
+                if ch == None :
+                    if state == PARSE.EXPECT_ESCAPED :
+                        raise SyntaxError("missing character after backslash")
+                    elif state == PARSE.EXPECT_QUOTED_VALUE :
+                        raise SyntaxError("missing closing apostrophe")
+                    else : # state in (PARSE.EXPECT_NAME, PARSE.EXPECT_UNQUOTED_VALUE)
+                        if curname != None :
+                            if curval != None :
+                                if curname in parsed :
+                                    raise SyntaxError("duplicated attribute “%s”" % curname)
+                                #end if
+                                parsed[curname] = curval
+                            else :
+                                raise SyntaxError("missing value for attribute “%s”" % curname)
+                            #end if
+                        #end if
+                    #end if
+                    break
+                #end if
+                if state == PARSE.EXPECT_ESCAPED :
+                    if ch == "'" :
+                        usech = ch
+                        nextch = None
+                    else :
+                        usech = "\\"
+                        nextch = ch
+                    #end if
+                    ch = usech
+                    if curval == None :
+                        curval = ch
+                    else :
+                        curval += ch
+                    #end if
+                    ch = nextch # None indicates already processed
+                    state = PARSE.EXPECT_UNQUOTED_VALUE
+                #end if
+                if ch != None :
+                    if ch == "," and state != PARSE.EXPECT_QUOTED_VALUE :
+                        if state == PARSE.EXPECT_UNQUOTED_VALUE :
+                            if curname in parsed :
+                                raise SyntaxError("duplicated attribute “%s”" % curname)
+                            #end if
+                            if curval == None :
+                                curval = ""
+                            #end if
+                            parsed[curname] = curval
+                            curname = None
+                            curval = None
+                            state = PARSE.EXPECT_NAME
+                        else :
+                            raise SyntaxError("unexpected comma")
+                        #end if
+                    elif ch == "\\" and state != PARSE.EXPECT_QUOTED_VALUE :
+                        if state == PARSE.EXPECT_UNQUOTED_VALUE :
+                            state = PARSE.EXPECT_ESCAPED
+                        else :
+                            raise SyntaxError("unexpected backslash")
+                        #end if
+                    elif ch == "=" and state != PARSE.EXPECT_QUOTED_VALUE :
+                        if state == PARSE.EXPECT_NAME :
+                            state = PARSE.EXPECT_UNQUOTED_VALUE
+                        else :
+                            raise SyntaxError("unexpected equals sign")
+                        #end if
+                    elif ch == "'" :
+                        if state == PARSE.EXPECT_UNQUOTED_VALUE :
+                            state = PARSE.EXPECT_QUOTED_VALUE
+                        elif state == PARSE.EXPECT_QUOTED_VALUE :
+                            state = PARSE.EXPECT_UNQUOTED_VALUE
+                        else :
+                            raise SyntaxError("unexpected apostrophe")
+                        #end if
+                    else :
+                        if state == PARSE.EXPECT_NAME :
+                            if curname == None :
+                                curname = ch
+                            else :
+                                curname += ch
+                            #end if
+                        elif state in (PARSE.EXPECT_QUOTED_VALUE, PARSE.EXPECT_UNQUOTED_VALUE) :
+                            if curval == None :
+                                curval = ch
+                            else :
+                                curval += ch
+                            #end if
+                        else :
+                            raise AssertionError("shouldn’t occur: parse state %s" % repr(state))
+                        #end if
+                    #end if
+                #end if
+            #end while
+            rule = parsed
+        else :
+            raise TypeError("rule “%s” must be a dict or string" % repr(rule))
+        #end if
+        return \
+            rule
+    #end unformat_rule
+
+#end _RuleParser
+
+unformat_rule = _RuleParser.unformat_rule
+del _RuleParser
+
 class SignatureIter :
     "wraps a DBusSignatureIter object. Do not instantiate directly; use the init" \
     " and recurse methods."

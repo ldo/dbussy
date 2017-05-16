@@ -4232,6 +4232,9 @@ class _RuleParser :
                             raise SyntaxError("unexpected backslash")
                         #end if
                     elif ch == "=" and state != PARSE.EXPECT_QUOTED_VALUE :
+                        if curname == None :
+                            raise SyntaxError("empty attribute name")
+                        #end if
                         if state == PARSE.EXPECT_NAME :
                             state = PARSE.EXPECT_UNQUOTED_VALUE
                         else :

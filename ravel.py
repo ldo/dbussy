@@ -954,7 +954,7 @@ class INTERFACE(enum.Enum) :
 
     CLIENT = 1
     SERVER = 2
-    CLIENT_AND_SERVER = 3
+    CLIENT_AND_SERVER = 3 # CLIENT | SERVER
 #end INTERFACE
 
 def _send_method_return(connection, message, sig, args) :
@@ -2033,7 +2033,7 @@ def def_proxy_interface(name, kind, introspected, is_async) :
 # Predefined interfaces
 #-
 
-@interface(INTERFACE.SERVER, name = DBUS.INTERFACE_PEER)
+@interface(INTERFACE.CLIENT_AND_SERVER, name = DBUS.INTERFACE_PEER)
 class PeerStub :
     "This is registered as a fallback at the root of your object tree to get" \
     " automatic introspection of the DBUS.INTERFACE_PEER interface. The" \
@@ -2063,7 +2063,7 @@ class PeerStub :
 
 #end PeerStub
 
-@interface(INTERFACE.SERVER, name = DBUS.INTERFACE_INTROSPECTABLE)
+@interface(INTERFACE.CLIENT_AND_SERVER, name = DBUS.INTERFACE_INTROSPECTABLE)
 class IntrospectionHandler :
     "Register this as a fallback at the root of your object tree to obtain" \
     " automatic introspection of any point in the tree."
@@ -2130,7 +2130,7 @@ class IntrospectionHandler :
 
 #end IntrospectionHandler
 
-@interface(INTERFACE.SERVER, name = DBUS.INTERFACE_PROPERTIES)
+@interface(INTERFACE.CLIENT_AND_SERVER, name = DBUS.INTERFACE_PROPERTIES)
 class PropertyHandler :
     "Register this as a fallback at the root of your object tree to provide" \
     " automatic dispatching to any @propgetter() and @propsetter() methods" \

@@ -2100,7 +2100,14 @@ def introspect(interface) :
 def def_proxy_interface(name, kind, introspected, is_async) :
     "given an Introspection.Interface object, creates a proxy class that can be" \
     " instantiated by a client to send method-call messages to a server," \
-    " or by a server to send signal messages to clients."
+    " or by a server to send signal messages to clients. is_async indicates" \
+    " whether method calls are done via coroutines as opposed to blocking" \
+    " the thread. The resulting class can be instantiated by\n" \
+    "\n" \
+    "    instance = proxy_class(«conn», «dest»)\n" \
+    "\n" \
+    " where «conn» is a dbussy.Connection object to use for sending and receiving" \
+    " the messages, and «dest» is the bus name to which to send the messages."
 
     if not isinstance(kind, INTERFACE) :
         raise TypeError("kind must be an INTERFACE enum value")

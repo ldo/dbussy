@@ -2632,7 +2632,7 @@ class PropertyHandler :
             DBUS.HANDLER_RESULT_HANDLED
     #end get_all_props
 
-    @signal(name = "PropertiesChanged", in_signature = "sa{sv}as")
+    @signal(name = "PropertiesChanged", in_signature = "sa{sv}as", stub = True)
     def properties_changed(self) :
         "for use with Connection.send_signal."
         pass

@@ -320,7 +320,7 @@ class Connection :
             self
     #end attach_asyncio
 
-    class Name :
+    class BusName :
         __slots__ = ("conn", "name")
 
         def __init__(self, conn, name) :
@@ -332,15 +332,15 @@ class Connection :
             self.conn.connection.bus_release_name(self.name)
         #end __del__
 
-    #end Name
+    #end BusName
 
     def request_name(self, bus_name, flags) :
-        "registers a bus name, returning a Connection.Name object; hold on" \
+        "registers a bus name, returning a Connection.BusName object; hold on" \
         " to this for as long as you want the name registered. When Python" \
         " disposes of the object, the name will be released."
         self.connection.bus_request_name(bus_name, flags)
         return \
-            type(self).Name(self, bus_name)
+            type(self).BusName(self, bus_name)
     #end request_name
 
     def get_object(self, bus_name, path) :
@@ -2711,7 +2711,7 @@ class PropertyHandler :
 
 def _atexit() :
     # disable all __del__ methods at process termination to avoid unpredictable behaviour
-    for cls in Connection, Connection.Name, Server :
+    for cls in Connection, Connection.BusName, Server :
         delattr(cls, "__del__")
     #end for
 #end _atexit

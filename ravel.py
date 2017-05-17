@@ -2674,7 +2674,7 @@ class PropertyHandler :
 
 def _atexit() :
     # disable all __del__ methods at process termination to avoid unpredictable behaviour
-    for cls in Connection, :
+    for cls in Connection, Connection.Name, Server :
         delattr(cls, "__del__")
     #end for
 #end _atexit

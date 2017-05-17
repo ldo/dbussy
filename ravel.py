@@ -15,6 +15,7 @@ import enum
 from weakref import \
     WeakValueDictionary
 import asyncio
+import atexit
 import dbussy as dbus
 from dbussy import \
     DBUS, \
@@ -225,10 +226,14 @@ class _DispatchNode :
 #end _DispatchNode
 
 class Connection :
-    "higher-level wrapper around dbussy.Connection. Provides various functions," \
-    " some more suited to client-side use and some more suitable to the server side." \
-    " Allows for registering of @interface() classes for automatic dispatching of" \
-    " method calls at appropriate points in the object hierarchy."
+    "higher-level wrapper around dbussy.Connection. Do not instantiate directly: use" \
+    " the session_bus() and system_bus() calls in this module, or obtain from accepting" \
+    " connections on a Server().\n" \
+    "\n" \
+    "This class rovides various functions, some more suited to client-side use and" \
+    " some more suitable to the server side. Allows for registering of @interface()" \
+    " classes for automatic dispatching of method calls at appropriate points in" \
+    " the object hierarchy."
 
     __slots__ = \
         (
@@ -274,6 +279,29 @@ class Connection :
         return \
             self
     #end __new__
+
+    def __del__(self) :
+
+        def remove_listeners(level, path) :
+            for node, child in level.children.items() :
+                remove_listeners(child, path + [node])
+            #end for
+            for rulekey in level.signal_listeners :
+                fallback, interface, name = rulekey
+                ignore = dbus.Error.init()
+                self.connection.bus_remove_match \
+                  (
+                    _signal_rule(path, fallback, interface, name),
+                    ignore
+                  )
+            #end for
+        #end remove_listeners
+
+    #begin __del__
+        if self._dispatch != None :
+            remove_listeners(self._dispatch, [])
+        #end if
+    #end __del__
 
     def attach_asyncio(self, loop = None) :
         "attaches this Connection object to an asyncio event loop. If none is" \
@@ -2639,3 +2667,16 @@ class PropertyHandler :
     #end properties_changed
 
 #end PropertyHandler
+
+#+
+# Cleanup
+#-
+
+def _atexit() :
+    # disable all __del__ methods at process termination to avoid unpredictable behaviour
+    for cls in Connection, :
+        delattr(cls, "__del__")
+    #end for
+#end _atexit
+atexit.register(_atexit)
+del _atexit

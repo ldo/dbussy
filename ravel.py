@@ -406,7 +406,14 @@ class Connection :
             level
     #end _get_dispatch_node
 
-    def register(self, path, fallback, interface) :
+    def _remove_matches(self, dispatch) :
+        for rulestr in dispatch.listening :
+            ignore = dbus.Error.init()
+            self.connection.bus_remove_match(rulestr, ignore)
+        #end for
+    #end _remove_matches
+
+    def register(self, path, fallback, interface, replace = True) :
         "for server-side use; registers the specified instance of an @interface()" \
         " class for handling method calls on the specified path, and also on subpaths" \
         " if fallback."
@@ -432,7 +439,17 @@ class Connection :
         #end for
         interface_name = iface_type._interface_name
         if interface_name in level.interfaces :
-            raise KeyError("already registered an interface named “%s”" % interface_name)
+            entry = level.interfaces[interface_name]
+            existing_kind = type(entry.interface)._interface_kind
+            if not replace or existing_kind != iface_type._interface_kind :
+                raise KeyError \
+                  (
+                        "already registered an interface named “%s” of kind %s"
+                    %
+                        (interface_name, existing_kind)
+                  )
+            #end if
+            self._remove_matches(entry)
         #end if
         entry = _DispatchNode._Interface(interface, fallback)
         if iface_type._interface_kind != INTERFACE.SERVER :
@@ -464,11 +481,7 @@ class Connection :
                         interfaces = set(level.interfaces.keys())
                     #end if
                     for iface_name in interfaces :
-                        entry = level.interface[iface_name]
-                        for rulestr in entry.listening :
-                            ignore = dbus.Error.init()
-                            self.connection.bus_remove_match(rulestr, ignore)
-                        #end for
+                        self._remove_matches(level.interface[iface_name])
                         del level.interface[iface_name]
                     #end for
                     break

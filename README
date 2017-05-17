@@ -261,7 +261,8 @@ Structured Interface Definitions
 
 The more structured high-level interface offered by Ravel is built
 around the concept of an *interface class*, which is a Python class
-that you define to implement a D-Bus interface. You can then
+that represents a D-Bus interface, either as an actual implementation
+or as a “proxy” for making calls to another bus peer. You can then
 register instances of this class on a bus connection at selected
 points in your object path hierarchy, to handle either only specific
 objects at those paths or as a fallback to also deal with objects
@@ -276,6 +277,25 @@ decorator to the class definition, specifying the kind of interface
     class MyClass :
         ...
     #end MyClass
+
+The meanings of the first, “kind”, argument to @ravel.interface are
+as follows:
+  * INTERFACE.SERVER -- you are the server implementing the method
+    calls defined by this interface. However, the signal definitions
+    are just “stubs” used for type-checking when you send those signals
+    over the bus. This interface definition can also be introspected
+    to inform users about the facilities provided by the interface.
+  * INTERFACE.CLIENT -- you are a client wanting to communicate with
+    a server that implements this interface. The method calls are
+    just stubs used for type-checking when you send those calls over
+    the bus. The signal definitions can be your actual functions
+    that you want to be invoked when those signals are received, or
+    they can also be stubs.
+  * INTERFACE.CLIENT_AND_SERVER -- both of the above; you implement
+    the methods, and maybe the signals as well, and you can also use
+    their definitions to send corresponding method and signal calls to
+    peers that implement the same interface. The standard interfaces
+    (Peer, Introspectable, Properties) are defined in this way.
 
 Within such a class, Python methods that are to handle D-Bus method
 calls are identified with the @ravel.method() decorator, e.g.:
@@ -371,6 +391,35 @@ to be returned as the function result; otherwise, it is passed as the
 value of the argument named by result_keyword, and the handler is
 supposed to update its elements in-place.
 
+Signal definitions look similar, except they return no results:
+
+    @ravel.signal \
+      (
+        name = ...,
+        in_signature = ...,
+        args_keyword = ...,
+        arg_keys = ...,
+        arg_attrs = ...,
+        connection_keyword = ...,
+        message_keyword = ...,
+        path_keyword = ...,
+        bus_keyword = ...,
+        stub = ...,
+        ...
+      )
+    def my_signal(...) :
+        ...
+    #end my_signal
+
+Also note the “stub” argument--this has meaning on a client-side
+interface to indicate that the interface class does not implement
+the listener for the signal, but that it is registered separately
+with a register_listener call. This is used for the PropertiesChanged
+signal in ravel.PropertyHandler (the standard handler for the
+DBUS.INTERFACE_PROPERTIES interface), so that you do not have
+to replace the class just to install your own listeners for this
+signal.
+
 
 Predefined Interface Classes
 ----------------------------
@@ -413,4 +462,4 @@ it.
 
 
 Lawrence D'Oliveiro <ldo@geek-central.gen.nz>
-2017 May 15
+2017 May 17

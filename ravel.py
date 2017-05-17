@@ -201,11 +201,12 @@ class _DispatchNode :
 
     class _Interface :
 
-        __slots__ = ("interface", "fallback")
+        __slots__ = ("interface", "fallback", "listening")
 
         def __init__(self, interface, fallback) :
             self.interface = interface
             self.fallback = fallback
+            self.listening = set() # of match rule strings
         #end __init
 
     #end _Interface
@@ -285,6 +286,12 @@ class Connection :
         def remove_listeners(level, path) :
             for node, child in level.children.items() :
                 remove_listeners(child, path + [node])
+            #end for
+            for interface in level.interfaces :
+                for rulestr in interface.listening :
+                    ignore = dbus.Error.init()
+                    self.connection.bus_remove_match(rulestr, ignore)
+                #end for
             #end for
             for rulekey in level.signal_listeners :
                 fallback, interface, name = rulekey
@@ -404,10 +411,11 @@ class Connection :
         " class for handling method calls on the specified path, and also on subpaths" \
         " if fallback."
         if is_interface_instance(interface) :
-            pass
+            iface_type = type(interface)
         elif is_interface(interface) :
             # assume can instantiate without arguments
-            interface = interface()
+            iface_type = interface
+            interface = iface_type()
         else :
             raise TypeError("interface must be an @interface() class or instance thereof")
         #end if
@@ -422,11 +430,20 @@ class Connection :
             #end if
             level = level.children[component]
         #end for
-        interface_name = type(interface)._interface_name
+        interface_name = iface_type._interface_name
         if interface_name in level.interfaces :
             raise KeyError("already registered an interface named “%s”" % interface_name)
         #end if
-        level.interfaces[interface_name] = _DispatchNode._Interface(interface, fallback)
+        entry = _DispatchNode._Interface(interface, fallback)
+        if iface_type._interface_kind != INTERFACE.SERVER :
+            signals = iface_type._interface_signals
+            for name in signals :
+                rulestr = _signal_rule(path, fallback, interface_name, name)
+                self.connection.bus_add_match(rulestr)
+                entry.listening.add(rulestr)
+            #end for
+        #end for
+        level.interfaces[interface_name] = entry
     #end register
 
     def unregister(self, path, interface = None) :
@@ -447,6 +464,11 @@ class Connection :
                         interfaces = set(level.interfaces.keys())
                     #end if
                     for iface_name in interfaces :
+                        entry = level.interface[iface_name]
+                        for rulestr in entry.listening :
+                            ignore = dbus.Error.init()
+                            self.connection.bus_remove_match(rulestr, ignore)
+                        #end for
                         del level.interface[iface_name]
                     #end for
                     break

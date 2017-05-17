@@ -455,9 +455,11 @@ class Connection :
         if iface_type._interface_kind != INTERFACE.SERVER :
             signals = iface_type._interface_signals
             for name in signals :
-                rulestr = _signal_rule(path, fallback, interface_name, name)
-                self.connection.bus_add_match(rulestr)
-                entry.listening.add(rulestr)
+                if not iface_type._interface_signals[name]._signal_info["stub"] :
+                    rulestr = _signal_rule(path, fallback, interface_name, name)
+                    self.connection.bus_add_match(rulestr)
+                    entry.listening.add(rulestr)
+                #end if
             #end for
         #end for
         level.interfaces[interface_name] = entry

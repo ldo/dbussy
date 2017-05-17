@@ -4134,12 +4134,51 @@ def format_rule(rule) :
     "convenience routine to allow a match rule to be expressed as either" \
     " a dict of {key : value} or the usual string \"key='value'\", automatically" \
     " converting the former to the latter."
+
+    def escape_val(val) :
+        if "," in val :
+            if "'" in val :
+                out = "'"
+                in_quotes = True
+                for ch in val :
+                    if ch == "'" :
+                        if in_quotes :
+                            out += "'"
+                            in_quotes = False
+                        #end if
+                        out += "\\'"
+                    else :
+                        if not in_quotes :
+                            out += "'"
+                            in_quotes = True
+                        #end if
+                        out += ch
+                    #end if
+                #end for
+                if in_quotes :
+                    out += "'"
+                #end if
+            else :
+                out = "'" + val + "'"
+            #end if
+        else :
+            out = ""
+            for ch in val :
+                if ch in ("\\", "'") :
+                    out += "\\"
+                #end if
+                out += ch
+            #end for
+        #end if
+        return \
+            out
+    #end escape_val
+
+#begin format_rule
     if isinstance(rule, str) :
         pass
     elif isinstance(rule, dict) :
-        # there seems to be no provision for escaping values; single-quoting
-        # appears to be enough
-        rule = ",".join("%s='%s'" % (k, rule[k]) for k in sorted(rule))
+        rule = ",".join("%s=%s" % (k, escape_val(rule[k])) for k in sorted(rule))
           # sort to ensure some kind of consistent ordering, just for
           # appearance’s sake
     else :

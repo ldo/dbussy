@@ -438,7 +438,7 @@ class Connection :
             raise TypeError("callback must have @signal() decorator applied")
         #end if
         signal_info = func._signal_info
-        entry = self._get_dispatch(path, True)
+        entry = self._get_dispatch_node(path, True)
         # should I bother to check it matches a registered interface and
         # defined signal therein?
         listeners = entry.signal_listeners

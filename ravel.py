@@ -2188,6 +2188,23 @@ def def_proxy_interface(name, kind, introspected, is_async) :
 
     #begin def_method
         call_method.__name__ = intr_method.name
+        call_method.__doc__ = \
+            (
+                "method, %(args)s, %(result)s"
+            %
+                {
+                    "args" :
+                        (
+                            lambda : "no args",
+                            lambda : "args %s" % dbus.unparse_signature(intr_method.in_signature),
+                        )[len(intr_method.in_signature) != 0](),
+                    "result" :
+                        (
+                            lambda : "no result",
+                            lambda : "result %s" % dbus.unparse_signature(intr_method.out_signature),
+                        )[len(intr_method.out_signature) != 0](),
+                }
+            )
         setattr(proxy, intr_method.name, call_method)
     #end def_method
 
@@ -2208,6 +2225,18 @@ def def_proxy_interface(name, kind, introspected, is_async) :
 
     #begin def_signal
         send_signal.__name__ = intr_signal.name
+        send_signal.__doc__ = \
+            (
+                    "signal, %(args)s"
+                %
+                    {
+                        "args" :
+                            (
+                                lambda : "no args",
+                                lambda : "args %s" % dbus.unparse_signature(intr_signal.in_signature),
+                            )[len(intr_signal.in_signature) != 0](),
+                    }
+            )
         setattr(proxy, signal.name, send_signal)
     #end def_signal
 

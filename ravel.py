@@ -2151,7 +2151,13 @@ def def_proxy_interface(name, kind, introspected, is_async) :
                 message.append_objects(intr_method.in_signature, *args)
                 if intr_method.expect_reply :
                     reply = await self.connection.send_await_reply(message, self.timeout)
-                    result = reply.expect_objects(intr_method.out_signature)
+                    if reply.type == DBUS.MESSAGE_TYPE_METHOD_RETURN :
+                        result = reply.expect_objects(intr_method.out_signature)
+                    elif reply.type == DBUS.MESSAGE_TYPE_ERROR :
+                        raise dbus.DBusError(reply.error_name, reply.all_objects[0])
+                    else :
+                        raise ValueError("unexpected reply type %d" % reply.type)
+                    #end if
                 else :
                     message.no_reply = True
                     self.connection.send(message)

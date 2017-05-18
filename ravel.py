@@ -496,7 +496,7 @@ class Connection :
         #end if
     #end unregister
 
-    def register_signal(self, path, fallback, interface, name, func) :
+    def listen_signal(self, path, fallback, interface, name, func) :
         "for client-side use; registers a callback which will be invoked when a" \
         " signal is received for the specified path, interface and name."
         if not hasattr(func, "_signal_info") :
@@ -513,9 +513,9 @@ class Connection :
             listeners[rulekey] = []
         #end if
         listeners[rulekey].append(func)
-    #end register_signal
+    #end listen_signal
 
-    def unregister_signal(self, path, fallback, interface, name, func) :
+    def unlisten_signal(self, path, fallback, interface, name, func) :
         "for client-side use; unregisters a previously-registered callback" \
         " which would have been invoked when a signal is received for the" \
         " specified path, interface and name."
@@ -544,7 +544,7 @@ class Connection :
             #end if
             self._trim_dispatch()
         #end if
-    #end unregister_signal
+    #end unlisten_signal
 
     def get_dispatch_interface(self, path, interface_name) :
         "returns the appropriate instance of a previously-registered interface" \

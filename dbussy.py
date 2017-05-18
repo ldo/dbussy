@@ -5079,6 +5079,347 @@ standard_interfaces = \
                           ),
                     ],
               ),
+        DBUS.INTERFACE_DBUS :
+            Introspection.Interface
+              (
+                name = DBUS.INTERFACE_DBUS,
+                methods =
+                    [
+                        Introspection.Interface.Method
+                          (
+                            name = "Hello",
+                            args =
+                                [
+                                    Introspection.Interface.Method.Arg
+                                      (
+                                        type = BasicType(TYPE.STRING),
+                                        direction = Introspection.DIRECTION.OUT,
+                                      ), # returned unique name
+                                ]
+                          ),
+                        Introspection.Interface.Method
+                          (
+                            name = "RequestName",
+                            args =
+                                [
+                                    Introspection.Interface.Method.Arg
+                                      (
+                                        type = BasicType(TYPE.STRING),
+                                        direction = Introspection.DIRECTION.IN,
+                                      ), # name
+                                    Introspection.Interface.Method.Arg
+                                      (
+                                        type = BasicType(TYPE.UINT32),
+                                        direction = Introspection.DIRECTION.IN,
+                                      ), # flags DBUS.NAME_FLAG_xxx
+                                    Introspection.Interface.Method.Arg
+                                      (
+                                        type = BasicType(TYPE.UINT32),
+                                        direction = Introspection.DIRECTION.OUT,
+                                      ), # result DBUS.REQUEST_NAME_REPLY_xxx
+                                ]
+                          ),
+                        Introspection.Interface.Method
+                          (
+                            name = "ReleaseName",
+                            args =
+                                [
+                                    Introspection.Interface.Method.Arg
+                                      (
+                                        type = BasicType(TYPE.STRING),
+                                        direction = Introspection.DIRECTION.IN,
+                                      ),
+                                    Introspection.Interface.Method.Arg
+                                      (
+                                        type = BasicType(TYPE.UINT32),
+                                        direction = Introspection.DIRECTION.OUT,
+                                      ), # result DBUS.RELEASE_NAME_REPLY_xxx
+                                ]
+                          ),
+                        Introspection.Interface.Method
+                          (
+                            name = "StartServiceByName",
+                            args =
+                                [
+                                    Introspection.Interface.Method.Arg
+                                      (
+                                        type = BasicType(TYPE.STRING),
+                                        direction = Introspection.DIRECTION.IN,
+                                      ), # name
+                                    Introspection.Interface.Method.Arg
+                                      (
+                                        type = BasicType(TYPE.UINT32),
+                                        direction = Introspection.DIRECTION.IN,
+                                      ), # flags (currently unused)
+                                    Introspection.Interface.Method.Arg
+                                      (
+                                        type = BasicType(TYPE.UINT32),
+                                        direction = Introspection.DIRECTION.OUT,
+                                      ), # result DBUS.START_REPLY_xxx
+                                ]
+                          ),
+                        Introspection.Interface.Method
+                          (
+                            name = "UpdateActivationEnvironment",
+                            args =
+                                [
+                                    Introspection.Interface.Method.Arg
+                                      (
+                                        type = DictType
+                                          (
+                                            keytype = BasicType(TYPE.STRING),
+                                            valuetype = BasicType(TYPE.STRING)
+                                          ),
+                                        direction = Introspection.DIRECTION.IN,
+                                      ), # environment
+                                ]
+                          ),
+                        Introspection.Interface.Method
+                          (
+                            name = "NameHasOwner",
+                            args =
+                                [
+                                    Introspection.Interface.Method.Arg
+                                      (
+                                        type = BasicType(TYPE.STRING),
+                                        direction = Introspection.DIRECTION.IN,
+                                      ), # name
+                                    Introspection.Interface.Method.Arg
+                                      (
+                                        type = BasicType(TYPE.BOOLEAN),
+                                        direction = Introspection.DIRECTION.OUT,
+                                      ),
+                                ]
+                          ),
+                        Introspection.Interface.Method
+                          (
+                            name = "ListNames",
+                            args =
+                                [
+                                    Introspection.Interface.Method.Arg
+                                      (
+                                        type = ArrayType(BasicType(TYPE.STRING)),
+                                        direction = Introspection.DIRECTION.OUT,
+                                      ),
+                                ]
+                          ),
+                        Introspection.Interface.Method
+                          (
+                            name = "ListActivatableNames",
+                            args =
+                                [
+                                    Introspection.Interface.Method.Arg
+                                      (
+                                        type = ArrayType(BasicType(TYPE.STRING)),
+                                        direction = Introspection.DIRECTION.OUT,
+                                      ),
+                                ]
+                          ),
+                        Introspection.Interface.Method
+                          (
+                            name = "AddMatch",
+                            args =
+                                [
+                                    Introspection.Interface.Method.Arg
+                                      (
+                                        type = BasicType(TYPE.STRING),
+                                        direction = Introspection.DIRECTION.IN,
+                                      ),
+                                ]
+                          ),
+                        Introspection.Interface.Method
+                          (
+                            name = "RemoveMatch",
+                            args =
+                                [
+                                    Introspection.Interface.Method.Arg
+                                      (
+                                        type = BasicType(TYPE.STRING),
+                                        direction = Introspection.DIRECTION.IN,
+                                      ),
+                                ]
+                          ),
+                        Introspection.Interface.Method
+                          (
+                            name = "GetNameOwner",
+                            args =
+                                [
+                                    Introspection.Interface.Method.Arg
+                                      (
+                                        type = BasicType(TYPE.STRING),
+                                        direction = Introspection.DIRECTION.IN,
+                                      ),
+                                    Introspection.Interface.Method.Arg
+                                      (
+                                        type = BasicType(TYPE.STRING),
+                                        direction = Introspection.DIRECTION.OUT,
+                                      ),
+                                ]
+                          ),
+                        Introspection.Interface.Method
+                          (
+                            name = "ListQueuedOwners",
+                            args =
+                                [
+                                    Introspection.Interface.Method.Arg
+                                      (
+                                        type = BasicType(TYPE.STRING),
+                                        direction = Introspection.DIRECTION.IN,
+                                      ),
+                                    Introspection.Interface.Method.Arg
+                                      (
+                                        type = ArrayType(BasicType(TYPE.STRING)),
+                                        direction = Introspection.DIRECTION.OUT,
+                                      ),
+                                ]
+                          ),
+                        Introspection.Interface.Method
+                          (
+                            name = "GetConnectionUnixUser",
+                            args =
+                                [
+                                    Introspection.Interface.Method.Arg
+                                      (
+                                        type = BasicType(TYPE.STRING),
+                                        direction = Introspection.DIRECTION.IN,
+                                      ),
+                                    Introspection.Interface.Method.Arg
+                                      (
+                                        type = BasicType(TYPE.UINT32),
+                                        direction = Introspection.DIRECTION.OUT,
+                                      ),
+                                ]
+                          ),
+                        Introspection.Interface.Method
+                          (
+                            name = "GetConnectionUnixProcessID",
+                            args =
+                                [
+                                    Introspection.Interface.Method.Arg
+                                      (
+                                        type = BasicType(TYPE.STRING),
+                                        direction = Introspection.DIRECTION.IN,
+                                      ),
+                                    Introspection.Interface.Method.Arg
+                                      (
+                                        type = BasicType(TYPE.UINT32),
+                                        direction = Introspection.DIRECTION.OUT,
+                                      ),
+                                ]
+                          ),
+                        Introspection.Interface.Method
+                          (
+                            name = "GetAdtAuditSessionData",
+                            args =
+                                [
+                                    Introspection.Interface.Method.Arg
+                                      (
+                                        type = BasicType(TYPE.STRING),
+                                        direction = Introspection.DIRECTION.IN,
+                                      ),
+                                    Introspection.Interface.Method.Arg
+                                      (
+                                        type = ArrayType(BasicType(TYPE.BYTE)),
+                                        direction = Introspection.DIRECTION.OUT,
+                                      ),
+                                ]
+                          ),
+                        Introspection.Interface.Method
+                          (
+                            name = "GetConnectionSELinuxSecurityContext",
+                            args =
+                                [
+                                    Introspection.Interface.Method.Arg
+                                      (
+                                        type = BasicType(TYPE.STRING),
+                                        direction = Introspection.DIRECTION.IN,
+                                      ),
+                                    Introspection.Interface.Method.Arg
+                                      (
+                                        type = ArrayType(BasicType(TYPE.BYTE)),
+                                        direction = Introspection.DIRECTION.OUT,
+                                      ),
+                                ]
+                          ),
+                        Introspection.Interface.Method
+                          (
+                            name = "ReloadConfig",
+                          ),
+                        Introspection.Interface.Method
+                          (
+                            name = "GetId",
+                            args =
+                                [
+                                    Introspection.Interface.Method.Arg
+                                      (
+                                        type = BasicType(TYPE.STRING),
+                                        direction = Introspection.DIRECTION.OUT,
+                                      ),
+                                ]
+                          ),
+                        Introspection.Interface.Method
+                          (
+                            name = "GetConnectionCredentials",
+                            args =
+                                [
+                                    Introspection.Interface.Method.Arg
+                                      (
+                                        type = BasicType(TYPE.STRING),
+                                        direction = Introspection.DIRECTION.IN,
+                                      ),
+                                    Introspection.Interface.Method.Arg
+                                      (
+                                        type = DictType(BasicType(TYPE.STRING), VariantType()),
+                                        direction = Introspection.DIRECTION.OUT,
+                                      ),
+                                ]
+                          ),
+                    ],
+                signals =
+                    [
+                        Introspection.Interface.Signal
+                          (
+                            name = "NameOwnerChanged",
+                            args =
+                                [
+                                    Introspection.Interface.Signal.Arg
+                                      (
+                                        type = BasicType(TYPE.STRING),
+                                      ), # bus name
+                                    Introspection.Interface.Signal.Arg
+                                      (
+                                        type = BasicType(TYPE.STRING),
+                                      ), # old owner, empty if none
+                                    Introspection.Interface.Signal.Arg
+                                      (
+                                        type = BasicType(TYPE.STRING),
+                                      ), # new owner, empty if none
+                                ]
+                          ),
+                        Introspection.Interface.Signal
+                          (
+                            name = "NameLost", # send to previous owner of name
+                            args =
+                                [
+                                    Introspection.Interface.Signal.Arg
+                                      (
+                                        type = BasicType(TYPE.STRING),
+                                      ),
+                                ]
+                          ),
+                        Introspection.Interface.Signal
+                          (
+                            name = "NameAcquired", # sent to new owner of name
+                            args =
+                                [
+                                    Introspection.Interface.Signal.Arg
+                                      (
+                                        type = BasicType(TYPE.STRING),
+                                      ),
+                                ]
+                          ),
+                    ],
+              ),
         DBUS.INTERFACE_INTROSPECTABLE :
             Introspection.Interface
               (

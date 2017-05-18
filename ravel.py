@@ -231,7 +231,7 @@ class Connection :
     " the session_bus() and system_bus() calls in this module, or obtain from accepting" \
     " connections on a Server().\n" \
     "\n" \
-    "This class rovides various functions, some more suited to client-side use and" \
+    "This class provides various functions, some more suited to client-side use and" \
     " some more suitable to the server side. Allows for registering of @interface()" \
     " classes for automatic dispatching of method calls at appropriate points in" \
     " the object hierarchy."
@@ -2318,11 +2318,11 @@ def def_proxy_interface(name, kind, introspected, is_async) :
     #begin def_prop
         if intr_prop.access != Introspection.ACCESS.WRITE :
             get_prop.__name__ = "get_%s" % intr_prop.name
-            setattr(proxy, get_prop.__name, get_prop)
+            setattr(proxy, get_prop.__name__, get_prop)
         #end if
         if intr_prop.access != Introspection.ACCESS.READ :
             set_prop.__name__ = "set_%s" % intr_prop.name
-            setattr(proxy, set_prop.__name, set_prop)
+            setattr(proxy, set_prop.__name__, set_prop)
         #end if
     #end def_prop
 
@@ -2489,7 +2489,7 @@ class PropertyHandler :
         dispatch = bus.get_dispatch_interface(path, interface_name)
         props = type(dispatch)._interface_props
         if propname in props :
-            propentry = props[propentry]
+            propentry = props[propname]
             if "getter" in propentry :
                 getter = propentry["getter"]
                 kwargs = {}
@@ -2598,7 +2598,7 @@ class PropertyHandler :
         dispatch = bus.get_dispatch_interface(path, interface_name)
         props = type(dispatch)._interface_props
         if propname in props :
-            propentry = props[propentry]
+            propentry = props[propname]
             if "setter" in propentry :
                 setter = propentry["setter"]
                 try :

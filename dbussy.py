@@ -610,7 +610,7 @@ class VariantType(Type) :
     #end __eq__
 
     def validate(self, val) :
-        if not isinstance(val, (bool, int, float, string, tuple, list, dict)) :
+        if not isinstance(val, (bool, int, float, str, tuple, list, dict)) :
             raise TypeError \
               (
                 "type %s not representable in D-Bus for value %s" % (type(val).__name__, repr(val))

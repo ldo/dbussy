@@ -2104,9 +2104,9 @@ def def_proxy_interface(name, kind, introspected, is_async) :
     " whether method calls are done via coroutines as opposed to blocking" \
     " the thread. The resulting class can be instantiated by\n" \
     "\n" \
-    "    instance = proxy_class(«conn», «dest»)\n" \
+    "    instance = proxy_class(«connection», «dest»)\n" \
     "\n" \
-    " where «conn» is a dbussy.Connection object to use for sending and receiving" \
+    " where «connection» is a dbussy.Connection object to use for sending and receiving" \
     " the messages, and «dest» is the bus name to which to send the messages."
 
     if not isinstance(kind, INTERFACE) :
@@ -2309,11 +2309,11 @@ def def_proxy_interface(name, kind, introspected, is_async) :
         (
                 "proxy for a %(kind)s D-Bus interface named %(iname)s. Instantiate as\n"
                 "\n"
-                "    %(cname)s(conn = «conn»[, dest = «dest»[, timeout = «timeout»]])\n"
+                "    %(cname)s(connection = «connection»[, dest = «dest»[, timeout = «timeout»]])\n"
                 "\n"
-                "where «conn» is the ravel.Connection instance to use for sending"
+                "where «connection» is the dbussy.Connection instance to use for sending"
                 " messages and receiving replies, and «dest» is the destination" \
-                " bus name for sending method calls (not needed for sending signals)."
+                " bus name for sending method calls (not needed if only sending signals)."
             %
                 {
                     "cname" : class_name,

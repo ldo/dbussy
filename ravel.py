@@ -2491,7 +2491,7 @@ class PropertyHandler :
         if propname in props :
             propentry = props[propname]
             if "getter" in propentry :
-                getter = propentry["getter"]
+                getter = getattr(dispatch, propentry["getter"].__name__)
                 kwargs = {}
                 for keyword_keyword, value in \
                     (
@@ -2600,7 +2600,7 @@ class PropertyHandler :
         if propname in props :
             propentry = props[propname]
             if "setter" in propentry :
-                setter = propentry["setter"]
+                setter = getattr(dispatch, propentry["setter"].__name__)
                 try :
                     if propentry["type"] != None :
                         try :

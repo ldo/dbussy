@@ -832,7 +832,7 @@ class Connection :
                     }
             #end if
             if propvalue != None :
-                self._props_changed[key]["changed"][propname] = propvalue
+                self._props_changed[key]["changed"][propname] = (guess_signature(propvalue), propvalue)
             else :
                 self._props_changed[key]["invalidated"].add(propname)
             #end if

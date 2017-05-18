@@ -2120,13 +2120,13 @@ def def_proxy_interface(name, kind, introspected, is_async) :
         # class that will be returned.
 
         # class field _iface_name contains interface name.
-        __slots__ = ("conn", "dest", "timeout")
+        __slots__ = ("connection", "dest", "timeout")
 
-        def __init__(self, *, conn, dest, timeout = DBUS.TIMEOUT_USE_DEFAULT) :
+        def __init__(self, *, connection, dest, timeout = DBUS.TIMEOUT_USE_DEFAULT) :
             if is_async :
-                assert conn.loop != None, "no event loop to attach coroutines to"
+                assert connection.loop != None, "no event loop to attach coroutines to"
             #end if
-            self.conn = conn
+            self.connection = connection
             self.dest = dest
             self.timeout = timeout
         #end __init__
@@ -2150,11 +2150,11 @@ def def_proxy_interface(name, kind, introspected, is_async) :
                   )
                 message.append_objects(intr_method.in_signature, *args)
                 if intr_method.expect_reply :
-                    reply = await self.conn.connection.send_await_reply(message, self.timeout)
+                    reply = await self.connection.send_await_reply(message, self.timeout)
                     result = reply.expect_objects(intr_method.out_signature)
                 else :
                     message.no_reply = True
-                    self.conn.connection.send(message)
+                    self.connection.send(message)
                     result = None
                 #end if
                 return \
@@ -2173,11 +2173,11 @@ def def_proxy_interface(name, kind, introspected, is_async) :
                   )
                 message.append_objects(intr_method.in_signature, *args)
                 if intr_method.expect_reply :
-                    reply = self.conn.connection.send_with_reply_and_block(message, self.timeout)
+                    reply = self.connection.send_with_reply_and_block(message, self.timeout)
                     result = reply.expect_objects(intr_method.out_signature)
                 else :
                     message.no_reply = True
-                    self.conn.connection.send(message)
+                    self.connection.send(message)
                     result = None
                 #end if
                 return \
@@ -2203,7 +2203,7 @@ def def_proxy_interface(name, kind, introspected, is_async) :
                 name = intr_signal.name
               )
             message.append_objects(intr_signal.in_signature, *args)
-            self.conn.connection.send(message)
+            self.connection.send(message)
         #end send_signal
 
     #begin def_signal
@@ -2225,7 +2225,7 @@ def def_proxy_interface(name, kind, introspected, is_async) :
                     method = "Get"
                   )
                 message.append_objects("ss", self._iface_name, intr_prop.name)
-                reply = await self.conn.connection.send_await_reply(message, self.timeout)
+                reply = await self.connection.send_await_reply(message, self.timeout)
                 return \
                     reply.all_objects[0] # variant type, so any type is OK
             #end get_prop
@@ -2239,7 +2239,7 @@ def def_proxy_interface(name, kind, introspected, is_async) :
                     method = "Set"
                   )
                 message.append_objects("ssv", self._iface_name, intr_prop.name, value)
-                reply = await self.conn.connection.send_await_reply(message, self.timeout)
+                reply = await self.connection.send_await_reply(message, self.timeout)
                 if reply.type == DBUS.MESSAGE_TYPE_METHOD_RETURN :
                     pass
                 elif reply.type == DBUS.MESSAGE_TYPE_ERROR :
@@ -2260,7 +2260,7 @@ def def_proxy_interface(name, kind, introspected, is_async) :
                     method = "Get"
                   )
                 message.append_objects("ss", self._iface_name, intr_prop.name)
-                reply = self.conn.connection.send_with_reply_and_block(message, self.timeout)
+                reply = self.connection.send_with_reply_and_block(message, self.timeout)
                 return \
                     reply.all_objects[0] # variant type, so any type is OK
             #end get_prop
@@ -2274,7 +2274,7 @@ def def_proxy_interface(name, kind, introspected, is_async) :
                     method = "Set"
                   )
                 message.append_objects("ssv", self._iface_name, intr_prop.name, value)
-                reply = self.conn.connection.send_with_reply_and_block(message, self.timeout)
+                reply = self.connection.send_with_reply_and_block(message, self.timeout)
                 if reply.type == DBUS.MESSAGE_TYPE_METHOD_RETURN :
                     pass
                 elif reply.type == DBUS.MESSAGE_TYPE_ERROR :

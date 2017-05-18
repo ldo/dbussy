@@ -785,7 +785,7 @@ class Connection :
                     self.send_signal \
                       (
                         path = path,
-                        interface = DBUS.DBUS.INTERFACE_PROPERTIES,
+                        interface = DBUS.INTERFACE_PROPERTIES,
                         name = "PropertiesChanged",
                         args = (interface, entry["changed"], sorted(entry["invalidated"]))
                       )
@@ -855,7 +855,7 @@ class Connection :
             self.send_signal \
               (
                 path = path,
-                interface = DBUS.DBUS.INTERFACE_PROPERTIES,
+                interface = DBUS.INTERFACE_PROPERTIES,
                 name = "PropertiesChanged",
                 args = (interface, changed, invalidated)
               )
@@ -1523,7 +1523,7 @@ def interface \
     "\n" \
     " and definitions should be prefixed with calls to the “@method()” or “@signal()”" \
     " decorator to identify them. The return result can be a DBUS.HANDLER_RESULT_xxx" \
-    " code, or None (equivalent to DBUS.DBUS.HANDLER_RESULT_HANDLED), or a coroutine" \
+    " code, or None (equivalent to DBUS.HANDLER_RESULT_HANDLED), or a coroutine" \
     " to queue for execution after indicating that the message has been handled. Note" \
     " that if you declare the method with “async def”, then the return result seen" \
     " will be such a coroutine."

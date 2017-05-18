@@ -197,7 +197,7 @@ def _signal_rule(path, fallback, interface, name) :
 
 class _DispatchNode :
 
-    __slots__ = ("children", "interfaces", "signal_listeners")
+    __slots__ = ("children", "interfaces", "signal_listeners", "user_data")
 
     class _Interface :
 
@@ -216,15 +216,40 @@ class _DispatchNode :
         self.interfaces = {} # dict of interface name => _Interface
         self.signal_listeners = {} # dict of _signal_key() => list of functions
           # Note these are independent of registered interfaces
+        self.user_data = {} # for caller use
     #end __init__
 
     @property
     def is_empty(self) :
         return \
-            len(self.children) == 0 and len(self.interfaces) == 0 and len(self.signal_listeners) == 0
+            (
+                    len(self.children) == 0
+                and
+                    len(self.interfaces) == 0
+                and
+                    len(self.signal_listeners) == 0
+                and
+                    len(self.user_data) == 0
+            )
     #end is_empty
 
 #end _DispatchNode
+
+class _UserData :
+
+    __slots__ = ("conn",)
+
+    def __init__(self, conn) :
+        self.conn = conn
+    #end __init__
+
+    def __getitem__(self, path) :
+        node = self.conn._get_dispatch_node(path, True)
+        return \
+            node.user_data
+    #end __getitem__
+
+#end _UserData
 
 class Connection :
     "higher-level wrapper around dbussy.Connection. Do not instantiate directly: use" \
@@ -242,6 +267,7 @@ class Connection :
             "connection",
             "loop",
             "props_change_notify_delay",
+            "user_data",
             "_dispatch",
             "_props_changed",
         ) # to forestall typos
@@ -261,6 +287,7 @@ class Connection :
             self.props_change_notify_delay = 0
             self._dispatch = None # only used server-side
             self._props_changed = None
+            self.user_data = _UserData(self)
             celf._instances[connection] = self
             for interface in \
                 (
@@ -352,8 +379,9 @@ class Connection :
             CObject(self, bus_name, path)
     #end get_object
 
-    def _trim_dispatch(self) :
-        # removes empty subtrees from self._dispatch
+    def trim_object_tree(self) :
+        "removes empty subtrees from the object tree. Useful after deleting" \
+        " user_data entries, to reduce memory usage."
 
         def trim_dispatch_node(level) :
             to_delete = set()
@@ -368,14 +396,14 @@ class Connection :
             #end for
         #end trim_dispatch_node
 
-    #begin trim_dispatch
+    #begin trim_object_tree
         if self._dispatch != None :
             trim_dispatch_node(self._dispatch)
             if self._dispatch.is_empty :
                 self._dispatch = None
             #end if
         #end if
-    #end _trim_dispatch
+    #end trim_object_tree
 
     def _get_dispatch_node(self, path, create_if) :
         # returns the appropriate _DispatchNode entry in the dispatch
@@ -492,7 +520,7 @@ class Connection :
                     break
                 level = level.children[component]
             #end while
-            self._trim_dispatch()
+            self.trim_object_tree()
         #end if
     #end unregister
 
@@ -542,7 +570,7 @@ class Connection :
                       # if a new listener is added
                 #end if
             #end if
-            self._trim_dispatch()
+            self.trim_object_tree()
         #end if
     #end unlisten_signal
 

@@ -36,7 +36,7 @@ class my_build(std_build) :
 distutils.core.setup \
   (
     name = "DBussy",
-    version = "0.7",
+    version = "0.8",
     description = "language bindings for libdbus, for Python 3.5 or later",
     author = "Lawrence D'Oliveiro",
     author_email = "ldo@geek-central.gen.nz",

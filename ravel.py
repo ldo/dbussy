@@ -1017,7 +1017,7 @@ class CObject :
         self.path = path
     #end __init__
 
-    def _get_interface(self, name, timeout, is_async) :
+    def get_interface(self, name, timeout = DBUS.TIMEOUT_USE_DEFAULT) :
         if name in dbus.standard_interfaces :
             definition = dbus.standard_interfaces[name]
         else :
@@ -1038,7 +1038,7 @@ class CObject :
                 INTERFACE.CLIENT,
                 name = name,
                 introspected = definition,
-                is_async = is_async
+                is_async = False
               )(
                 connection = self.conn.connection,
                 dest = self.name,
@@ -1046,14 +1046,33 @@ class CObject :
               )[self.path]
     #end _get_interface
 
-    def get_interface(self, name, timeout = DBUS.TIMEOUT_USE_DEFAULT) :
-        return \
-            self._get_interface(name, timeout, False)
-    #end _get_interface
-
     async def get_async_interface(self, name, timeout = DBUS.TIMEOUT_USE_DEFAULT) :
+        if name in dbus.standard_interfaces :
+            definition = dbus.standard_interfaces[name]
+        else :
+            introspection = await self.conn.introspect_async(self.name, self.path, timeout)
+            interfaces = introspection.interfaces_by_name
+            if name not in interfaces :
+                raise dbus.DBusError \
+                  (
+                    DBUS.ERROR_UNKNOWN_INTERFACE,
+                    "object “%s” does not understand interface “%s”" % (self.path, name)
+                  )
+            #end if
+            definition = interfaces[name]
+        #end if
         return \
-            self._get_interface(name, timeout, True)
+            def_proxy_interface \
+              (
+                INTERFACE.CLIENT,
+                name = name,
+                introspected = definition,
+                is_async = True
+              )(
+                connection = self.conn.connection,
+                dest = self.name,
+                timeout = timeout
+              )[self.path]
     #end get_async_interface
 
 #end CObject

@@ -176,14 +176,20 @@ class HandlerError(Exception) :
 
 #end HandlerError
 
-def _signal_key(fallback, interface, name) :
-    # constructs a dictionary key from the given args.
+def _signal_key(fallback, interface, name, extra = None) :
+    # constructs a key for the signal-listener dictionary from the
+    # given args. extra, if present, is a dict of additional keys and
+    # values for the match rule.
+    result = (fallback, interface, name)
+    if extra != None :
+        result += tuple((key, extra[key]) for key in sorted(extra.keys()))
     return \
-        (fallback, interface, name)
+        result
 #end _signal_key
 
-def _signal_rule(path, fallback, interface, name) :
-    # constructs a D-Bus match rule from the given args.
+def _signal_rule(path, fallback, interface, name, extra = None) :
+    # constructs a D-Bus match rule from the given args. extra, if present,
+    # is a dict of additional keys and values for the match rule.
     rule = \
         {
             "type" : "signal",
@@ -191,6 +197,14 @@ def _signal_rule(path, fallback, interface, name) :
             "interface" : interface,
             "member" : name,
         }
+    if extra != None :
+        for key in extra :
+            if key in rule :
+                raise KeyError("duplicate match rule entry for “%s”" % key)
+            #end if
+            rule[key] = extra[key]
+        #end for
+    #end if
     return \
         dbus.format_rule(rule)
 #end _signal_rule
@@ -543,33 +557,38 @@ class Connection :
         #end if
     #end unregister
 
-    def listen_signal(self, path, fallback, interface, name, func) :
+    def listen_signal(self, path, fallback, interface, name, func, extra = None) :
         "for client-side use; registers a callback which will be invoked when a" \
-        " signal is received for the specified path, interface and name."
+        " signal is received for the specified path, interface, name and any" \
+        " additional attributes specified by extra."
         if not hasattr(func, "_signal_info") :
             raise TypeError("callback must have @signal() decorator applied")
+        #end if
+        if extra != None and not isinstance(extra, dict) :
+            raise TypeError("extra must be additional “key : value” pairs for match rule")
         #end if
         signal_info = func._signal_info
         entry = self._get_dispatch_node(path, True)
         # should I bother to check it matches a registered interface and
         # defined signal therein?
         listeners = entry.signal_listeners
-        rulekey = _signal_key(fallback, interface, name)
+        rulekey = _signal_key(fallback, interface, name, extra)
         if rulekey not in listeners :
-            self.connection.bus_add_match(_signal_rule(path, fallback, interface, name))
+            self.connection.bus_add_match(_signal_rule(path, fallback, interface, name, extra))
             listeners[rulekey] = []
         #end if
         listeners[rulekey].append(func)
     #end listen_signal
 
-    def unlisten_signal(self, path, fallback, interface, name, func) :
+    def unlisten_signal(self, path, fallback, interface, name, func, extra = None) :
         "for client-side use; unregisters a previously-registered callback" \
         " which would have been invoked when a signal is received for the" \
-        " specified path, interface and name."
+        " specified path, interface, name and any additional attributes" \
+        " specified by extra."
         entry = self._get_dispatch_node(path, False)
         if entry != None :
             listeners = entry.signal_listeners
-            rulekey = _signal_key(fallback, interface, name)
+            rulekey = _signal_key(fallback, interface, name, extra)
             if rulekey in listeners :
                 listeners = listeners[rulekey]
                 try :
@@ -581,7 +600,7 @@ class Connection :
                     ignore = dbus.Error.init()
                     self.connection.bus_remove_match \
                       (
-                        _signal_rule(path, fallback, interface, name),
+                        _signal_rule(path, fallback, interface, name, extra),
                         ignore
                       )
                     del listeners[rulekey]
@@ -592,6 +611,34 @@ class Connection :
             self._trim_dispatch()
         #end if
     #end unlisten_signal
+
+    def listen_propchanged(self, path, fallback, interface, func) :
+        "special case of Connection.listen_signal specifically for listening" \
+        " for properties-changed signals."
+        self.listen_signal \
+          (
+            path = path,
+            fallback = fallback,
+            interface = DBUS.INTERFACE_PROPERTIES,
+            name = "PropertiesChanged",
+            func = func,
+            # extra = {"arg0" : interface} # can't get this to work
+          )
+    #end listen_propchanged
+
+    def unlisten_propchanged(self, path, fallback, interface, func) :
+        "special case of Connection.unlisten_signal specifically for listening" \
+        " for properties-changed signals."
+        self.unlisten_signal \
+          (
+            path = path,
+            fallback = fallback,
+            interface = DBUS.INTERFACE_PROPERTIES,
+            name = "PropertiesChanged",
+            func = func,
+            # extra = {"arg0" : interface} # can't get this to work
+          )
+    #end unlisten_propchanged
 
     def get_dispatch_interface(self, path, interface_name) :
         "returns the appropriate instance of a previously-registered interface" \

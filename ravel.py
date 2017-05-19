@@ -2004,6 +2004,50 @@ def introspect(interface) :
           )
 #end introspect
 
+def _append_args(message, call_info, args, kwargs) :
+    message_args = [None] * len(call_info.in_signature)
+    if len(args) != 0 :
+        if len(args) > len(message_args) :
+            raise ValueError("too many args")
+        #end if
+        message_args[:len(args)] = args
+    #end if
+    if len(kwargs) != 0 :
+        arg_positions = {}
+        idx = 0
+        for arg in call_info.args :
+            if (
+                    isinstance(arg, Introspection.Interface.Signal.Arg)
+                or
+                    arg.direction == Introspection.DIRECTION.IN
+            ) :
+                arg_positions[arg.name] = idx
+                idx += 1
+            #end if
+        #end for
+        for arg_name in kwargs :
+            if arg_name not in arg_positions :
+                raise KeyError("no such arg name “%s”" % arg_name)
+            #end if
+            pos = arg_positions[arg_name]
+            if message_args[pos] != None :
+                raise ValueError("duplicate value for arg %d" % pos)
+            #end if
+            message_args[pos] = kwargs[arg_name]
+        #end for
+    #end if
+    missing = set(pos for pos in range(len(message_args)) if message_args[pos] == None)
+    if len(missing) != 0 :
+        raise ValueError \
+          (
+                "too few args specified: missing %s"
+            %
+                ", ".join("%d" % pos for pos in sorted(missing))
+          )
+    #end if
+    message.append_objects(call_info.in_signature, *message_args)
+#end _append_args
+
 def def_proxy_interface(kind, *, name, introspected, is_async) :
     "given an Introspection.Interface object, creates a proxy class that can be" \
     " instantiated by a client to send method-call messages to a server," \
@@ -2049,7 +2093,7 @@ def def_proxy_interface(kind, *, name, introspected, is_async) :
 
         if is_async :
 
-            async def call_method(self, *args) :
+            async def call_method(self, *args, **kwargs) :
                 message = dbus.Message.new_method_call \
                   (
                     destination = self._dest,
@@ -2057,7 +2101,7 @@ def def_proxy_interface(kind, *, name, introspected, is_async) :
                     iface = self._iface_name,
                     method = intr_method.name
                   )
-                message.append_objects(intr_method.in_signature, *args)
+                _append_args(message, intr_method, args, kwargs)
                 if intr_method.expect_reply :
                     reply = await self._conn.send_await_reply(message, self._timeout)
                     if reply.type == DBUS.MESSAGE_TYPE_METHOD_RETURN :
@@ -2078,7 +2122,7 @@ def def_proxy_interface(kind, *, name, introspected, is_async) :
 
         else :
 
-            def call_method(self, *args) :
+            def call_method(self, *args, **kwargs) :
                 message = dbus.Message.new_method_call \
                   (
                     destination = self._dest,
@@ -2086,7 +2130,7 @@ def def_proxy_interface(kind, *, name, introspected, is_async) :
                     iface = self._iface_name,
                     method = intr_method.name
                   )
-                message.append_objects(intr_method.in_signature, *args)
+                _append_args(message, intr_method, args, kwargs)
                 if intr_method.expect_reply :
                     reply = self._conn.send_with_reply_and_block(message, self._timeout)
                     result = reply.expect_objects(intr_method.out_signature)
@@ -2127,14 +2171,14 @@ def def_proxy_interface(kind, *, name, introspected, is_async) :
         # constructs a signal method. These are never async, since messages
         # are queued and there is no reply.
 
-        def send_signal(self, *args) :
+        def send_signal(self, *args, **kwargs) :
             message = dbus.Message.new_signal \
               (
                 path = dbus.unsplit_path(self._path),
                 iface = self._iface_name,
                 name = intr_signal.name
               )
-            message.append_objects(intr_signal.in_signature, *args)
+            _append_args(message, intr_signal, args, kwargs)
             self._conn.send(message)
         #end send_signal
 

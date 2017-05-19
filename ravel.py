@@ -211,12 +211,32 @@ class _DispatchNode :
 
     #end _Interface
 
-    def __init__(self) :
+    class _UserDataDict(dict) :
+        # for holding user data, does automatic cleaning up of object
+        # tree as items are removed.
+
+        __slots__ = ("_ravel_bus",)
+
+        def __init__(self, bus) :
+            super().__init__(self)
+            self._ravel_bus = bus
+        #end __init
+
+        def __delitem__(self, key) :
+            super().__delitem__(key)
+            if len(self) == 0 :
+                self._ravel_bus._trim_dispatch()
+            #end if
+        #end __delitem__
+
+    #end _UserDataDict
+
+    def __init__(self, bus) :
         self.children = {} # dict of path component => _DispatchNode
         self.interfaces = {} # dict of interface name => _Interface
         self.signal_listeners = {} # dict of _signal_key() => list of functions
           # Note these are independent of registered interfaces
-        self.user_data = {} # for caller use
+        self.user_data = self._UserDataDict(bus) # for caller use
     #end __init__
 
     @property
@@ -379,9 +399,8 @@ class Connection :
             CObject(self, bus_name, path)
     #end get_object
 
-    def trim_object_tree(self) :
-        "removes empty subtrees from the object tree. Useful after deleting" \
-        " user_data entries, to reduce memory usage."
+    def _trim_dispatch(self) :
+        # removes empty subtrees from the object tree.
 
         def trim_dispatch_node(level) :
             to_delete = set()
@@ -396,21 +415,21 @@ class Connection :
             #end for
         #end trim_dispatch_node
 
-    #begin trim_object_tree
+    #begin _trim_dispatch
         if self._dispatch != None :
             trim_dispatch_node(self._dispatch)
             if self._dispatch.is_empty :
                 self._dispatch = None
             #end if
         #end if
-    #end trim_object_tree
+    #end _trim_dispatch
 
     def _get_dispatch_node(self, path, create_if) :
         # returns the appropriate _DispatchNode entry in the dispatch
         # tree for the specified path, or None if no such and not
         # create_if.
         if create_if and self._dispatch == None :
-            self._dispatch = _DispatchNode()
+            self._dispatch = _DispatchNode(self)
         #end if
         level = self._dispatch
         if level != None :
@@ -424,7 +443,7 @@ class Connection :
                         level = None
                         break
                     #end if
-                    level.children[component] = _DispatchNode()
+                    level.children[component] = _DispatchNode(self)
                 #end if
                 level = level.children[component]
                   # search another step down the path
@@ -455,13 +474,13 @@ class Connection :
             raise TypeError("interface must be an @interface() class or instance thereof")
         #end if
         if self._dispatch == None :
-            self._dispatch = _DispatchNode()
+            self._dispatch = _DispatchNode(self)
             self.connection.add_filter(_message_interface_dispatch, self)
         #end if
         level = self._dispatch
         for component in dbus.split_path(path) :
             if component not in level.children :
-                level.children[component] = _DispatchNode()
+                level.children[component] = _DispatchNode(self)
             #end if
             level = level.children[component]
         #end for
@@ -520,7 +539,7 @@ class Connection :
                     break
                 level = level.children[component]
             #end while
-            self.trim_object_tree()
+            self._trim_dispatch()
         #end if
     #end unregister
 
@@ -570,7 +589,7 @@ class Connection :
                       # if a new listener is added
                 #end if
             #end if
-            self.trim_object_tree()
+            self._trim_dispatch()
         #end if
     #end unlisten_signal
 

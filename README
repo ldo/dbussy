@@ -421,6 +421,26 @@ to replace the class just to install your own listeners for this
 signal.
 
 
+Custom User Data
+----------------
+
+
+With Ravel’s structured interface, it is possible to attach your own
+user data items to arbitrary points in the object path tree. To
+obtain the user data dictionary for a given object path, do either
+
+    user_data = bus.user_data["/com/example/myapp"]
+
+or
+
+    user_data = bus.user_data["com", "example", "myapp"]
+
+The result is a dictionary into which you can insert whatever
+key-value pairs you like, e.g.:
+
+    user_data["com.example.myapp.attribs"] = MyObj(...)
+
+
 Predefined Interface Classes
 ----------------------------
 
@@ -462,4 +482,4 @@ it.
 
 
 Lawrence D'Oliveiro <ldo@geek-central.gen.nz>
-2017 May 17
+2017 May 19

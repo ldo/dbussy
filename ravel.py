@@ -2219,6 +2219,11 @@ def def_proxy_interface(kind, *, name, introspected, is_async) :
             #end get_prop
 
             def set_prop(self, value) :
+                # Unfortunately, Python doesn’t (currently) allow “await”
+                # on the LHS of an assignment. So to avoid holding up the
+                # thread, I put a task on the event loop to watch over
+                # the completion of the send. This means any error is
+                # going to be reported asynchronously. C’est la vie.
                 message = dbus.Message.new_method_call \
                   (
                     destination = self._dest,

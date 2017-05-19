@@ -226,14 +226,28 @@ the usual ways.
 
 Note that the method result is always a list.
 
-The above is a *blocking* call, which means the current thread is
+Instead of a method call, you can also get and set properties
+of the D-Bus object as though they were Python properties, e.g.
+adding 1 to a numeric property:
+
+    iface = «bus».get_object(«bus_name», «path») \
+        .get_interface(«interface_name»)
+    iface.«prop» = iface.«prop» + 1
+
+The above are *blocking* calls, which means the current thread is
 blocked while waiting for the reply to the method call. If you want to
 do things in a more event-loop-friendly fashion, then use the
 get_async_interface of the CObject instead of get_interface, which
 returns a coroutine object that yields a CAsyncInterface object when
-it finally completes. Method calls on this are automatically also
-coroutine calls, so you can use them in await-constructs in your
-coroutines, or create asyncio tasks to run them etc.
+it finally completes. Method calls and property accesses on this are
+automatically also coroutine calls, so you can use them in
+await-constructs in your coroutines, or create asyncio tasks to run
+them etc.
+
+Python doesn’t currently allow “await” on the left-hand side of an
+assignment. Thus, async set-property calls actually queue a task on
+the event loop for later completion. The main consequence of this
+is that any error exception will be raised asynchronously.
 
 Here is an example use of the ad-hoc calls, which pops up a GUI
 notification displaying a short message for 5 seconds. Because the
@@ -419,6 +433,55 @@ signal in ravel.PropertyHandler (the standard handler for the
 DBUS.INTERFACE_PROPERTIES interface), so that you do not have
 to replace the class just to install your own listeners for this
 signal.
+
+Properties are defined by implementing getter and/or setter
+methods, identified by @propgetter() and @propsetter() decorators
+respectively:
+
+    @ravel.propgetter \
+      (
+        name = ...,
+        type = ...,
+        name_keyword = ...,
+        connection_keyword = ...,
+        message_keyword = ...,
+        path_keyword = ...,
+        bus_keyword = ...,
+        change_notification = ...
+      )
+    def my_propgetter(...) :
+        ...
+        return \
+            «value»
+    #end my_propgetter
+
+    @ravel.propsetter \
+      (
+        name = ...,
+        type = ...,
+        name_keyword = ...,
+        type_keyword = ...,
+        value_keyword = ...,
+        connection_keyword = ...,
+        message_keyword = ...,
+        path_keyword = ...,
+        bus_keyword = ...
+      ) :
+    def my_propsetter(...) :
+        ...
+    #end my_propsetter
+
+Note the following arguments:
+  * type -- the type signature for permitted property values.
+  * change_notification -- one of the dbussy.PROP_CHANGE_NOTIFICATION values
+    indicating whether (and what kind of) signals should be generated for
+    changes to this property value. This is specified on the @propgetter(),
+    because there is no point notifying about write-only properties.
+  * type_keyword -- for passing the actual type of the new property value
+    to the setter.
+  * value_keyword -- for passing the new property value to the setter.
+
+Getters and setters can be coroutines.
 
 
 Custom User Data

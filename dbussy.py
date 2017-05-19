@@ -3192,7 +3192,7 @@ class Message :
             elif argtype == DBUS.TYPE_VARIANT :
                 subiter = self.recurse()
                 subiter = next(subiter)
-                result = (subiter.signature, subiter.object)
+                result = (DBUS.Signature(subiter.signature), subiter.object)
             elif argtype == DBUS.TYPE_INVALID :
                 # fudge for iterating into an empty array
                 result = None

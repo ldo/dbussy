@@ -414,7 +414,7 @@ Signal definitions look similar, except they return no results:
 Also note the “stub” argument--this has meaning on a client-side
 interface to indicate that the interface class does not implement
 the listener for the signal, but that it is registered separately
-with a register_listener call. This is used for the PropertiesChanged
+with a listen_signal call. This is used for the PropertiesChanged
 signal in ravel.PropertyHandler (the standard handler for the
 DBUS.INTERFACE_PROPERTIES interface), so that you do not have
 to replace the class just to install your own listeners for this

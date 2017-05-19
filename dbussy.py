@@ -3472,7 +3472,7 @@ class Message :
         " message."
         result = dbus.dbus_message_get_path(self._dbobj)
         if result != None :
-            result = result.decode()
+            result = DBUS.ObjectPath(result.decode())
         #end if
         return \
             result
@@ -4547,7 +4547,7 @@ def split_path(path) :
 def unsplit_path(path) :
     path = split_path(path)
     if len(path) != 0 :
-        result = "".join("/" + component for component in path)
+        result = DBUS.ObjectPath("".join("/" + component for component in path))
     else :
         result = "/"
     #end if

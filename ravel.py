@@ -2678,7 +2678,7 @@ class PropertyHandler :
                     reply = None # for now
                 elif isinstance(setresult, dbus.Error) :
                     assert setresult.is_set, "unset Error object returned"
-                    reply = message.new_error(setresult.name, setresult.nessage)
+                    reply = message.new_error(setresult.name, setresult.message)
                 elif setresult == None :
                     reply = message.new_method_return()
                     notify_changed()
@@ -2758,7 +2758,7 @@ class PropertyHandler :
             #end if
         #end for
         if properror != None :
-            reply = message.new_error(properror.name, properror.nessage)
+            reply = message.new_error(properror.name, properror.message)
             bus.connection.send(reply)
         else :
             _send_method_return(bus.connection, message, "a{sv}", [propvalue])

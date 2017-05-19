@@ -1017,12 +1017,12 @@ class CObject :
         self.path = path
     #end __init__
 
-    def get_interface(self, name, timeout = DBUS.TIMEOUT_USE_DEFAULT) :
+    def _get_interface(self, name, timeout, is_async) :
         if name in dbus.standard_interfaces :
             definition = dbus.standard_interfaces[name]
         else :
             introspection = self.conn.introspect(self.name, self.path, timeout)
-            interfaces = dict((iface.name, iface) for iface in introspection.interfaces)
+            interfaces = introspection.interfaces_by_name
             if name not in interfaces :
                 raise dbus.DBusError \
                   (
@@ -1033,200 +1033,30 @@ class CObject :
             definition = interfaces[name]
         #end if
         return \
-            CInterface(object = self, name = name, definition = definition, timeout = timeout)
-    #end get_interface
+            def_proxy_interface \
+              (
+                INTERFACE.CLIENT,
+                name = name,
+                introspected = definition,
+                is_async = is_async
+              )(
+                connection = self.conn.connection,
+                dest = self.name,
+                timeout = timeout
+              )[path]
+    #end _get_interface
+
+    def get_interface(self, name, timeout = DBUS.TIMEOUT_USE_DEFAULT) :
+        return \
+            self._get_interface(name, timeout, False)
+    #end _get_interface
 
     async def get_async_interface(self, name, timeout = DBUS.TIMEOUT_USE_DEFAULT) :
-        if name in dbus.standard_interfaces :
-            definition = dbus.standard_interfaces[name]
-        else :
-            introspection = await self.conn.introspect_async(self.name, self,path, timeout)
-            interfaces = dict((iface.name, iface) for iface in introspection.interfaces)
-            if name not in interfaces :
-                raise dbus.DBusError \
-                  (
-                    DBUS.ERROR_UNKNOWN_INTERFACE,
-                    "object “%s” does not understand interface “%s”" % (self.path, name)
-                  )
-            #end if
-            definition = interfaces[name]
-        #end if
         return \
-            CAsyncInterface(object = self, name = name, definition = definition, timeout = timeout)
+            self._get_interface(name, timeout, True)
     #end get_async_interface
 
 #end CObject
-
-class CInterface :
-    "identifies an interface for communicating synchronously with a CObject."
-
-    __slots__ = ("object", "name", "methods", "timeout")
-
-    def __init__(self, object, name, definition, timeout = DBUS.TIMEOUT_USE_DEFAULT) :
-        if not isinstance(object, CObject) :
-            raise TypeError("object must be a CObject")
-        #end if
-        self.object = object
-        self.name = name
-        self.methods = dict((meth.name, meth) for meth in definition.methods)
-        self.timeout = timeout
-    #end __init__
-
-    def __getattr__(self, attrname) :
-        if attrname not in self.methods :
-            raise dbus.DBusError \
-              (
-                DBUS.ERROR_UNKNOWN_METHOD,
-                "interface “%s” does not understand method “%s”" % (self.name, attrname)
-              )
-        #end if
-        return \
-            CMethod(self, self.methods[attrname])
-    #end __getattr__
-
-#end CInterface
-
-class CAsyncInterface(CInterface) :
-    "identifies an interface for communicating asynchronously with a CObject." \
-    " Methods can be called, for example in “await” expressions."
-
-    def __getattr__(self, attrname) :
-        if attrname not in self.methods :
-            raise dbus.DBusError \
-              (
-                DBUS.ERROR_UNKNOWN_METHOD,
-                "interface “%s” does not understand method “%s”" % (self.name, attrname)
-              )
-        #end if
-        return \
-            CAsyncMethod(self, self.methods[attrname])
-    #end __getattr__
-
-#end CAsyncInterface
-
-class CMethod :
-    "names a method of a CInterface that is to be called synchronously. If a" \
-    " reply is expected, the calling thread is blocked until it is received." \
-    " Do not instantiate directly; call the appropriate method name on the" \
-    " parent CInterface."
-
-    __slots__ = ("interface", "method")
-
-    def __init__(self, interface, method) :
-        if not isinstance(interface, CInterface) :
-            raise TypeError("interface must be a CInterface")
-        #end if
-        self.interface = interface
-        self.method = method
-    #end __init__
-
-    def _construct_message(self, args, kwargs) :
-        message = dbus.Message.new_method_call \
-          (
-            destination = self.interface.object.name,
-            path = self.interface.object.path,
-            iface = self.interface.name,
-            method = self.method.name
-          )
-        message_args = [None] * len(self.method.in_signature)
-        if len(args) != 0 :
-            if len(args) > len(message_args) :
-                raise ValueError("too many args")
-            #end if
-            message_args[:len(args)] = args
-        #end if
-        if len(kwargs) != 0 :
-            arg_positions = {}
-            idx = 0
-            for arg in self.method.args :
-                if arg.direction == Introspection.DIRECTION.IN :
-                    arg_positions[arg.name] = idx
-                    idx += 1
-                #end if
-            #end for
-            for arg_name in kwargs :
-                if arg_name not in arg_positions :
-                    raise KeyError("no such arg name “%s”" % arg_name)
-                #end if
-                pos = arg_positions[arg_name]
-                if message_args[pos] != None :
-                    raise ValueError("duplicate value for arg %d" % pos)
-                #end if
-                message_args[pos] = kwargs[arg_name]
-            #end for
-        #end if
-        missing = set(pos for pos in range(len(message_args)) if message_args[pos] == None)
-        if len(missing) != 0 :
-            raise ValueError \
-              (
-                    "too few args specified: missing %s"
-                %
-                    ", ".join("%d" % pos for pos in sorted(missing))
-              )
-        #end if
-        message.append_objects(self.method.in_signature, *message_args)
-        return \
-            message
-    #end _construct_message
-
-    def _process_reply(self, reply) :
-        if reply.type == DBUS.MESSAGE_TYPE_METHOD_RETURN :
-            result = reply.expect_objects(self.method.out_signature)
-        elif reply.type == DBUS.MESSAGE_TYPE_ERROR :
-            raise dbus.DBusError(reply.error_name, reply.expect_objects("s")[0])
-        else :
-            raise ValueError("unexpected reply type %d" % reply.type)
-        #end if
-        return \
-            result
-    #end _process_reply
-
-    def __call__(self, *args, **kwargs) :
-        message = self._construct_message(args, kwargs)
-        if self.method.expect_reply :
-            reply = self.interface.object.conn.connection.send_with_reply_and_block \
-              (
-                message = message,
-                timeout = self.interface.timeout
-              )
-            result = self._process_reply(reply)
-        else :
-            message.no_reply = True
-            self.interface.object.conn.connection.send(message)
-            self.interface.object.conn.connection.read_write() # ensure it has gone out
-            result = None
-        #end if
-        return \
-            result
-    #end __call__
-
-#end CMethod
-
-class CAsyncMethod(CMethod) :
-    "names a method of a CInterface that is to be called asynchronously," \
-    " for example in an “await” expression. Do not instantiate directly;" \
-    " call the appropriate method name on the parent CAsyncInterface."
-
-    async def __call__(self, *args, **kwargs) :
-        message = self._construct_message(args, kwargs)
-        if self.method.expect_reply :
-            reply = await self.interface.object.conn.connection.send_await_reply \
-              (
-                message = message,
-                timeout = self.interface.timeout
-              )
-            result = self._process_reply(reply)
-        else :
-            message.no_reply = True
-            self.interface.object.conn.connection.send(message)
-              # event loop should get around to actually sending it
-            result = None
-        #end if
-        return \
-            result
-    #end _call__
-
-#end CAsyncMethod
 
 #+
 # Interface-dispatch mechanism
@@ -2174,7 +2004,7 @@ def introspect(interface) :
           )
 #end introspect
 
-def def_proxy_interface(name, kind, introspected, is_async) :
+def def_proxy_interface(kind, *, name, introspected, is_async) :
     "given an Introspection.Interface object, creates a proxy class that can be" \
     " instantiated by a client to send method-call messages to a server," \
     " or by a server to send signal messages to clients. is_async indicates" \
@@ -2194,18 +2024,20 @@ def def_proxy_interface(name, kind, introspected, is_async) :
     #end if
 
     class proxy :
-        # class that will be returned.
+        # class that will be be turned, to be instantiated for a given connection,
+        # destination and path.
 
         # class field _iface_name contains interface name.
-        __slots__ = ("connection", "dest", "timeout")
+        __slots__ = ("_conn", "_dest", "_path", "_timeout")
 
-        def __init__(self, *, connection, dest, timeout = DBUS.TIMEOUT_USE_DEFAULT) :
+        def __init__(self, *, connection, dest, path, timeout = DBUS.TIMEOUT_USE_DEFAULT) :
             if is_async :
                 assert connection.loop != None, "no event loop to attach coroutines to"
             #end if
-            self.connection = connection
-            self.dest = dest
-            self.timeout = timeout
+            self._conn = connection
+            self._dest = dest
+            self._path = path
+            self._timeout = timeout
         #end __init__
 
         # rest filled in dynamically below.
@@ -2217,17 +2049,17 @@ def def_proxy_interface(name, kind, introspected, is_async) :
 
         if is_async :
 
-            async def call_method(self, path, *args) :
+            async def call_method(self, *args) :
                 message = dbus.Message.new_method_call \
                   (
-                    destination = self.dest,
-                    path = dbus.unsplit_path(path),
+                    destination = self._dest,
+                    path = dbus.unsplit_path(self._path),
                     iface = self._iface_name,
                     method = intr_method.name
                   )
                 message.append_objects(intr_method.in_signature, *args)
                 if intr_method.expect_reply :
-                    reply = await self.connection.send_await_reply(message, self.timeout)
+                    reply = await self._conn.send_await_reply(message, self._timeout)
                     if reply.type == DBUS.MESSAGE_TYPE_METHOD_RETURN :
                         result = reply.expect_objects(intr_method.out_signature)
                     elif reply.type == DBUS.MESSAGE_TYPE_ERROR :
@@ -2237,7 +2069,7 @@ def def_proxy_interface(name, kind, introspected, is_async) :
                     #end if
                 else :
                     message.no_reply = True
-                    self.connection.send(message)
+                    self._conn.send(message)
                     result = None
                 #end if
                 return \
@@ -2246,21 +2078,21 @@ def def_proxy_interface(name, kind, introspected, is_async) :
 
         else :
 
-            def call_method(self, path, *args) :
+            def call_method(self, *args) :
                 message = dbus.Message.new_method_call \
                   (
-                    destination = self.dest,
-                    path = dbus.unsplit_path(path),
+                    destination = self._dest,
+                    path = dbus.unsplit_path(self._path),
                     iface = self._iface_name,
                     method = intr_method.name
                   )
                 message.append_objects(intr_method.in_signature, *args)
                 if intr_method.expect_reply :
-                    reply = self.connection.send_with_reply_and_block(message, self.timeout)
+                    reply = self._conn.send_with_reply_and_block(message, self._timeout)
                     result = reply.expect_objects(intr_method.out_signature)
                 else :
                     message.no_reply = True
-                    self.connection.send(message)
+                    self._conn.send(message)
                     result = None
                 #end if
                 return \
@@ -2295,15 +2127,15 @@ def def_proxy_interface(name, kind, introspected, is_async) :
         # constructs a signal method. These are never async, since messages
         # are queued and there is no reply.
 
-        def send_signal(self, path, *args) :
+        def send_signal(self, *args) :
             message = dbus.Message.new_signal \
               (
-                path = dbus.unsplit_path(path),
+                path = dbus.unsplit_path(self._path),
                 iface = self._iface_name,
                 name = intr_signal.name
               )
             message.append_objects(intr_signal.in_signature, *args)
-            self.connection.send(message)
+            self._conn.send(message)
         #end send_signal
 
     #begin def_signal
@@ -2328,30 +2160,30 @@ def def_proxy_interface(name, kind, introspected, is_async) :
 
         if is_async :
 
-            async def get_prop(self, path) :
+            async def get_prop(self) :
                 message = dbus.Message.new_method_call \
                   (
-                    destination = self.dest,
-                    path = dbus.unsplit_path(path),
+                    destination = self._dest,
+                    path = dbus.unsplit_path(self._path),
                     iface = DBUS.INTERFACE_PROPERTIES,
                     method = "Get"
                   )
                 message.append_objects("ss", self._iface_name, intr_prop.name)
-                reply = await self.connection.send_await_reply(message, self.timeout)
+                reply = await self._conn.send_await_reply(message, self._timeout)
                 return \
                     reply.expect_objects("v")[0][1]
             #end get_prop
 
-            async def set_prop(self, path, value) :
+            async def set_prop(self, value) :
                 message = dbus.Message.new_method_call \
                   (
-                    destination = self.dest,
-                    path = dbus.unsplit_path(path),
+                    destination = self._dest,
+                    path = dbus.unsplit_path(self._path),
                     iface = DBUS.INTERFACE_PROPERTIES,
                     method = "Set"
                   )
                 message.append_objects("ssv", self._iface_name, intr_prop.name, (intr_prop.type, value))
-                reply = await self.connection.send_await_reply(message, self.timeout)
+                reply = await self._conn.send_await_reply(message, self._timeout)
                 if reply.type == DBUS.MESSAGE_TYPE_METHOD_RETURN :
                     pass
                 elif reply.type == DBUS.MESSAGE_TYPE_ERROR :
@@ -2363,30 +2195,30 @@ def def_proxy_interface(name, kind, introspected, is_async) :
 
         else :
 
-            def get_prop(self, path) :
+            def get_prop(self) :
                 message = dbus.Message.new_method_call \
                   (
-                    destination = self.dest,
-                    path = dbus.unsplit_path(path),
+                    destination = self._dest,
+                    path = dbus.unsplit_path(self._path),
                     iface = DBUS.INTERFACE_PROPERTIES,
                     method = "Get"
                   )
                 message.append_objects("ss", self._iface_name, intr_prop.name)
-                reply = self.connection.send_with_reply_and_block(message, self.timeout)
+                reply = self._conn.send_with_reply_and_block(message, self._timeout)
                 return \
                     reply.expect_objects("v")[0][1]
             #end get_prop
 
-            def set_prop(self, path, value) :
+            def set_prop(self, value) :
                 message = dbus.Message.new_method_call \
                   (
-                    destination = self.dest,
-                    path = dbus.unsplit_path(path),
+                    destination = self._dest,
+                    path = dbus.unsplit_path(self._path),
                     iface = DBUS.INTERFACE_PROPERTIES,
                     method = "Set"
                   )
                 message.append_objects("ssv", self._iface_name, intr_prop.name, (intr_prop.type, value))
-                reply = self.connection.send_with_reply_and_block(message, self.timeout)
+                reply = self._conn.send_with_reply_and_block(message, self._timeout)
                 if reply.type == DBUS.MESSAGE_TYPE_METHOD_RETURN :
                     pass
                 elif reply.type == DBUS.MESSAGE_TYPE_ERROR :
@@ -2409,6 +2241,33 @@ def def_proxy_interface(name, kind, introspected, is_async) :
         #end if
     #end def_prop
 
+    class proxy_factory :
+        # class that will be returned.
+
+        __slots__ = ("connection", "dest", "timeout")
+
+        def __init__(self, *, connection, dest, timeout = DBUS.TIMEOUT_USE_DEFAULT) :
+            if is_async :
+                assert connection.loop != None, "no event loop to attach coroutines to"
+            #end if
+            self.connection = connection
+            self.dest = dest
+            self.timeout = timeout
+        #end __init__
+
+        def __getitem__(self, path) :
+            return \
+                self.template \
+                  (
+                    connection = self.connection,
+                    dest = self.dest,
+                    path = path,
+                    timeout = self.timeout
+                  )
+        #end __getitem__
+
+    #end proxy_factory
+
 #begin def_proxy_interface
     if name != None :
         class_name = name
@@ -2417,27 +2276,7 @@ def def_proxy_interface(name, kind, introspected, is_async) :
     #end if
     proxy.__name__ = class_name
     proxy._iface_name = introspected.name
-    proxy.__doc__ = \
-        (
-                "proxy for a %(kind)s D-Bus interface named %(iname)s. Instantiate as\n"
-                "\n"
-                "    %(cname)s(connection = «connection»[, dest = «dest»[, timeout = «timeout»]])\n"
-                "\n"
-                "where «connection» is the dbussy.Connection instance to use for sending"
-                " messages and receiving replies, and «dest» is the destination" \
-                " bus name for sending method calls (not needed if only sending signals)."
-            %
-                {
-                    "cname" : class_name,
-                    "iname" : introspected.name,
-                    "kind" :
-                        {
-                            INTERFACE.CLIENT : "client-side",
-                            INTERFACE.SERVER : "server-side",
-                            INTERFACE.CLIENT_AND_SERVER : "client-and-server-side",
-                        }[kind]
-                }
-        )
+    proxy.__doc__ = "for making method calls on the %s interface." % introspected.name
     if kind != INTERFACE.SERVER :
         for method in introspected.methods :
             def_method(method)
@@ -2451,8 +2290,37 @@ def def_proxy_interface(name, kind, introspected, is_async) :
             def_signal(signal)
         #end for
     #end if
+    proxy_factory.__name__ = "%s_factory" % proxy.__name__
+    proxy_factory.__doc__ = \
+        (
+                "proxy factory for a %(kind)s D-Bus interface named %(iname)s. Instantiate as\n"
+                "\n"
+                "    %(cname)s(connection = «connection»[, dest = «dest»[, timeout = «timeout»]])\n"
+                "\n"
+                "where «connection» is the dbussy.Connection instance to use for sending"
+                " messages and receiving replies, and «dest» is the destination" \
+                " bus name for sending method calls (not needed if only sending signals)."
+                " The resulting «proxy» object can be indexed by object path, as follows:\n"
+                "\n"
+                "     «proxy»[«path»]\n"
+                "\n"
+                "to obtain the actual proxy interface object that can be used to do method"
+                " calls or signal calls."
+            %
+                {
+                    "cname" : class_name,
+                    "iname" : introspected.name,
+                    "kind" :
+                        {
+                            INTERFACE.CLIENT : "client-side",
+                            INTERFACE.SERVER : "server-side",
+                            INTERFACE.CLIENT_AND_SERVER : "client-and-server-side",
+                        }[kind]
+                }
+        )
+    proxy_factory.template = proxy
     return \
-        proxy
+        proxy_factory
 #end def_proxy_interface
 
 #+

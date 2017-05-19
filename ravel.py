@@ -1043,7 +1043,7 @@ class CObject :
                 connection = self.conn.connection,
                 dest = self.name,
                 timeout = timeout
-              )[path]
+              )[self.path]
     #end _get_interface
 
     def get_interface(self, name, timeout = DBUS.TIMEOUT_USE_DEFAULT) :

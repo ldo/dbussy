@@ -3191,7 +3191,8 @@ class Message :
                 result = list(x.object for x in self.recurse())
             elif argtype == DBUS.TYPE_VARIANT :
                 subiter = self.recurse()
-                result = next(subiter, None).object
+                subiter = next(subiter)
+                result = (subiter.signature, subiter.object)
             elif argtype == DBUS.TYPE_INVALID :
                 # fudge for iterating into an empty array
                 result = None

@@ -834,7 +834,7 @@ class Connection :
         #end if
     #end _notify_props_changed
 
-    def prop_changed(self, path, interface, propname, propvalue) :
+    def prop_changed(self, path, interface, propname, proptype, propvalue) :
         "indicates that a signal should be sent notifying of a change to the specified" \
         " property of the specified object path in the specified interface. propvalue" \
         " is either the new value to be included in the signal, or None to indicate" \
@@ -844,6 +844,8 @@ class Connection :
         "If there is an event loop attached, then multiple calls to this with different" \
         " properties on the same path and interface can be batched up into a single" \
         " signal notification."
+        assert (proptype != None) == (propvalue != None), \
+            "either specify both of proptype and propvalue, or neither"
         if self.loop != None :
             queue_task = False
             if self._props_changed == None :
@@ -860,7 +862,7 @@ class Connection :
                     }
             #end if
             if propvalue != None :
-                self._props_changed[key]["changed"][propname] = (guess_signature(propvalue), propvalue)
+                self._props_changed[key]["changed"][propname] = (proptype, propvalue)
             else :
                 self._props_changed[key]["invalidated"].add(propname)
             #end if
@@ -876,7 +878,7 @@ class Connection :
             changed = {}
             invalidated = []
             if propvalue != None :
-                changed[propname] = (guess_signature(propvalue), propvalue)
+                changed[propname] = (proptype, propvalue)
             else :
                 invalidated.append(propname)
             #end if
@@ -1875,7 +1877,7 @@ def signal \
 def propgetter \
   (*,
     name,
-    type = None,
+    type,
     name_keyword = None,
     connection_keyword = None,
     message_keyword = None,
@@ -1925,8 +1927,9 @@ def propgetter \
 def propsetter \
   (*,
     name,
-    type = None,
+    type,
     name_keyword = None,
+    type_keyword = None,
     value_keyword,
     connection_keyword = None,
     message_keyword = None,
@@ -1946,6 +1949,7 @@ def propsetter \
                 "name" : name,
                 "type" : dbus.parse_single_signature(type),
                 "name_keyword" : name_keyword,
+                "type_keyword" : type_keyword,
                 "value_keyword" : value_keyword,
                 "connection_keyword" : connection_keyword,
                 "message_keyword" : message_keyword,
@@ -2082,7 +2086,7 @@ def introspect(interface) :
             Introspection.Interface.Property
               (
                 name = name,
-                type = dbus.parse_signature(prop["type"]),
+                type = dbus.parse_single_signature(prop["type"]),
                 access =
                     (
                         None,
@@ -2290,7 +2294,7 @@ def def_proxy_interface(name, kind, introspected, is_async) :
                 message.append_objects("ss", self._iface_name, intr_prop.name)
                 reply = await self.connection.send_await_reply(message, self.timeout)
                 return \
-                    reply.all_objects[0] # variant type, so any type is OK
+                    reply.expect_objects("v")[0][1]
             #end get_prop
 
             async def set_prop(self, path, value) :
@@ -2301,7 +2305,7 @@ def def_proxy_interface(name, kind, introspected, is_async) :
                     iface = DBUS.INTERFACE_PROPERTIES,
                     method = "Set"
                   )
-                message.append_objects("ssv", self._iface_name, intr_prop.name, value)
+                message.append_objects("ssv", self._iface_name, intr_prop.name, (intr_prop.type, value))
                 reply = await self.connection.send_await_reply(message, self.timeout)
                 if reply.type == DBUS.MESSAGE_TYPE_METHOD_RETURN :
                     pass
@@ -2325,7 +2329,7 @@ def def_proxy_interface(name, kind, introspected, is_async) :
                 message.append_objects("ss", self._iface_name, intr_prop.name)
                 reply = self.connection.send_with_reply_and_block(message, self.timeout)
                 return \
-                    reply.all_objects[0] # variant type, so any type is OK
+                    reply.expect_objects("v")[0][1]
             #end get_prop
 
             def set_prop(self, path, value) :
@@ -2336,7 +2340,7 @@ def def_proxy_interface(name, kind, introspected, is_async) :
                     iface = DBUS.INTERFACE_PROPERTIES,
                     method = "Set"
                   )
-                message.append_objects("ssv", self._iface_name, intr_prop.name, value)
+                message.append_objects("ssv", self._iface_name, intr_prop.name, (intr_prop.type, value))
                 reply = self.connection.send_with_reply_and_block(message, self.timeout)
                 if reply.type == DBUS.MESSAGE_TYPE_METHOD_RETURN :
                     pass
@@ -2620,15 +2624,15 @@ class PropertyHandler :
             if "getter" in propentry :
                 notify = propentry["change_notification"]
                 if notify == Introspection.PROP_CHANGE_NOTIFICATION.NEW_VALUE :
-                    bus.prop_changed(path, interface_name, propname, propvalue)
+                    bus.prop_changed(path, interface_name, propname, proptype, propvalue)
                 elif notify == Introspection.PROP_CHANGE_NOTIFICATION.INVALIDATES :
-                    bus.prop_changed(path, interface_name, propname, None)
+                    bus.prop_changed(path, interface_name, propname, None, None)
                 #end if
             #end if
         #end notify_changed
 
     #begin setprop
-        interface_name, propname, propvalue = args
+        interface_name, propname, (proptype, propvalue) = args
         dispatch = bus.get_dispatch_interface(path, interface_name)
         props = type(dispatch)._interface_props
         if propname in props :
@@ -2636,21 +2640,21 @@ class PropertyHandler :
             if "setter" in propentry :
                 setter = getattr(dispatch, propentry["setter"].__name__)
                 try :
-                    if propentry["type"] != None :
-                        try :
-                            propvalue = propentry["type"].validate(propvalue)
-                        except (TypeError, ValueError) :
-                            raise HandlerError \
-                              (
-                                name = DBUS.ERROR_INVALID_ARGS,
-                                message = "new property value does not match expected signature"
-                              )
-                        #end try
+                    if propentry["type"] != None and propentry["type"] != dbus.parse_single_signature(proptype) :
+                        raise HandlerError \
+                          (
+                            name = DBUS.ERROR_INVALID_ARGS,
+                            message =
+                                    "new property type %s does not match expected signature %s"
+                                %
+                                    (proptype, dbus.unparse_signature(propentry["type"]))
+                          )
                     #end if
                     kwargs = {}
                     for keyword_keyword, value in \
                         (
                             ("name_keyword", lambda : propname),
+                            ("type_keyword", lambda : proptype),
                             ("value_keyword", lambda : propvalue),
                             ("connection_keyword", lambda : bus.connection),
                             ("message_keyword", lambda : message),

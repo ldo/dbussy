@@ -2218,7 +2218,7 @@ def def_proxy_interface(kind, *, name, introspected, is_async) :
                     reply.expect_objects("v")[0][1]
             #end get_prop
 
-            async def set_prop(self, value) :
+            def set_prop(self, value) :
                 message = dbus.Message.new_method_call \
                   (
                     destination = self._dest,
@@ -2227,14 +2227,18 @@ def def_proxy_interface(kind, *, name, introspected, is_async) :
                     method = "Set"
                   )
                 message.append_objects("ssv", self._iface_name, intr_prop.name, (intr_prop.type, value))
-                reply = await self._conn.send_await_reply(message, self._timeout)
-                if reply.type == DBUS.MESSAGE_TYPE_METHOD_RETURN :
-                    pass
-                elif reply.type == DBUS.MESSAGE_TYPE_ERROR :
-                    raise dbus.DBusError(reply.error_name, reply.expect_objects("s")[0])
-                else :
-                    raise ValueError("unexpected reply type %d" % reply.type)
-                #end if
+                async def sendit() :
+                    reply = await self._conn.send_await_reply(message, self._timeout)
+                    if reply.type == DBUS.MESSAGE_TYPE_METHOD_RETURN :
+                        pass
+                    elif reply.type == DBUS.MESSAGE_TYPE_ERROR :
+                        raise dbus.DBusError(reply.error_name, reply.expect_objects("s")[0])
+                    else :
+                        raise ValueError("unexpected reply type %d" % reply.type)
+                    #end if
+                #end sendit
+
+                self._conn.loop.create_task(sendit())
             #end set_prop
 
         else :
@@ -2274,15 +2278,23 @@ def def_proxy_interface(kind, *, name, introspected, is_async) :
 
         #end if
 
+        def get_prop_noaccess(self) :
+            raise dbus.DbusError \
+              (
+                name = DBUS.ERROR_ACCESS_DENIED,
+                message = "property “%s” cannot be read" % intro_prop.name
+              )
+        #end get_prop_noaccess
+
     #begin def_prop
-        if intr_prop.access != Introspection.ACCESS.WRITE :
-            get_prop.__name__ = "get_%s" % intr_prop.name
-            setattr(proxy, get_prop.__name__, get_prop)
+        if intr_prop.access == Introspection.ACCESS.WRITE :
+            get_prop = get_prop_noaccess
         #end if
-        if intr_prop.access != Introspection.ACCESS.READ :
-            set_prop.__name__ = "set_%s" % intr_prop.name
-            setattr(proxy, set_prop.__name__, set_prop)
+        if intr_prop.access == Introspection.ACCESS.READ :
+            set_prop = None
         #end if
+        prop = property(fget = get_prop, fset = set_prop)
+        setattr(proxy, intr_prop.name, prop)
     #end def_prop
 
     class proxy_factory :

@@ -705,14 +705,7 @@ class Connection :
             iface = iface_type._interface_name,
             name = name
           )
-        message.append_objects \
-          (
-            (
-                lambda : guess_sequence_signature(args),
-                lambda : call_info["in_signature"],
-            )[call_info["in_signature"] != None](),
-            *args
-          )
+        message.append_objects(call_info["in_signature"], *args)
         self.connection.send(message)
     #end send_signal
 
@@ -750,14 +743,7 @@ class Connection :
             method = name
           )
         if len(args) != 0 :
-            message.append_objects \
-              (
-                (
-                    lambda : guess_sequence_signature(args),
-                    lambda : call_info["in_signature"],
-                )[call_info["in_signature"] != None](),
-                *args
-              )
+            message.append_objects(call_info["in_signature"], *args)
         #end if
         reply = self.send_with_reply_and_block(message, timeout)
         if reply != None :
@@ -810,14 +796,7 @@ class Connection :
             method = name
           )
         if len(args) != 0 :
-            message.append_objects \
-              (
-                (
-                    lambda : guess_sequence_signature(args),
-                    lambda : call_info["in_signature"],
-                )[call_info["in_signature"] != None](),
-                *args
-              )
+            message.append_objects(call_info["in_signature"], *args)
         #end if
         reply = await self.connection.send_await_reply(message, timeout)
         if reply != None :
@@ -2619,17 +2598,12 @@ class PropertyHandler :
                     assert bus.loop != None, "no event loop to attach coroutine to"
                     async def await_return_value(task) :
                         propvalue = await task
-                        if propentry["type"] != None :
-                            valuesig = propentry["type"]
-                        else :
-                            valuesig = guess_signature(propvalue)
-                        #end if
                         _send_method_return \
                           (
                             connection = bus.connection,
                             message = message,
                             sig = [dbus.VariantType()],
-                            args = [(valuesig, propvalue)]
+                            args = [(propentry["type"], propvalue)]
                           )
                     #end await_return_value
                     bus.loop.create_task(await_return_value(propvalue))
@@ -2638,17 +2612,12 @@ class PropertyHandler :
                     assert propvalue.is_set, "unset Error object returned from propgetter"
                     reply = message.new_error(propvalue.name, propvalue.nessage)
                 else :
-                    if propentry["type"] != None :
-                        valuesig = propentry["type"]
-                    else :
-                        valuesig = guess_signature(propvalue)
-                    #end if
                     _send_method_return \
                       (
                         connection = bus.connection,
                         message = message,
                         sig = [dbus.VariantType()],
-                        args = [(valuesig, propvalue)]
+                        args = [(propentry["type"], propvalue)]
                       )
                     reply = None
                 #end if
@@ -2819,12 +2788,7 @@ class PropertyHandler :
                     properror = err.as_error()
                     break
                 #end try
-                if propentry["type"] != None :
-                    valuesig = propentry["type"]
-                else :
-                    valuesig = guess_signature(propvalue)
-                #end if
-                propvalues[propname] = (valuesig, propvalue)
+                propvalues[propname] = (propentry["type"], propvalue)
             #end if
         #end for
         if properror != None :

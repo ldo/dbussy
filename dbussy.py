@@ -3370,6 +3370,21 @@ class Message :
             self.all_objects
     #end expect_objects
 
+    def expect_return_objects(self, signature) :
+        "expects the Message to be of type DBUS.MESSAGE_TYPE_METHOD_RETURN and its" \
+        " arguments to conform to the given signature. Raises the appropriate DBusError" \
+        " if the Message is of type DBUS.MESSAGE_TYPE_ERROR."
+        if self.type == DBUS.MESSAGE_TYPE_METHOD_RETURN :
+            result = self.expect_objects(signature)
+        elif self.type == DBUS.MESSAGE_TYPE_ERROR :
+            raise DBusError(self.error_name, self.expect_objects("s")[0])
+        else :
+            raise ValueError("unexpected message type %d" % self.type)
+        #end if
+        return \
+            result
+    #end expect_return_objects
+
     def iter_init_append(self) :
         "creates a Message.AppendIter for appending arguments to the Message."
         iter = self.AppendIter(None)

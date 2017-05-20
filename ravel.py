@@ -747,13 +747,7 @@ class Connection :
         #end if
         reply = self.send_with_reply_and_block(message, timeout)
         if reply != None :
-            if reply.type == DBUS.MESSAGE_TYPE_METHOD_RETURN :
-                result = reply.expect_objects(call_info["out_signature"])
-            elif reply.type == DBUS.MESSAGE_TYPE_ERROR :
-                raise dbus.DBusError(reply.error_name, reply.expect_objects("s")[0])
-            else :
-                raise ValueError("unexpected reply type %d" % reply.type)
-            #end if
+            result = reply.expect_return_objects(call_info["out_signature"])
         else :
             result = None
         #end if
@@ -800,14 +794,7 @@ class Connection :
         #end if
         reply = await self.connection.send_await_reply(message, timeout)
         if reply != None :
-            if reply.type == DBUS.MESSAGE_TYPE_METHOD_RETURN :
-                # TODO: respect call_info["out_signature"]?
-                result = reply.expect_objects(call_info["out_signature"])
-            elif reply.type == DBUS.MESSAGE_TYPE_ERROR :
-                raise dbus.DBusError(reply.error_name, reply.expect_objects("s")[0])
-            else :
-                raise ValueError("unexpected reply type %d" % reply.type)
-            #end if
+            result = reply.expect_return_objects(call_info["out_signature"])
         else :
             result = None
         #end if
@@ -2123,13 +2110,7 @@ def def_proxy_interface(kind, *, name, introspected, is_async) :
                 _append_args(message, intr_method, args, kwargs)
                 if intr_method.expect_reply :
                     reply = await self._conn.send_await_reply(message, self._timeout)
-                    if reply.type == DBUS.MESSAGE_TYPE_METHOD_RETURN :
-                        result = reply.expect_objects(intr_method.out_signature)
-                    elif reply.type == DBUS.MESSAGE_TYPE_ERROR :
-                        raise dbus.DBusError(reply.error_name, reply.expect_objects("s")[0])
-                    else :
-                        raise ValueError("unexpected reply type %d" % reply.type)
-                    #end if
+                    result = reply.expect_return_objects(intr_method.out_signature)
                 else :
                     message.no_reply = True
                     self._conn.send(message)

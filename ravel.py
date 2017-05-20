@@ -1105,6 +1105,8 @@ def _message_interface_dispatch(connection, message, bus) :
             # again, call more-specific (fallback = False) handlers first,
             # not that it’s important
             rulekey = _signal_key(fallback, interface_name, name)
+              # FIXME: not correctly checking for extra fields in signal key,
+              # so signals don’t get delivered to such listeners.
             if rulekey in listeners and (len(path) == 0 or fallback) :
                 funcs = listeners[rulekey]
                 for func in funcs :

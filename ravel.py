@@ -2060,12 +2060,13 @@ def def_proxy_interface(kind, *, name, introspected, is_async) :
         # destination and path.
 
         # class field _iface_name contains interface name.
-        __slots__ = ("_conn", "_dest", "_path", "_timeout")
+        __slots__ = ("_parent", "_conn", "_dest", "_path", "_timeout")
 
-        def __init__(self, *, connection, dest, path, timeout = DBUS.TIMEOUT_USE_DEFAULT) :
+        def __init__(self, *, parent, connection, dest, path, timeout = DBUS.TIMEOUT_USE_DEFAULT) :
             if is_async :
                 assert connection.loop != None, "no event loop to attach coroutines to"
             #end if
+            self._parent = parent
             self._conn = connection
             self._dest = dest
             self._path = path
@@ -2214,8 +2215,15 @@ def def_proxy_interface(kind, *, name, introspected, is_async) :
                     method = "Set"
                   )
                 message.append_objects("ssv", self._iface_name, intr_prop.name, (intr_prop.type, value))
+                set_prop_pending = self._conn.loop.create_future()
+                self._parent._set_prop_pending.append(set_prop_pending)
                 async def sendit() :
                     reply = await self._conn.send_await_reply(message, self._timeout)
+                    set_prop_pending.set_result(None)
+                    self._parent._set_prop_pending.pop \
+                      (
+                        self._parent._set_prop_pending.index(set_prop_pending)
+                      )
                     if reply.type == DBUS.MESSAGE_TYPE_METHOD_RETURN :
                         pass
                     elif reply.type == DBUS.MESSAGE_TYPE_ERROR :
@@ -2287,7 +2295,7 @@ def def_proxy_interface(kind, *, name, introspected, is_async) :
     class proxy_factory :
         # class that will be returned.
 
-        __slots__ = ("connection", "dest", "timeout")
+        __slots__ = ("connection", "dest", "timeout", "_set_prop_pending")
 
         def __init__(self, *, connection, dest, timeout = DBUS.TIMEOUT_USE_DEFAULT) :
             if is_async :
@@ -2296,18 +2304,36 @@ def def_proxy_interface(kind, *, name, introspected, is_async) :
             self.connection = connection
             self.dest = dest
             self.timeout = timeout
+            if is_async :
+                self._set_prop_pending = []
+            else :
+                self._set_prop_pending = None
+            #end if
         #end __init__
 
         def __getitem__(self, path) :
             return \
                 self.template \
                   (
+                    parent = self,
                     connection = self.connection,
                     dest = self.dest,
                     path = path,
                     timeout = self.timeout
                   )
         #end __getitem__
+
+        async def set_prop_flush(self) :
+            "workaround for the fact that prop-setter has to queue a separate" \
+            " asynchronous task; caller can await this coroutine to ensure that" \
+            " all pending set-property calls have completed."
+            if not is_async :
+                raise RuntimeError("not without an event loop")
+            #end if
+            if len(self._set_prop_pending) != 0 :
+                await asyncio.wait(self._set_prop_pending, loop = self.connection.loop)
+            #end if
+        #end set_prop_flush
 
     #end proxy_factory
 

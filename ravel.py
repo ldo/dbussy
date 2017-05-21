@@ -2217,8 +2217,9 @@ def def_proxy_interface(kind, *, name, introspected, is_async) :
                 message.append_objects("ssv", self._iface_name, intr_prop.name, (intr_prop.type, value))
                 set_prop_pending = self._conn.loop.create_future()
                 self._parent._set_prop_pending.append(set_prop_pending)
+                pending = self._conn.send_with_reply(message, self._timeout)
                 async def sendit() :
-                    reply = await self._conn.send_await_reply(message, self._timeout)
+                    reply = await pending.await_reply()
                     set_prop_pending.set_result(None)
                     self._parent._set_prop_pending.pop \
                       (

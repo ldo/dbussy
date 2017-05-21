@@ -4613,7 +4613,7 @@ def validate_utf8(alleged_utf8, error = None) :
 #end validate_utf8
 
 #+
-# Standard interfaces
+# Introspection representation
 #-
 
 class _TagCommon :
@@ -5077,6 +5077,10 @@ class Introspection(_TagCommon) :
 #end Introspection
 
 del _TagCommon
+
+#+
+# Standard interfaces
+#-
 
 standard_interfaces = \
     {

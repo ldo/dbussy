@@ -796,7 +796,7 @@ class Connection :
           )
         reply = self.connection.send_with_reply_and_block(message, timeout)
         return \
-            dbus.Introspection.parse(reply.expect_objects("s")[0])
+            dbus.Introspection.parse(reply.expect_return_objects("s")[0])
     #end introspect
 
     async def introspect_async(self, destination, path, timeout = DBUS.TIMEOUT_USE_DEFAULT) :
@@ -811,7 +811,7 @@ class Connection :
           )
         reply = await self.connection.send_await_reply(message, timeout)
         return \
-            dbus.Introspection.parse(reply.expect_objects("s")[0])
+            dbus.Introspection.parse(reply.expect_return_objects("s")[0])
     #end introspect_async
 
     def _notify_props_changed(self) :
@@ -2116,7 +2116,7 @@ def def_proxy_interface(kind, *, name, introspected, is_async) :
                 _append_args(message, intr_method, args, kwargs)
                 if intr_method.expect_reply :
                     reply = self._conn.send_with_reply_and_block(message, self._timeout)
-                    result = reply.expect_objects(intr_method.out_signature)
+                    result = reply.expect_return_objects(intr_method.out_signature)
                 else :
                     message.no_reply = True
                     self._conn.send(message)
@@ -2198,7 +2198,7 @@ def def_proxy_interface(kind, *, name, introspected, is_async) :
                 message.append_objects("ss", self._iface_name, intr_prop.name)
                 reply = await self._conn.send_await_reply(message, self._timeout)
                 return \
-                    reply.expect_objects("v")[0][1]
+                    reply.expect_return_objects("v")[0][1]
             #end get_prop
 
             def set_prop(self, value) :
@@ -2250,7 +2250,7 @@ def def_proxy_interface(kind, *, name, introspected, is_async) :
                 message.append_objects("ss", self._iface_name, intr_prop.name)
                 reply = self._conn.send_with_reply_and_block(message, self._timeout)
                 return \
-                    reply.expect_objects("v")[0][1]
+                    reply.expect_return_objects("v")[0][1]
             #end get_prop
 
             def set_prop(self, value) :

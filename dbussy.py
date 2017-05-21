@@ -3921,7 +3921,8 @@ class PendingCall :
     async def await_reply(self) :
         "retrieves the Message. If it is not yet available, suspends the" \
         " coroutine (letting the event loop do other things) until it becomes" \
-        " available."
+        " available. On a timeout, libdbus will construct and return an error" \
+        " return message."
         assert self._conn.loop != None, "no event loop on parent Connection to attach coroutine to"
         if self._wrap_notify != None or self._awaiting != None :
             raise asyncio.InvalidStateError("there is already a notify set on this PendingCall")

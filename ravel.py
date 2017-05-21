@@ -554,8 +554,10 @@ class Connection :
         #end if
         signal_info = func._signal_info
         entry = self._get_dispatch_node(path, True)
-        # should I bother to check it matches a registered interface and
+        # Should I bother to check it matches a registered interface and
         # defined signal therein?
+        # Also, should I pay any attention to signal_info["name"]? Perhaps
+        # default if name arg is None?
         listeners = entry.signal_listeners
         rulekey = _signal_key(fallback, interface, name)
         if rulekey not in listeners :

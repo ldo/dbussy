@@ -661,30 +661,52 @@ class Connection :
             iface
     #end get_dispatch_interface
 
+    def _get_iface_entry(self, path, interface, name, namekind) :
+        iface = self.get_dispatch_interface(path, interface)
+        if iface == None :
+            raise TypeError \
+              (
+                "no suitable interface %s for object %s" % (interface, dbus.unsplit_path(path))
+              )
+        #end if
+        iface_type = type(iface)
+        if iface_type._interface_kind == (INTERFACE.SERVER, INTERFACE.CLIENT)[namekind == "signal"] :
+            raise TypeError \
+              (
+                    "cannot send %s call from %s side"
+                %
+                    (("method", "server"), ("signal", "client"))[namekind == "signal"]
+              )
+        #end if
+        lookup = getattr \
+          (
+            iface_type,
+            {
+                "method" : "_interface_methods",
+                "signal" : "_interface_signals",
+                "property" : "_interface_props",
+            }[namekind]
+          )
+        if name not in lookup :
+            raise KeyError \
+              (
+                "name “%s” is not a %s of interface “%s”" % (name, namekind, interface)
+              )
+        #end if
+        return \
+            lookup[name]
+    #end _get_iface_entry
+
     def send_signal(self, *, path, interface, name, args) :
         "intended for server-side use: sends a signal with the specified" \
         " interface and name from the specified object path. There must" \
         " already be a registered interface instance with that name which" \
         " defines that signal for that path."
-        iface = self.get_dispatch_interface(path, interface)
-        if iface == None :
-            raise TypeError("no suitable interface %s for object %s" % (interface, dbus.unsplit_path(path)))
-        #end if
-        iface_type = type(iface)
-        if iface_type._interface_kind == INTERFACE.CLIENT :
-            raise TypeError("cannot send signal from client side")
-        #end if
-        if name not in iface_type._interface_signals :
-            raise KeyError \
-              (
-                "name %s is not a signal of interface %s" % (name, iface_type._interface_name)
-              )
-        #end if
-        call_info = iface_type._interface_signals[name]._signal_info
+        call_info = self._get_iface_entry(path, interface, name, "signal")._signal_info
         message = dbus.Message.new_signal \
           (
             path = dbus.unsplit_path(path),
-            iface = iface_type._interface_name,
+            iface = interface,
             name = name
           )
         message.append_objects(call_info["in_signature"], *args)
@@ -699,21 +721,7 @@ class Connection :
         "\n" \
         "An exception is raised if the return is an error; otherwise a list of" \
         " the reply args is returned."
-        iface = self.get_dispatch_interface(path, interface)
-        if iface == None :
-            raise TypeError("no suitable interface %s for object %s" % (interface, dbus.unsplit_path(path)))
-        #end if
-        iface_type = type(iface)
-        if iface_type._interface_kind == INTERFACE.SERVER :
-            raise TypeError("cannot send method call from server side")
-        #end if
-        if name not in iface_type._interface_methods :
-            raise KeyError \
-              (
-                "name %s is not a method of interface %s" % (name, iface_type._interface_name)
-              )
-        #end if
-        call_info = iface_type._interface_methods[name]._method_info
+        call_info = self._get_iface_entry(path, interface, name, "method")._method_info
         if not call_info["reply"] :
             raise TypeError("method %s does not reply" % name)
         #end if
@@ -721,7 +729,7 @@ class Connection :
           (
             destination = destination,
             path = dbus.unsplit_path(path),
-            iface = iface_type._interface_name,
+            iface = interface,
             method = name
           )
         if len(args) != 0 :
@@ -746,21 +754,7 @@ class Connection :
         "An exception is raised if the return is an error; otherwise a list of" \
         " the reply args is returned."
         assert self.loop != None, "no event loop to attach coroutine to"
-        iface = self.get_dispatch_interface(path, interface)
-        if iface == None :
-            raise TypeError("no suitable interface %s for object %s" % (interface, dbus.unsplit_path(path)))
-        #end if
-        iface_type = type(iface)
-        if iface_type._interface_kind == INTERFACE.SERVER :
-            raise TypeError("cannot send method call from server side")
-        #end if
-        if name not in iface_type._interface_methods :
-            raise KeyError \
-              (
-                "name %s is not a method of interface %s" % (name, iface_type._interface_name)
-              )
-        #end if
-        call_info = iface_type._interface_methods[name]._method_info
+        call_info = self._get_iface_entry(path, interface, name, "method")._method_info
         if not call_info["reply"] :
             raise TypeError("method %s does not reply" % name)
         #end if
@@ -768,7 +762,7 @@ class Connection :
           (
             destination = destination,
             path = dbus.unsplit_path(path),
-            iface = iface_type._interface_name,
+            iface = interface,
             method = name
           )
         if len(args) != 0 :
@@ -783,6 +777,108 @@ class Connection :
         return \
             result
     #end send_method_await_reply
+
+    def get_prop_blocking(self, *, destination, path, interface, name, timeout = DBUS.TIMEOUT_USE_DEFAULT) :
+        propentry = self._get_iface_entry(path, interface, name, "property")
+        message = dbus.Message.new_method_call \
+          (
+            destination = destination,
+            path = dbus.unsplit_path(path),
+            iface = DBUS.INTERFACE_PROPERTIES,
+            method = "Get"
+          )
+        message.append_objects("ss", interface, name)
+        reply = self.send_with_reply_and_block(message, timeout)
+        if reply != None :
+            proptype, propvalue = reply.expect_return_objects("v")[0]
+            expect_type = dbus.unparse_signature(property["type"])
+            if proptype != expect_type :
+                raise TypeError \
+                  (
+                    "wrong property type, expected “%s”, got “%s”" % (expect_type, proptype)
+                  )
+            #end if
+            result = property["type"].validate(propvalue)
+        else :
+            raise dbus.DBusError(DBUS.ERROR_TIMEOUT, "server took too long to return property value")
+        #end if
+        return \
+            result
+    #end get_prop_blocking
+
+    async def get_prop_async(self, *, destination, path, interface, name, timeout = DBUS.TIMEOUT_USE_DEFAULT) :
+        assert self.loop != None, "no event loop to attach coroutine to"
+        propentry = self._get_iface_entry(path, interface, name, "property")
+        message = dbus.Message.new_method_call \
+          (
+            destination = destination,
+            path = dbus.unsplit_path(path),
+            iface = DBUS.INTERFACE_PROPERTIES,
+            method = "Get"
+          )
+        message.append_objects("ss", interface, name)
+        reply = await self.connection.send_await_reply(message, timeout)
+        if reply != None :
+            proptype, propvalue = reply.expect_return_objects("v")[0]
+            expect_type = dbus.unparse_signature(property["type"])
+            if proptype != expect_type :
+                raise TypeError \
+                  (
+                    "wrong property type, expected “%s”, got “%s”" % (expect_type, proptype)
+                  )
+            #end if
+            result = propvalue
+        else :
+            raise dbus.DBusError(DBUS.ERROR_TIMEOUT, "server took too long to return property value")
+        #end if
+        return \
+            result
+    #end get_prop_async
+
+    def set_prop_blocking(self, *, destination, path, interface, name, value, timeout = DBUS.TIMEOUT_USE_DEFAULT) :
+        propentry = self._get_iface_entry(path, interface, name, "property")
+        message = dbus.Message.new_method_call \
+          (
+            destination = destination,
+            path = dbus.unsplit_path(path),
+            iface = DBUS.INTERFACE_PROPERTIES,
+            method = "Set"
+          )
+        message.append_objects("ssv", interface, name, (propentry["type"], value))
+        reply = self.send_with_reply_and_block(message, timeout)
+        if reply != None :
+            if reply.type == DBUS.MESSAGE_TYPE_ERROR :
+                raise dbus.DBusError(reply.error_name, reply.expect_objects("s")[0])
+            else :
+                pass # ignore
+            #end if
+        else :
+            raise dbus.DBusError(DBUS.ERROR_TIMEOUT, "server took too long to set property value")
+        #end if
+    #end set_prop_blocking
+
+    async def set_prop_async(self, *, destination, path, interface, name, value, timeout = DBUS.TIMEOUT_USE_DEFAULT) :
+        assert self.loop != None, "no event loop to attach coroutine to"
+        propentry = self._get_iface_entry(path, interface, name, "property")
+        message = dbus.Message.new_method_call \
+          (
+            destination = destination,
+            path = dbus.unsplit_path(path),
+            iface = DBUS.INTERFACE_PROPERTIES,
+            method = "Set"
+          )
+        message.append_objects("ssv", interface, name, (propentry["type"], value))
+        reply = await self.connection.send_await_reply(message, timeout)
+        if reply != None :
+            if reply.type == DBUS.MESSAGE_TYPE_ERROR :
+                raise dbus.DBusError(reply.error_name, reply.expect_objects("s")[0])
+            else :
+                pass # ignore
+            #end if
+        else :
+            raise dbus.DBusError(DBUS.ERROR_TIMEOUT, "server took too long to set property value")
+        #end if
+    #end set_prop_async
 
     def introspect(self, destination, path, timeout = DBUS.TIMEOUT_USE_DEFAULT) :
         "sends an Introspect request to the specified bus name and object path," \

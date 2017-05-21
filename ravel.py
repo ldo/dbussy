@@ -731,7 +731,7 @@ class Connection :
         if reply != None :
             result = reply.expect_return_objects(call_info["out_signature"])
         else :
-            result = None
+            raise dbus.DBusError(DBUS.ERROR_TIMEOUT, "server took too long to return reply")
         #end if
         return \
             result
@@ -778,7 +778,7 @@ class Connection :
         if reply != None :
             result = reply.expect_return_objects(call_info["out_signature"])
         else :
-            result = None
+            raise dbus.DBusError(DBUS.ERROR_TIMEOUT, "server took too long to return reply")
         #end if
         return \
             result

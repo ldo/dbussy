@@ -600,7 +600,8 @@ class Connection :
 
     def listen_propchanged(self, path, fallback, interface, func) :
         "special case of Connection.listen_signal specifically for listening" \
-        " for properties-changed signals."
+        " for properties-changed signals. The interface is ignored for now;" \
+        " your listener will have to check for matches on this itself."
         self.listen_signal \
           (
             path = path,
@@ -613,7 +614,8 @@ class Connection :
 
     def unlisten_propchanged(self, path, fallback, interface, func) :
         "special case of Connection.unlisten_signal specifically for listening" \
-        " for properties-changed signals."
+        " for properties-changed signals. The interface is ignored for now;" \
+        " your listener has to check for matches on this itself."
         self.unlisten_signal \
           (
             path = path,

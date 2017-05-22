@@ -912,6 +912,7 @@ class Connection :
     async def introspect_async(self, destination, path, timeout = DBUS.TIMEOUT_USE_DEFAULT) :
         "sends an Introspect request to the specified bus name and object path," \
         " and returns the resulting parsed Introspection structure."
+        assert self.loop != None, "no event loop to attach coroutine to"
         message = dbus.Message.new_method_call \
           (
             destination = destination,
@@ -923,6 +924,55 @@ class Connection :
         return \
             dbus.Introspection.parse(reply.expect_return_objects("s")[0])
     #end introspect_async
+
+    def get_proxy_interface(self, destination, path, interface) :
+        "sends an Introspect request to the specified bus name and object path," \
+        " and generates a client-side proxy interface for the interface with" \
+        " the specified name."
+        introspected = self.introspect(destination, path)
+        interfaces = introspected.interfaces_by_name
+        if interface not in interfaces :
+            raise KeyError \
+              (
+                    "peer “%s” does not implement interface “%s” at path “%s”"
+                %
+                    (destination, interface, path)
+              )
+        #end if
+        return \
+            def_proxy_interface \
+              (
+                name = interface,
+                kind = INTERFACE.CLIENT,
+                introspected = interfaces[interface],
+                is_async = False
+              )
+    #end get_proxy_interface
+
+    async def get_proxy_interface_async(self, destination, path, interface) :
+        "sends an Introspect request to the specified bus name and object path," \
+        " and generates a client-side proxy interface for the interface with" \
+        " the specified name."
+        assert self.loop != None, "no event loop to attach coroutine to"
+        introspected = await self.introspect_async(destination, path)
+        interfaces = introspected.interfaces_by_name
+        if interface not in interfaces :
+            raise KeyError \
+              (
+                    "peer “%s” does not implement interface “%s” at path “%s”"
+                %
+                    (destination, interface, path)
+              )
+        #end if
+        return \
+            def_proxy_interface \
+              (
+                name = interface,
+                kind = INTERFACE.CLIENT,
+                introspected = interfaces[interface],
+                is_async = True
+              )
+    #end get_proxy_interface_async
 
     def _notify_props_changed(self) :
         # callback that is queued on the event loop to actually send the

@@ -781,6 +781,9 @@ class Connection :
     #end send_method_await_reply
 
     def get_prop_blocking(self, *, destination, path, interface, name, timeout = DBUS.TIMEOUT_USE_DEFAULT) :
+        "intended for client-side use: sends a get-property request and returns the" \
+        " property value. There must already be a registered interface instance with" \
+        " that name which defines the property for that path."
         propentry = self._get_iface_entry(path, interface, name, "property")
         message = dbus.Message.new_method_call \
           (
@@ -809,6 +812,9 @@ class Connection :
     #end get_prop_blocking
 
     async def get_prop_async(self, *, destination, path, interface, name, timeout = DBUS.TIMEOUT_USE_DEFAULT) :
+        "intended for client-side use: sends a get-property request and returns the" \
+        " property value. There must already be a registered interface instance with" \
+        " that name which defines the property for that path."
         assert self.loop != None, "no event loop to attach coroutine to"
         propentry = self._get_iface_entry(path, interface, name, "property")
         message = dbus.Message.new_method_call \
@@ -838,6 +844,9 @@ class Connection :
     #end get_prop_async
 
     def set_prop_blocking(self, *, destination, path, interface, name, value, timeout = DBUS.TIMEOUT_USE_DEFAULT) :
+        "intended for client-side use: sends a set-property request to change the" \
+        " property value. There must already be a registered interface instance with" \
+        " that name which defines the property for that path."
         propentry = self._get_iface_entry(path, interface, name, "property")
         message = dbus.Message.new_method_call \
           (
@@ -860,6 +869,9 @@ class Connection :
     #end set_prop_blocking
 
     async def set_prop_async(self, *, destination, path, interface, name, value, timeout = DBUS.TIMEOUT_USE_DEFAULT) :
+        "intended for client-side use: sends a set-property request to change the" \
+        " property value. There must already be a registered interface instance with" \
+        " that name which defines the property for that path."
         assert self.loop != None, "no event loop to attach coroutine to"
         propentry = self._get_iface_entry(path, interface, name, "property")
         message = dbus.Message.new_method_call \

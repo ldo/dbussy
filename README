@@ -83,15 +83,6 @@ reversed, so the top level is at the beginning. If you are familiar with
 package names in Java, they take the same form, and with the same
 intent: to reduce the chance of name conflicts.
 
-D-Bus defines some standard interfaces which are meant to be
-understood by most if not all services. For example, the
-“org.freedesktop.DBus.Introspectable” interface defines an
-“Introspect” method; the expected response to this is an XML string
-that describes all the interfaces understood by the object identified
-by the object path, as well as listing all the available child objects
-that can be accessed by appending a slash and the child name to the
-parent object path, if any.
-
 D-Bus also includes an extensive, but not extensible, type system for
 encoding data in a message. This data represents arguments to the
 method call or signal, return results for a method return or the error
@@ -112,6 +103,35 @@ more lenient. For example, while the D-Bus type system specifies
 different basic types for different sizes of integers of signed or
 unsigned varieties, most Python code will probably not care about the
 specific distinctions, and treat all these values as of type “int”.
+
+
+Standard Interfaces
+-------------------
+
+D-Bus defines some standard interfaces which are meant to be
+understood by most if not all services.
+
+One fundamental one is the “org.freedesktop.DBus.Introspectable”
+interface; this defines an “Introspect” method, that is expected to
+return an XML string that describes all the interfaces understood by
+the object identified by the object path, as well as listing all the
+available child objects that can be accessed by appending a slash and
+the child name to the parent object path, if any. Introspection is a
+very important part of D-Bus: it is what allows users to discover what
+services are available on their installations, and throw together
+ad-hoc scripts in Python or other high-level languages to make
+convenient use of such services, without having to write a lot of
+interfacing code.
+
+Another commonly-supported interface is called
+“org.freedesktop.DBus.Properties”. This one defines the concept of
+*properties*, which are pieces of data notionally attached to object
+paths, and which might be readable, writable or both. This interface
+defines standard methods to get a property value for an object, set a
+new property value, or get all properties defined on an object. It
+also specifies a signal that can be sent by a server process as a
+general notification to all peers on the bus about changes to its
+property values.
 
 
 Enter DBussy
@@ -577,8 +597,7 @@ Getters and setters can be coroutines.
 Custom User Data
 ----------------
 
-
-With Ravel’s structured interface, it is possible to attach your own
+With Ravel’s interface classes, it is possible to attach your own
 user data items to arbitrary points in the object path tree. To
 obtain the user data dictionary for a given object path, do either
 

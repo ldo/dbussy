@@ -216,6 +216,12 @@ handling incoming ones. For example, this is true of both the common
 standard interfaces (Introspectable and Properties), since most if not
 all peers are expected to support them.
 
+(Signal definitions are a special case: even in a
+client-and-server-side interface, they can be marked as stubs--as in
+the standard PropertyHandler interface. This allows you to register
+such an interface for introspection purposes, without having to accept
+its handling of any signals.)
+
 Both kinds of interface representations are provided by the “ravel”
 module--interface classes on the client or server side, and proxy
 interfaces on the client side. Ravel also offers different ways to
@@ -235,29 +241,32 @@ daemon.
 The Client Side: Proxy Interfaces
 ---------------------------------
 
-Proxy interfaces can be easily constructed in a number of different
-ways. One way is to start with a proxy object referencing a particular
-object at a particular bus name. You get one of these with an expression
-like
+Proxy interfaces can be easily constructed in different ways. One way
+is to start with a proxy for a bus peer with a particular name. You
+get one of these with an expression that treats the connection as
+though it were a mapping:
 
-    «bus».get_object(«bus_name», «path»)
+    peer = conn[«bus_name»]
 
-From here, you can get a proxy for a desired interface thus:
+Then you do another lookup on this mapping to get a reference to a
+particular object path at that peer:
 
-    «bus».get_object(«bus_name», «path») \
-        .get_interface(«interface_name»)
+    obj = peer[«object_path»]
 
-which causes automatic introspection of the server to obtain
-all the necessary type information for that interface. So
-calling a Python method on this object
+Now, you can get a proxy for a desired interface thus:
 
-    «bus».get_object(«bus_name», «path») \
-        .get_interface(«interface_name») \
-        .«method»(«args»)
+    iface = obj.get_interface(«interface_name»)
 
-translates automatically to the corresponding D-Bus method
-call to that object and interface on the remote server, with
-full type checking done on both arguments and results.
+which causes automatic introspection of that object path on the peer
+to obtain all the necessary type information for that interface (if it
+is not one of the standard interfaces). So calling a Python method on
+this object
+
+    results = iface.«method»(«args»)
+
+translates automatically to the corresponding D-Bus method call to
+that object and interface on the remote server, with full type
+checking done on both arguments and results.
 
 Note that the method result is always a list.
 
@@ -267,7 +276,7 @@ Python way. For example, adding 1 to a numeric property (written
 out the long way to demonstrate property access on both the LHS
 and RHS of the assignment):
 
-    iface = «bus».get_object(«bus_name», «path») \
+    iface = conn[«bus_name»][«path»] \
         .get_interface(«interface_name»)
     iface.«prop» = iface.«prop» + 1
 
@@ -286,8 +295,7 @@ notification displaying a short message for 5 seconds. Because the
 introspection of this interface supplies names for the arguments, it
 is possible to pass them to the method call by keyword:
 
-    ravel.session_bus() \
-        .get_object("org.freedesktop.Notifications", "/org/freedesktop/Notifications") \
+    ravel.session_bus()["org.freedesktop.Notifications"]["/org/freedesktop/Notifications"] \
         .get_interface("org.freedesktop.Notifications") \
         .Notify \
           (
@@ -317,9 +325,9 @@ are specified. Proxies can also be obtained in “bus name-interface-path”
 order. This can be convenient for obtaining a proxy interface object
 that can then be used to make calls on multiple objects.
 
-In this method, the proxy interface is obtained thus:
+In this method, an initial *root* proxy is obtained thus:
 
-   iface = «bus».get_proxy_interface \
+   iface_root = conn[«bus_name»].get_interface \
      (
         destination = «bus_name»,
         path = «initial_path»,
@@ -330,17 +338,16 @@ Note you need to specify an object path for this initial introspection;
 it is probably best to use the shortest (highest-level) path that
 supports that interface. Depending on the peer, the root path “/” might work.
 
-What is returned is a *root* proxy interface. From this, you get
-the proxy for an actual object by using the object path as though
-it were a key to the root proxy dictionary, e.g.
+From this, you get the proxy for the interface on an actual object by
+using the object path as a lookup key, e.g.
 
-    obj = iface[«path»]
+    iface = iface_root[«path»]
 
 From here, you can invoke the method calls and access properties
 in the same way as before, e.g.
 
-    obj.«method»(«args»)
-    ... obj.«prop» ...
+    iface.«method»(«args»)
+    ... iface.«prop» ...
 
 
 Asynchronous Properties
@@ -633,7 +640,7 @@ generates the appropriate XML form for returning to D-Bus queries.
 
 The ravel.PropertyHandler class defines the standard Properties
 interface, and automatically dispatches to @propgetter() and
-@propsetter() methods as defined in your interface classes.
+@propsetter() methods as defined in your registered interface classes.
 
 
 DBussy Examples
@@ -654,4 +661,4 @@ it.
 
 
 Lawrence D'Oliveiro <ldo@geek-central.gen.nz>
-2017 May 22
+2017 May 23

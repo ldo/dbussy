@@ -393,15 +393,6 @@ class Connection :
             type(self).BusName(self, bus_name)
     #end request_name
 
-    def get_object(self, bus_name, path) :
-        "for client-side use; returns a CObject instance for communicating" \
-        " with a specified server object. You can then call get_interface" \
-        " on the result to create an interface object that can be used to" \
-        " call any method defined on the server by that interface."
-        return \
-            CObject(self, bus_name, path)
-    #end get_object
-
     def _trim_dispatch(self) :
         # removes empty subtrees from the object tree.
 
@@ -701,6 +692,98 @@ class Connection :
             lookup[name]
     #end _get_iface_entry
 
+    def _notify_props_changed(self) :
+        # callback that is queued on the event loop to actually send the
+        # properties-changed notification signals.
+        if self._props_changed != None :
+            done = set()
+            now = self.loop.time()
+            for key in self._props_changed :
+                entry = self._props_changed[key]
+                path, interface = key
+                if entry["at"] <= now :
+                    self.send_signal \
+                      (
+                        path = path,
+                        interface = DBUS.INTERFACE_PROPERTIES,
+                        name = "PropertiesChanged",
+                        args = (interface, entry["changed"], sorted(entry["invalidated"]))
+                      )
+                    done.add(key)
+                #end if
+            #end for
+            for key in done :
+                del self._props_changed[key]
+            #end for
+            if len(self._props_changed) == 0 :
+                # all done for now
+                self._props_changed = None # indicates I am not pending to be called any more
+            else :
+                # another notification waiting to be sent later
+                next_time = min(entry["at"] for entry in self._props_changed.values())
+                self.loop.call_at(next_time, self._notify_props_changed)
+            #end if
+        #end if
+    #end _notify_props_changed
+
+    def prop_changed(self, path, interface, propname, proptype, propvalue) :
+        "indicates that a signal should be sent notifying of a change to the specified" \
+        " property of the specified object path in the specified interface. propvalue" \
+        " is either the new value to be included in the signal, or None to indicate" \
+        " that the property has merely become invalidated, and its new value needs" \
+        " to be obtained explicitly.\n" \
+        "\n" \
+        "If there is an event loop attached, then multiple calls to this with different" \
+        " properties on the same path and interface can be batched up into a single" \
+        " signal notification."
+        assert (proptype != None) == (propvalue != None), \
+            "either specify both of proptype and propvalue, or neither"
+        if self.loop != None :
+            queue_task = False
+            if self._props_changed == None :
+                self._props_changed = {}
+                queue_task = True
+            #end if
+            key = (path, interface)
+            if key not in self._props_changed :
+                self._props_changed[key] = \
+                    {
+                        "at" : self.loop.time() + self.props_change_notify_delay,
+                        "changed" : {},
+                        "invalidated" : set(),
+                    }
+            #end if
+            if propvalue != None :
+                self._props_changed[key]["changed"][propname] = (proptype, propvalue)
+            else :
+                self._props_changed[key]["invalidated"].add(propname)
+            #end if
+            if queue_task :
+                if self.props_change_notify_delay != 0 :
+                    self.loop.call_later(self.props_change_notify_delay, self._notify_props_changed)
+                else :
+                    self.loop.call_soon(self._notify_props_changed)
+                #end if
+            #end if
+        else :
+            # cannot batch them up--send message immediately
+            changed = {}
+            invalidated = []
+            if propvalue != None :
+                changed[propname] = (proptype, propvalue)
+            else :
+                invalidated.append(propname)
+            #end if
+            self.send_signal \
+              (
+                path = path,
+                interface = DBUS.INTERFACE_PROPERTIES,
+                name = "PropertiesChanged",
+                args = (interface, changed, invalidated)
+              )
+        #end if
+    #end prop_changed
+
     def send_signal(self, *, path, interface, name, args) :
         "intended for server-side use: sends a signal with the specified" \
         " interface and name from the specified object path. There must" \
@@ -927,146 +1010,83 @@ class Connection :
             dbus.Introspection.parse(reply.expect_return_objects("s")[0])
     #end introspect_async
 
-    def get_proxy_interface(self, destination, path, interface) :
-        "sends an Introspect request to the specified bus name and object path," \
-        " and generates a client-side proxy interface for the interface with" \
-        " the specified name."
-        introspected = self.introspect(destination, path)
-        interfaces = introspected.interfaces_by_name
-        if interface not in interfaces :
-            raise KeyError \
-              (
-                    "peer “%s” does not implement interface “%s” at path “%s”"
-                %
-                    (destination, interface, path)
-              )
+    def __getitem__(self, bus_name) :
+        "for client-side use; lets you obtain references to bus peers by" \
+        " looking up their names in this Connection object as though it" \
+        " were a mapping."
+        return \
+            BusPeer(self, bus_name)
+    #end __getitem__
+
+    def get_proxy_object(self, bus_name, path) :
+        "for client-side use; returns a BusPeer.Object instance for communicating" \
+        " with a specified server object. You can then call get_interface" \
+        " on the result to create an interface object that can be used to" \
+        " call any method defined on the server by that interface."
+        return \
+            BusPeer(self, bus_name)[path]
+    #end get_proxy_object
+
+    def get_proxy_interface(self, destination, path, interface, timeout = DBUS.TIMEOUT_USE_DEFAULT) :
+        "sends an Introspect request to the specified bus name and object path" \
+        " (if interface is not one of the standard interfaces), and generates" \
+        " a client-side proxy interface for the interface with the specified name."
+        if interface in dbus.standard_interfaces :
+            definition = dbus.standard_interfaces[interface]
+        else :
+            introspection = self.introspect(destination, path, timeout)
+            interfaces = introspection.interfaces_by_name
+            if interface not in interfaces :
+                raise dbus.DBusError \
+                  (
+                    DBUS.ERROR_UNKNOWN_INTERFACE,
+                        "peer “%s” object “%s” does not understand interface “%s”"
+                    %
+                        (destination, path, interface)
+                  )
+            #end if
+            definition = interfaces[interface]
         #end if
         return \
             def_proxy_interface \
               (
                 name = interface,
                 kind = INTERFACE.CLIENT,
-                introspected = interfaces[interface],
+                introspected = definition,
                 is_async = False
               )
     #end get_proxy_interface
 
-    async def get_proxy_interface_async(self, destination, path, interface) :
-        "sends an Introspect request to the specified bus name and object path," \
-        " and generates a client-side proxy interface for the interface with" \
-        " the specified name."
+    async def get_proxy_interface_async(self, destination, path, interface, timeout = DBUS.TIMEOUT_USE_DEFAULT) :
+        "sends an Introspect request to the specified bus name and object path" \
+        " (if interface is not one of the standard interfaces), and generates" \
+        " a client-side proxy interface for the interface with the specified name."
         assert self.loop != None, "no event loop to attach coroutine to"
-        introspected = await self.introspect_async(destination, path)
-        interfaces = introspected.interfaces_by_name
-        if interface not in interfaces :
-            raise KeyError \
-              (
-                    "peer “%s” does not implement interface “%s” at path “%s”"
-                %
-                    (destination, interface, path)
-              )
+        if interface in dbus.standard_interfaces :
+            definition = dbus.standard_interfaces[interface]
+        else :
+            introspection = await self.introspect_async(destination, path, timeout)
+            interfaces = introspection.interfaces_by_name
+            if interface not in interfaces :
+                raise dbus.DBusError \
+                  (
+                    DBUS.ERROR_UNKNOWN_INTERFACE,
+                        "peer “%s” object “%s” does not understand interface “%s”"
+                    %
+                        (destination, path, interface)
+                  )
+            #end if
+            definition = interfaces[interface]
         #end if
         return \
             def_proxy_interface \
               (
                 name = interface,
                 kind = INTERFACE.CLIENT,
-                introspected = interfaces[interface],
+                introspected = definition,
                 is_async = True
               )
     #end get_proxy_interface_async
-
-    def _notify_props_changed(self) :
-        # callback that is queued on the event loop to actually send the
-        # properties-changed notification signals.
-        if self._props_changed != None :
-            done = set()
-            now = self.loop.time()
-            for key in self._props_changed :
-                entry = self._props_changed[key]
-                path, interface = key
-                if entry["at"] <= now :
-                    self.send_signal \
-                      (
-                        path = path,
-                        interface = DBUS.INTERFACE_PROPERTIES,
-                        name = "PropertiesChanged",
-                        args = (interface, entry["changed"], sorted(entry["invalidated"]))
-                      )
-                    done.add(key)
-                #end if
-            #end for
-            for key in done :
-                del self._props_changed[key]
-            #end for
-            if len(self._props_changed) == 0 :
-                # all done for now
-                self._props_changed = None # indicates I am not pending to be called any more
-            else :
-                # another notification waiting to be sent later
-                next_time = min(entry["at"] for entry in self._props_changed.values())
-                self.loop.call_at(next_time, self._notify_props_changed)
-            #end if
-        #end if
-    #end _notify_props_changed
-
-    def prop_changed(self, path, interface, propname, proptype, propvalue) :
-        "indicates that a signal should be sent notifying of a change to the specified" \
-        " property of the specified object path in the specified interface. propvalue" \
-        " is either the new value to be included in the signal, or None to indicate" \
-        " that the property has merely become invalidated, and its new value needs" \
-        " to be obtained explicitly.\n" \
-        "\n" \
-        "If there is an event loop attached, then multiple calls to this with different" \
-        " properties on the same path and interface can be batched up into a single" \
-        " signal notification."
-        assert (proptype != None) == (propvalue != None), \
-            "either specify both of proptype and propvalue, or neither"
-        if self.loop != None :
-            queue_task = False
-            if self._props_changed == None :
-                self._props_changed = {}
-                queue_task = True
-            #end if
-            key = (path, interface)
-            if key not in self._props_changed :
-                self._props_changed[key] = \
-                    {
-                        "at" : self.loop.time() + self.props_change_notify_delay,
-                        "changed" : {},
-                        "invalidated" : set(),
-                    }
-            #end if
-            if propvalue != None :
-                self._props_changed[key]["changed"][propname] = (proptype, propvalue)
-            else :
-                self._props_changed[key]["invalidated"].add(propname)
-            #end if
-            if queue_task :
-                if self.props_change_notify_delay != 0 :
-                    self.loop.call_later(self.props_change_notify_delay, self._notify_props_changed)
-                else :
-                    self.loop.call_soon(self._notify_props_changed)
-                #end if
-            #end if
-        else :
-            # cannot batch them up--send message immediately
-            changed = {}
-            invalidated = []
-            if propvalue != None :
-                changed[propname] = (proptype, propvalue)
-            else :
-                invalidated.append(propname)
-            #end if
-            self.send_signal \
-              (
-                path = path,
-                interface = DBUS.INTERFACE_PROPERTIES,
-                name = "PropertiesChanged",
-                args = (interface, changed, invalidated)
-              )
-        #end if
-    #end prop_changed
 
 #end Connection
 
@@ -1120,93 +1140,331 @@ class Server :
 #end Server
 
 #+
-# Ad-hoc client-side proxies for server-side objects
-#
-# These calls provide a simple mechanism for clients to call interface
-# methods on the fly. The basic call sequence looks like
-#
-#     result = \
-#         «connection».get_object(«bus-name», «object-path») \
-#             .get_interface(«interface-name») \
-#             .«method-name»(«args»)
-#
-# or substitute get_interface with get_async_interface to do an asynchronous
-# call.
+# Proxy interface objects -- for client-side use
 #-
 
-class CObject :
-    "identifies an object by a bus, a bus name and a path."
+class BusPeer :
+    "a proxy for a D-Bus peer. These offer two different ways to traverse" \
+    " the bus-name/path/interface hierarchy. Start by obtaining a BusPeer" \
+    " object from a Connection:\n" \
+    "\n" \
+    "    peer = conn[«bus_name»]\n" \
+    "\n" \
+    "Now you can either reference a proxy object by specifying its path:\n" \
+    "\n" \
+    "    obj = peer[«object_path»]\n" \
+    "\n" \
+    "from which you can a proxy interface thus:\n" \
+    "\n" \
+    "    iface = obj.get_interface(«iface_name»)\n" \
+    "\n" \
+    "Or you can get a root proxy interface from the bus peer by" \
+    " introspecting some arbitrary (but suitable) reference path:\n" \
+    "\n" \
+    "    iface_root = peer.get_interface(«reference_path», «iface_name»)\n" \
+    "\n" \
+    "from which you can obtain a proxy interface for a specific object thus:\n" \
+    "\n" \
+    "    iface = iface_root[«object_path»]\n" \
+    "\n" \
+    "Whichever way you do it, you can now make method calls on the iface object" \
+    " which will automatically be communicated as method calls to the peer via" \
+    " the D-Bus."
 
-    __slots__ = ("conn", "name", "path")
+    __slots__ = ("conn", "bus_name")
 
-    def __init__(self, conn, name, path) :
-        if not isinstance(conn, Connection) :
-            raise TypeError("conn must be a Connection")
-        #end if
+    class RootProxy :
+        "abstract base class for identifying root proxy classes."
+        pass
+    #end RootProxy
+
+    class Object :
+        "identifies a proxy object by a bus, a bus name and a path."
+
+        __slots__ = ("conn", "peer", "bus_name", "path")
+
+        class ProxyInterface :
+            "abstract base class for identifying proxy interface classes."
+            pass
+        #end ProxyInterface
+
+        def __init__(self, conn, bus_name, path) :
+            if not isinstance(conn, Connection) :
+                raise TypeError("conn must be a Connection")
+            #end if
+            self.conn = conn
+            self.bus_name = bus_name
+            self.path = path
+        #end __init__
+
+        def send_method_with_reply_and_block(self, *, interface, name, args, timeout = DBUS.TIMEOUT_USE_DEFAULT) :
+            return \
+                self.conn.send_method_with_reply_and_block \
+                  (
+                    destination = self.bus_name,
+                    path = self.path,
+                    interface = interface,
+                    name = name,
+                    args = args,
+                    timeout = timeout,
+                  )
+        #end send_method_with_reply_and_block
+
+        async def send_method_await_reply(self, *, interface, name, args, timeout = DBUS.TIMEOUT_USE_DEFAULT) :
+            return await \
+                self.conn.send_method_await_reply \
+                  (
+                    destination = self.bus_name,
+                    path = self.path,
+                    interface = interface,
+                    name = name,
+                    args = args,
+                    timeout = timeout,
+                  )
+        #end send_method_await_reply
+
+        def get_prop_blocking(self, *, interface, name, timeout = DBUS.TIMEOUT_USE_DEFAULT) :
+            return \
+                self.conn.get_prop_blocking \
+                  (
+                    destination = self.bus_name,
+                    path = self.path,
+                    interface = interface,
+                    name = name,
+                    timeout = timeout,
+                  )
+        #end get_prop_blocking
+
+        async def get_prop_async(self, *, interface, name, timeout = DBUS.TIMEOUT_USE_DEFAULT) :
+            return await \
+                self.conn.get_prop_async \
+                  (
+                    destination = self.bus_name,
+                    path = self.path,
+                    interface = interface,
+                    name = name,
+                    timeout = timeout,
+                  )
+        #end get_prop_async
+
+        def set_prop_blocking(self, *, interface, name, value, timeout = DBUS.TIMEOUT_USE_DEFAULT) :
+            return \
+                self.conn.set_prop_blocking \
+                  (
+                    destination = self.bus_name,
+                    path = self.path,
+                    interface = interface,
+                    name = name,
+                    value = value,
+                    timeout = timeout,
+                  )
+        #end set_prop_blocking
+
+        async def set_prop_async(self, *, interface, name, value, timeout = DBUS.TIMEOUT_USE_DEFAULT) :
+            await \
+                self.conn.set_prop_async \
+                  (
+                    destination = self.bus_name,
+                    path = self.path,
+                    interface = interface,
+                    name = name,
+                    value = value,
+                    timeout = timeout,
+                  )
+        #end set_prop_async
+
+        def introspect(self, timeout = DBUS.TIMEOUT_USE_DEFAULT) :
+            return \
+                self.conn.introspect \
+                  (
+                    destination = self.bus_name,
+                    path = self.path,
+                    timeout = timeout,
+                  )
+        #end introspect
+
+        async def introspect_async(self, timeout = DBUS.TIMEOUT_USE_DEFAULT) :
+            return await \
+                self.conn.introspect_async \
+                  (
+                    destination = self.bus_name,
+                    path = self.path,
+                    timeout = timeout,
+                  )
+        #end introspect_async
+
+        def get_interface(self, interface, timeout = DBUS.TIMEOUT_USE_DEFAULT) :
+            return \
+                self.conn.get_proxy_interface \
+                  (
+                    destination = self.bus_name,
+                    path = self.path,
+                    interface = interface,
+                    timeout = timeout
+                  )(
+                    connection = self.conn.connection,
+                    dest = self.bus_name,
+                    timeout = timeout,
+                  )[self.path]
+        #end get_interface
+
+        async def get_async_interface(self, interface, timeout = DBUS.TIMEOUT_USE_DEFAULT) :
+            return \
+                (await self.conn.get_proxy_interface_async \
+                  (
+                    destination = self.bus_name,
+                    path = self.path,
+                    interface = interface,
+                    timeout = timeout
+                  ))(
+                    connection = self.conn.connection,
+                    dest = self.bus_name,
+                    timeout = timeout,
+                  )[self.path]
+        #end get_async_interface
+
+    #end Object
+
+    def __init__(self, conn, bus_name) :
         self.conn = conn
-        self.name = name
-        self.path = path
+        self.bus_name = bus_name
     #end __init__
 
-    def get_interface(self, name, timeout = DBUS.TIMEOUT_USE_DEFAULT) :
-        if name in dbus.standard_interfaces :
-            definition = dbus.standard_interfaces[name]
-        else :
-            introspection = self.conn.introspect(self.name, self.path, timeout)
-            interfaces = introspection.interfaces_by_name
-            if name not in interfaces :
-                raise dbus.DBusError \
-                  (
-                    DBUS.ERROR_UNKNOWN_INTERFACE,
-                    "object “%s” does not understand interface “%s”" % (self.path, name)
-                  )
-            #end if
-            definition = interfaces[name]
-        #end if
+    def __getitem__(self, path) :
+        "lets you obtain references to objects implemented by this bus peer" \
+        " by using their paths as lookup keys in a mapping. Of course, there" \
+        " is no guarantee such an object actually exists within the peer."
         return \
-            def_proxy_interface \
+            type(self).Object(self.conn, self.bus_name, path)
+    #end __getitem__
+
+    def send_method_with_reply_and_block(self, *, path, interface, name, args, timeout = DBUS.TIMEOUT_USE_DEFAULT) :
+        return \
+            self.conn.send_method_with_reply_and_block \
               (
-                INTERFACE.CLIENT,
+                destination = self.bus_name,
+                path = path,
+                interface = interface,
                 name = name,
-                introspected = definition,
-                is_async = False
+                args = args,
+                timeout = timeout,
+              )
+    #end send_method_with_reply_and_block
+
+    async def send_method_await_reply(self, *, path, interface, name, args, timeout = DBUS.TIMEOUT_USE_DEFAULT) :
+        return await \
+            self.conn.send_method_await_reply \
+              (
+                destination = self.bus_name,
+                path = path,
+                interface = interface,
+                name = name,
+                args = args,
+                timeout = timeout,
+              )
+    #end send_method_await_reply
+
+    def get_prop_blocking(self, *, path, interface, name, timeout = DBUS.TIMEOUT_USE_DEFAULT) :
+        return \
+            self.conn.get_prop_blocking \
+              (
+                destination = self.bus_name,
+                path = path,
+                interface = interface,
+                name = name,
+                timeout = timeout,
+              )
+    #end get_prop_blocking
+
+    async def get_prop_async(self, *, path, interface, name, timeout = DBUS.TIMEOUT_USE_DEFAULT) :
+        return await \
+            self.conn.get_prop_async \
+              (
+                destination = self.bus_name,
+                path = path,
+                interface = interface,
+                name = name,
+                timeout = timeout,
+              )
+    #end get_prop_async
+
+    def set_prop_blocking(self, *, path, interface, name, value, timeout = DBUS.TIMEOUT_USE_DEFAULT) :
+        return \
+            self.conn.set_prop_blocking \
+              (
+                destination = self.bus_name,
+                path = path,
+                interface = interface,
+                name = name,
+                value = value,
+                timeout = timeout,
+              )
+    #end set_prop_blocking
+
+    async def set_prop_async(self, *, path, interface, name, value, timeout = DBUS.TIMEOUT_USE_DEFAULT) :
+        await \
+            self.conn.set_prop_async \
+              (
+                destination = self.bus_name,
+                path = path,
+                interface = interface,
+                name = name,
+                value = value,
+                timeout = timeout,
+              )
+    #end set_prop_async
+
+    def introspect(self, path, timeout = DBUS.TIMEOUT_USE_DEFAULT) :
+        return \
+            self.conn.introspect \
+              (
+                destination = self.bus_name,
+                path = path,
+                timeout = timeout,
+              )
+    #end introspect
+
+    async def introspect_async(self, path, timeout = DBUS.TIMEOUT_USE_DEFAULT) :
+        return await \
+            self.conn.introspect_async \
+              (
+                destination = self.bus_name,
+                path = path,
+                timeout = timeout,
+              )
+    #end introspect_async
+
+    def get_interface(self, path, interface, timeout = DBUS.TIMEOUT_USE_DEFAULT) :
+        return \
+            self.conn.get_proxy_interface \
+              (
+                destination = self.bus_name,
+                path = path,
+                interface = interface,
+                timeout = timeout,
               )(
                 connection = self.conn.connection,
-                dest = self.name,
-                timeout = timeout
-              )[self.path]
-    #end _get_interface
+                dest = self.bus_name,
+                timeout = timeout,
+              )
+    #end get_proxy_interface
 
-    async def get_async_interface(self, name, timeout = DBUS.TIMEOUT_USE_DEFAULT) :
-        if name in dbus.standard_interfaces :
-            definition = dbus.standard_interfaces[name]
-        else :
-            introspection = await self.conn.introspect_async(self.name, self.path, timeout)
-            interfaces = introspection.interfaces_by_name
-            if name not in interfaces :
-                raise dbus.DBusError \
-                  (
-                    DBUS.ERROR_UNKNOWN_INTERFACE,
-                    "object “%s” does not understand interface “%s”" % (self.path, name)
-                  )
-            #end if
-            definition = interfaces[name]
-        #end if
-        return \
-            def_proxy_interface \
+    async def get_interface_async(self, path, interface, timeout = DBUS.TIMEOUT_USE_DEFAULT) :
+        return await \
+            self.conn.get_proxy_interface_async \
               (
-                INTERFACE.CLIENT,
-                name = name,
-                introspected = definition,
-                is_async = True
+                destination = self.bus_name,
+                path = path,
+                interface = interface,
+                timeout = timeout,
               )(
                 connection = self.conn.connection,
-                dest = self.name,
-                timeout = timeout
-              )[self.path]
-    #end get_async_interface
+                dest = self.bus_name,
+                timeout = timeout,
+              )
+    #end get_proxy_interface_async
 
-#end CObject
+#end BusPeer
 
 #+
 # Interface-dispatch mechanism
@@ -1731,7 +1989,7 @@ def method \
     "This is really only useful on the server side. On the client side, omit the" \
     " method definition, and even leave out the interface definition and registration" \
     " altogether, unless you want to receive signals from the server; instead, use" \
-    " Connection.get_object() to send method calls to the server."
+    " Connection.get_proxy_object() to send method calls to the server."
 
     in_signature = dbus.parse_signature(in_signature)
     out_signature = dbus.parse_signature(out_signature)
@@ -2217,7 +2475,7 @@ def def_proxy_interface(kind, *, name, introspected, is_async) :
         raise TypeError("introspected must be an Introspection.Interface")
     #end if
 
-    class proxy :
+    class proxy(BusPeer.Object.ProxyInterface) :
         # class that will be be turned, to be instantiated for a given connection,
         # destination and path.
 
@@ -2455,7 +2713,7 @@ def def_proxy_interface(kind, *, name, introspected, is_async) :
         setattr(proxy, intr_prop.name, prop)
     #end def_prop
 
-    class proxy_factory :
+    class proxy_factory(BusPeer.RootProxy) :
         # class that will be returned.
 
         __slots__ = ("connection", "dest", "timeout", "_set_prop_pending")

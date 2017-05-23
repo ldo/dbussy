@@ -4909,6 +4909,13 @@ class Introspection(_TagCommon) :
             self.annotations = Introspection._get_annotations(annotations)
         #end __init__
 
+        @property
+        def interfaces_by_name(self) :
+            "returns a dict associating all the interfaces with their names."
+            return \
+                dict((iface.name, iface) for iface in self.interfaces)
+        #end interfaces_by_name
+
     #end Node
     Node.tag_elts = {"interfaces" : Interface, "nodes" : Node}
 

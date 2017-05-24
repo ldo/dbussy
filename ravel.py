@@ -1102,6 +1102,12 @@ def system_bus() :
         Connection(dbus.Connection.bus_get(DBUS.BUS_SYSTEM, private = False))
 #end system_bus
 
+def starter_bus() :
+    "returns a Connection object for the D-Bus starter bus."
+    return \
+        Connection(dbus.Connection.bus_get(DBUS.BUS_STARTER, private = False))
+#end starter_bus
+
 def connect_server(address) :
     "opens a connection to a server at the specified network address and" \
     " returns a Connection object for the connection."

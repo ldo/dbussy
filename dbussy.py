@@ -4870,6 +4870,27 @@ class Introspection(_TagCommon) :
             self.annotations = Introspection._get_annotations(annotations)
         #end __init__
 
+        @property
+        def methods_by_name(self) :
+            "returns a dict associating all the methods with their names."
+            return \
+                dict((method.name, method) for method in self.methods)
+        #end methods_by_name
+
+        @property
+        def signals_by_name(self) :
+            "returns a dict associating all the signals with their names."
+            return \
+                dict((signal.name, signal) for signal in self.signals)
+        #end signals_by_name
+
+        @property
+        def properties_by_name(self) :
+            "returns a dict associating all the properties with their names."
+            return \
+                dict((prop.name, prop) for prop in self.properties)
+        #end properties_by_name
+
     #end Interface
     Interface.Method.Arg.attr_convert["direction"] = DIRECTION
     Interface.Signal.Arg.attr_convert["direction"] = lambda x : (lambda : None, lambda : Introspection.DIRECTION(x))[x != None]()
@@ -4917,6 +4938,13 @@ class Introspection(_TagCommon) :
                 dict((iface.name, iface) for iface in self.interfaces)
         #end interfaces_by_name
 
+        @property
+        def nodes_by_name(self) :
+            "returns a dict associating all the child nodes with their names."
+            return \
+                dict((node.name, node) for node in self.nodes)
+        #end nodes_by_name
+
     #end Node
     Node.tag_elts = {"interfaces" : Interface, "nodes" : Node}
 
@@ -4941,6 +4969,13 @@ class Introspection(_TagCommon) :
         return \
             dict((iface.name, iface) for iface in self.interfaces)
     #end interfaces_by_name
+
+    @property
+    def nodes_by_name(self) :
+        "returns a dict associating all the nodes with their names."
+        return \
+            dict((node.name, node) for node in self.nodes)
+    #end nodes_by_name
 
     @classmethod
     def parse(celf, s) :

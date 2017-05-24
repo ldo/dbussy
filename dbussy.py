@@ -5651,7 +5651,6 @@ standard_interfaces = \
                           ),
                     ],
               ),
-    # could add more
     }
 
 #+

@@ -1453,7 +1453,7 @@ class BusPeer :
                 dest = self.bus_name,
                 timeout = timeout,
               )
-    #end get_proxy_interface
+    #end get_interface
 
     async def get_interface_async(self, path, interface, timeout = DBUS.TIMEOUT_USE_DEFAULT) :
         return await \
@@ -1468,7 +1468,7 @@ class BusPeer :
                 dest = self.bus_name,
                 timeout = timeout,
               )
-    #end get_proxy_interface_async
+    #end get_interface_async
 
 #end BusPeer
 

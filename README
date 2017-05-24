@@ -329,7 +329,6 @@ In this method, an initial *root* proxy is obtained thus:
 
    iface_root = conn[«bus_name»].get_interface \
      (
-        destination = «bus_name»,
         path = «initial_path»,
         interface = «interface_name»,
      )

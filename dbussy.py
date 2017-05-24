@@ -160,6 +160,7 @@ class DBUS :
 
     basic_subclasses = \
         {
+            TYPE_BOOLEAN : bool,
             TYPE_OBJECT_PATH : ObjectPath,
             TYPE_SIGNATURE : Signature,
             TYPE_UNIX_FD : UnixFD,

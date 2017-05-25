@@ -1150,9 +1150,9 @@ class Server :
 #-
 
 class BusPeer :
-    "a proxy for a D-Bus peer. These offer two different ways to traverse" \
-    " the bus-name/path/interface hierarchy. Start by obtaining a BusPeer" \
-    " object from a Connection:\n" \
+    "Intended for client-side use: a proxy for a D-Bus peer. These offer two" \
+    " different ways to traverse the bus-name/path/interface hierarchy. Start" \
+    " by obtaining a BusPeer object from a Connection:\n" \
     "\n" \
     "    peer = conn[«bus_name»]\n" \
     "\n" \
@@ -1204,6 +1204,12 @@ class BusPeer :
         #end __init__
 
         def send_method_with_reply_and_block(self, *, interface, name, args, timeout = DBUS.TIMEOUT_USE_DEFAULT) :
+            "sends a method call with the specified interface and name to the object." \
+            " There must already be a registered interface instance with that name" \
+            " which defines that method for the object.\n" \
+            "\n" \
+            "An exception is raised if the return is an error; otherwise a list of" \
+            " the reply args is returned."
             return \
                 self.conn.send_method_with_reply_and_block \
                   (
@@ -1217,6 +1223,12 @@ class BusPeer :
         #end send_method_with_reply_and_block
 
         async def send_method_await_reply(self, *, interface, name, args, timeout = DBUS.TIMEOUT_USE_DEFAULT) :
+            "sends a method call with the specified interface and name to the object." \
+            " There must already be a registered interface instance with that name" \
+            " which defines that method for the object.\n" \
+            "\n" \
+            "An exception is raised if the return is an error; otherwise a list of" \
+            " the reply args is returned."
             return await \
                 self.conn.send_method_await_reply \
                   (
@@ -1230,6 +1242,9 @@ class BusPeer :
         #end send_method_await_reply
 
         def get_prop_blocking(self, *, interface, name, timeout = DBUS.TIMEOUT_USE_DEFAULT) :
+            "sends a get-property request and returns the property value. There must" \
+            " already be a registered interface instance with that name which defines" \
+            " the property for the object."
             return \
                 self.conn.get_prop_blocking \
                   (
@@ -1242,6 +1257,9 @@ class BusPeer :
         #end get_prop_blocking
 
         async def get_prop_async(self, *, interface, name, timeout = DBUS.TIMEOUT_USE_DEFAULT) :
+            "sends a get-property request and returns the property value. There must" \
+            " already be a registered interface instance with that name which defines" \
+            " the property for the object."
             return await \
                 self.conn.get_prop_async \
                   (
@@ -1254,6 +1272,9 @@ class BusPeer :
         #end get_prop_async
 
         def set_prop_blocking(self, *, interface, name, value, timeout = DBUS.TIMEOUT_USE_DEFAULT) :
+            "sends a set-property request to change the property value. There must already" \
+            " be a registered interface instance with that name which defines the property" \
+            " for the object."
             return \
                 self.conn.set_prop_blocking \
                   (
@@ -1267,6 +1288,9 @@ class BusPeer :
         #end set_prop_blocking
 
         async def set_prop_async(self, *, interface, name, value, timeout = DBUS.TIMEOUT_USE_DEFAULT) :
+            "sends a set-property request to change the property value. There must already" \
+            " be a registered interface instance with that name which defines the property" \
+            " for the object."
             await \
                 self.conn.set_prop_async \
                   (
@@ -1280,6 +1304,8 @@ class BusPeer :
         #end set_prop_async
 
         def introspect(self, timeout = DBUS.TIMEOUT_USE_DEFAULT) :
+            "sends an Introspect request to the specified bus name and object path," \
+            " and returns the resulting parsed Introspection structure."
             return \
                 self.conn.introspect \
                   (
@@ -1290,6 +1316,8 @@ class BusPeer :
         #end introspect
 
         async def introspect_async(self, timeout = DBUS.TIMEOUT_USE_DEFAULT) :
+            "sends an Introspect request to the specified bus name and object path," \
+            " and returns the resulting parsed Introspection structure."
             return await \
                 self.conn.introspect_async \
                   (
@@ -1300,6 +1328,9 @@ class BusPeer :
         #end introspect_async
 
         def get_interface(self, interface, timeout = DBUS.TIMEOUT_USE_DEFAULT) :
+            "sends an Introspect request to the specified bus name and object path" \
+            " (if interface is not one of the standard interfaces), and generates" \
+            " a client-side proxy interface for the interface with the specified name."
             return \
                 self.conn.get_proxy_interface \
                   (
@@ -1315,6 +1346,9 @@ class BusPeer :
         #end get_interface
 
         async def get_async_interface(self, interface, timeout = DBUS.TIMEOUT_USE_DEFAULT) :
+            "sends an Introspect request to the specified bus name and object path" \
+            " (if interface is not one of the standard interfaces), and generates" \
+            " a client-side proxy interface for the interface with the specified name."
             return \
                 (await self.conn.get_proxy_interface_async \
                   (
@@ -1345,6 +1379,12 @@ class BusPeer :
     #end __getitem__
 
     def send_method_with_reply_and_block(self, *, path, interface, name, args, timeout = DBUS.TIMEOUT_USE_DEFAULT) :
+        "sends a method call with the specified interface and name to the specified" \
+        " object path. There must already be a registered interface instance with that" \
+        " name which defines that method for the object.\n" \
+        "\n" \
+        "An exception is raised if the return is an error; otherwise a list of" \
+        " the reply args is returned."
         return \
             self.conn.send_method_with_reply_and_block \
               (
@@ -1358,6 +1398,12 @@ class BusPeer :
     #end send_method_with_reply_and_block
 
     async def send_method_await_reply(self, *, path, interface, name, args, timeout = DBUS.TIMEOUT_USE_DEFAULT) :
+        "sends a method call with the specified interface and name to the specified" \
+        " object path. There must already be a registered interface instance with that" \
+        " name which defines that method for the object.\n" \
+        "\n" \
+        "An exception is raised if the return is an error; otherwise a list of" \
+        " the reply args is returned."
         return await \
             self.conn.send_method_await_reply \
               (
@@ -1371,6 +1417,9 @@ class BusPeer :
     #end send_method_await_reply
 
     def get_prop_blocking(self, *, path, interface, name, timeout = DBUS.TIMEOUT_USE_DEFAULT) :
+        "sends a get-property request and returns the property value. There must" \
+        " already be a registered interface instance with that name which defines" \
+        " the property for the specified object path."
         return \
             self.conn.get_prop_blocking \
               (
@@ -1383,6 +1432,9 @@ class BusPeer :
     #end get_prop_blocking
 
     async def get_prop_async(self, *, path, interface, name, timeout = DBUS.TIMEOUT_USE_DEFAULT) :
+        "sends a get-property request and returns the property value. There must" \
+        " already be a registered interface instance with that name which defines" \
+        " the property for the specified object path."
         return await \
             self.conn.get_prop_async \
               (
@@ -1395,6 +1447,9 @@ class BusPeer :
     #end get_prop_async
 
     def set_prop_blocking(self, *, path, interface, name, value, timeout = DBUS.TIMEOUT_USE_DEFAULT) :
+        "sends a set-property request to change the property value. There must already" \
+        " be a registered interface instance with that name which defines the property" \
+        " for the specified object path."
         return \
             self.conn.set_prop_blocking \
               (
@@ -1408,6 +1463,9 @@ class BusPeer :
     #end set_prop_blocking
 
     async def set_prop_async(self, *, path, interface, name, value, timeout = DBUS.TIMEOUT_USE_DEFAULT) :
+        "sends a set-property request to change the property value. There must already" \
+        " be a registered interface instance with that name which defines the property" \
+        " for the specified object path."
         await \
             self.conn.set_prop_async \
               (
@@ -1421,6 +1479,8 @@ class BusPeer :
     #end set_prop_async
 
     def introspect(self, path, timeout = DBUS.TIMEOUT_USE_DEFAULT) :
+        "sends an Introspect request to the specified bus name and object path," \
+        " and returns the resulting parsed Introspection structure."
         return \
             self.conn.introspect \
               (
@@ -1431,6 +1491,8 @@ class BusPeer :
     #end introspect
 
     async def introspect_async(self, path, timeout = DBUS.TIMEOUT_USE_DEFAULT) :
+        "sends an Introspect request to the specified bus name and object path," \
+        " and returns the resulting parsed Introspection structure."
         return await \
             self.conn.introspect_async \
               (
@@ -1441,6 +1503,9 @@ class BusPeer :
     #end introspect_async
 
     def get_interface(self, path, interface, timeout = DBUS.TIMEOUT_USE_DEFAULT) :
+        "sends an Introspect request to the specified bus name and object path" \
+        " (if interface is not one of the standard interfaces), and generates" \
+        " a client-side proxy interface for the interface with the specified name."
         return \
             self.conn.get_proxy_interface \
               (
@@ -1456,6 +1521,9 @@ class BusPeer :
     #end get_interface
 
     async def get_interface_async(self, path, interface, timeout = DBUS.TIMEOUT_USE_DEFAULT) :
+        "sends an Introspect request to the specified bus name and object path" \
+        " (if interface is not one of the standard interfaces), and generates" \
+        " a client-side proxy interface for the interface with the specified name."
         return await \
             self.conn.get_proxy_interface_async \
               (

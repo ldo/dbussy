@@ -2540,7 +2540,13 @@ def def_proxy_interface(kind, *, name, introspected, is_async) :
     "    instance = proxy_class(«connection», «dest»)\n" \
     "\n" \
     " where «connection» is a dbussy.Connection object to use for sending and receiving" \
-    " the messages, and «dest» is the bus name to which to send the messages."
+    " the messages, and «dest» is the bus name to which to send the messages. The" \
+    " resulting instance is a “root proxy”: a proxy for a particular object path" \
+    " is obtained from this by an indexing call like\n" \
+    "\n" \
+    "    obj = instance[«object_path»]\n" \
+    "\n" \
+    "from which you can make proxy method calls like obj.«method»(«args») and so on."
 
     if not isinstance(kind, INTERFACE) :
         raise TypeError("kind must be an INTERFACE enum value")
@@ -2550,7 +2556,7 @@ def def_proxy_interface(kind, *, name, introspected, is_async) :
     #end if
 
     class proxy(BusPeer.Object.ProxyInterface) :
-        # class that will be be turned, to be instantiated for a given connection,
+        # class that will be constructed, to be instantiated for a given connection,
         # destination and path.
 
         # class field _iface_name contains interface name.

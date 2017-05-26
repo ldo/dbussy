@@ -2469,6 +2469,9 @@ class Connection :
     #end bus_get
 
     def bus_register(self, error = None) :
+        "Only to be used if you created the Connection with open() instead of bus_get();" \
+        " sends a “Hello” message to the D-Bus daemon to get a unique name assigned." \
+        " Can only be called once."
         error, my_error = _get_error(error)
         dbus.dbus_bus_register(self._dbobj, error._dbobj)
         my_error.raise_if_set()
@@ -2476,8 +2479,14 @@ class Connection :
 
     @property
     def bus_unique_name(self) :
+        "returns None if the bus connection has not been registered. Note that the" \
+        " unique_name can only be set once."
+        result = dbus.dbus_bus_get_unique_name(self._dbobj)
+        if result != None :
+            result = result.decode()
+        #end if
         return \
-            dbus.dbus_bus_get_unique_name(self._dbobj).decode()
+            result
     #end bus_unique_name
 
     @bus_unique_name.setter

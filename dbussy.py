@@ -446,8 +446,6 @@ class DBUS :
     TIMEOUT_INFINITE = 0x7fffffff
     TIMEOUT_USE_DEFAULT = -1
 
-    DEFAULT_TIMEOUT = 25 # seconds, from dbus-connection-internal.h in libdbus source
-
     # from dbus-message.h:
     class MessageIter(ct.Structure) :
         "contains no public fields."
@@ -490,6 +488,36 @@ class DBUS :
     SignatureIterPtr = ct.POINTER(SignatureIter)
 
 #end DBUS
+
+class DBUSX:
+    "additional definitions not part of the official interfaces"
+
+    DEFAULT_TIMEOUT = 25 # seconds, from dbus-connection-internal.h in libdbus source
+
+    # For reference implementation for how to connect to daemon,
+    # see libdbus sources, dbus/dbus-bus.c (internal_bus_get routine
+    # and stuff that it calls)
+
+    # environment variables used to find addresses of bus daemons
+    SESSION_BUS_ADDRESS_VAR = "DBUS_SESSION_BUS_ADDRESS"
+    SYSTEM_BUS_ADDRESS_VAR = "DBUS_SYSTEM_BUS_ADDRESS"
+    STARTER_BUS_ADDRESS_VAR = "DBUS_STARTER_ADDRESS"
+    STARTER_BUS_ADDRESS_TYPE = "DBUS_STARTER_BUS_TYPE"
+
+    # values for value of STARTER_BUS_ADDRESS_TYPE
+    # If cannot determine type, then default to session bus
+    BUS_TYPE_SESSION = "session"
+    BUS_TYPE_SYSTEM = "system"
+
+    SYSTEM_BUS_ADDRESS = "unix:path=/var/run/dbus/system_bus_socket"
+      # default system bus daemon address if value of SYSTEM_BUS_ADDRESS_VAR is not defined
+    SESSION_BUS_ADDRESS = "autolaunch:"
+      # default session bus daemon address if value of SESSION_BUS_ADDRESS_VAR is not defined
+
+    INTERFACE_OBJECT_MANAGER = "org.freedesktop.DBus.ObjectManager"
+      # no symbolic name for this in standard headers as yet
+
+#end DBUSX
 
 #+
 # Higher-level interface to type system
@@ -2877,7 +2905,7 @@ class Server :
                 timeout = None
             else :
                 if timeout == DBUS.TIMEOUT_USE_DEFAULT :
-                    timeout = DBUS.DEFAULT_TIMEOUT
+                    timeout = DBUSX.DEFAULT_TIMEOUT
                 #end if
                 start_time = self.loop.time()
                 end_time = start_time + timeout
@@ -5627,10 +5655,10 @@ standard_interfaces = \
                           ),
                     ],
               ),
-        "org.freedesktop.DBus.ObjectManager" : # no symbolic name for this in standard headers as yet
+        DBUSX.INTERFACE_OBJECT_MANAGER :
             Introspection.Interface
               (
-                name = "org.freedesktop.DBus.ObjectManager",
+                name = DBUSX.INTERFACE_OBJECT_MANAGER,
                 methods =
                     [
                         Introspection.Interface.Method

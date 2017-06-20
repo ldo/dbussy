@@ -10,6 +10,7 @@ asyncio module.
 # Licensed under the GNU Lesser General Public License v2.1 or later.
 #-
 
+import os
 import builtins
 import array
 import types
@@ -1303,6 +1304,10 @@ class DBusFailure(DBusError) :
 
 #end DBusFailure
 
+class _Abort(Exception) :
+    pass
+#end _Abort
+
 # Misc: <https://dbus.freedesktop.org/doc/api/html/group__DBusMisc.html>
 
 def get_local_machine_id() :
@@ -1814,6 +1819,7 @@ class Connection :
       ) # to forestall typos
 
     _instances = WeakValueDictionary()
+    _shared_connections = [None, None]
 
     def __new__(celf, _dbobj) :
         self = celf._instances.get(_dbobj)
@@ -2500,6 +2506,51 @@ class Connection :
             result
     #end bus_get
 
+    @classmethod
+    async def bus_get_async(celf, type, private, error = None, loop = None, timeout = DBUS.TIMEOUT_USE_DEFAULT) :
+        if loop == None :
+            loop = asyncio.get_event_loop()
+        #end if
+        assert type in (DBUS.BUS_SESSION, DBUS.BUS_SYSTEM, DBUS.BUS_STARTER), \
+            "bus type must be BUS_SESSION, BUS_SYSTEM or BUS_STARTER"
+        if type == DBUS.BUS_STARTER :
+            starter_type = os.environ.get(DBUSX.STARTER_BUS_ADDRESS_TYPE)
+            is_system_bus = starter_type != None and starter_type == DBUSX.BUS_TYPE_SYSTEM
+            addr = os.environ.get(DBUSX.STARTER_BUS_ADDRESS_VAR)
+        else :
+            is_system_bus = type == DBUS.BUS_SYSTEM
+            addr = os.environ.get \
+              (
+                (DBUSX.SESSION_BUS_ADDRESS_VAR, DBUSX.SYSTEM_BUS_ADDRESS_VAR)[is_system_bus]
+              )
+        #end if
+        if not private and celf._shared_connections[is_system_bus] != None :
+            result = celf._shared_connections[is_system_bus]
+        else :
+            if addr == None :
+                addr = (DBUSX.SESSION_BUS_ADDRESS, DBUSX.SYSTEM_BUS_ADDRESS)[is_system_bus]
+            #end if
+            try :
+                result = celf.open(addr, private, error)
+                if error != None and error.is_set :
+                    raise _Abort
+                #end if
+                result.attach_asyncio(loop)
+                await result.bus_register_async(error = error, timeout = timeout)
+                if error != None and error.is_set :
+                    raise _Abort
+                #end if
+                if not private :
+                    celf._shared_connections[is_system_bus] = result
+                #end if
+            except _Abort :
+                result = None
+            #end try
+        #end if
+        return \
+            result
+    #end bus_get_async
+
     def bus_register(self, error = None) :
         "Only to be used if you created the Connection with open() instead of bus_get();" \
         " sends a “Hello” message to the D-Bus daemon to get a unique name assigned." \
@@ -2508,6 +2559,27 @@ class Connection :
         dbus.dbus_bus_register(self._dbobj, error._dbobj)
         my_error.raise_if_set()
     #end bus_register
+
+    async def bus_register_async(self, error = None, timeout = DBUS.TIMEOUT_USE_DEFAULT) :
+        "Only to be used if you created the Connection with open() instead of bus_get();" \
+        " sends a “Hello” message to the D-Bus daemon to get a unique name assigned." \
+        " Can only be called once."
+        assert self.loop != None, "no event loop to attach coroutine to"
+        assert self.bus_unique_name == None, "bus already registered"
+        message = Message.new_method_call \
+          (
+            destination = DBUS.SERVICE_DBUS,
+            path = DBUS.PATH_DBUS,
+            iface = DBUS.INTERFACE_DBUS,
+            method = "Hello"
+          )
+        reply = await self.send_await_reply(message, timeout = timeout)
+        if error != None and reply.type == DBUS.MESSAGE_TYPE_ERROR :
+            reply.set_error(error)
+        else :
+            self.bus_unique_name = reply.expect_return_objects("s")[0]
+        #end if
+    #end bus_register_async
 
     @property
     def bus_unique_name(self) :
@@ -2528,13 +2600,9 @@ class Connection :
         #end if
     #end bus_unique_name
 
-    def bus_get_unix_user(self, name, error = None) :
-        error, my_error = _get_error(error)
-        result = dbus.dbus_bus_get_unix_user(self._dbobj, name.encode(), error._dbobj)
-        my_error.raise_if_set()
-        return \
-            result
-    #end bus_get_unix_user
+    #+
+    # Calls to D-Bus Daemon
+    #-
 
     @property
     def bus_id(self) :
@@ -2547,6 +2615,48 @@ class Connection :
             result
     #end bus_id
 
+    @property
+    async def bus_id_async(self) :
+        message = Message.new_method_call \
+          (
+            destination = DBUS.SERVICE_DBUS,
+            path = DBUS.PATH_DBUS,
+            iface = DBUS.INTERFACE_DBUS,
+            method = "GetId"
+          )
+        reply = await self.send_await_reply(message)
+        return \
+            reply.expect_return_objects("s")[0]
+    #end bus_id_async
+
+    def bus_get_unix_user(self, name, error = None) :
+        error, my_error = _get_error(error)
+        result = dbus.dbus_bus_get_unix_user(self._dbobj, name.encode(), error._dbobj)
+        my_error.raise_if_set()
+        return \
+            result
+    #end bus_get_unix_user
+
+    async def bus_get_unix_user_async(self, name, error = None, timeout = DBUS.TIMEOUT_USE_DEFAULT) :
+        message = Message.new_method_call \
+          (
+            destination = DBUS.SERVICE_DBUS,
+            path = DBUS.PATH_DBUS,
+            iface = DBUS.INTERFACE_DBUS,
+            method = "GetConnectionUnixUser"
+          )
+        message.append_objects("s", name)
+        reply = await self.send_await_reply(message, timeout = timeout)
+        if error != None and reply.type == DBUS.MESSAGE_TYPE_ERROR :
+            reply.set_error(error)
+            result = None
+        else :
+            result = reply.expect_return_objects("u")[0]
+        #end if
+        return \
+            result
+    #end bus_get_unix_user_async
+
     def bus_request_name(self, name, flags, error = None) :
         "asks the D-Bus daemon to register the specified bus name on your behalf," \
         " blocking the thread until the reply is received. flags is a combination of" \
@@ -2558,6 +2668,29 @@ class Connection :
             result
     #end bus_request_name
 
+    async def bus_request_name_async(self, name, flags, error = None, timeout = DBUS.TIMEOUT_USE_DEFAULT) :
+        "asks the D-Bus daemon to register the specified bus name on your behalf. flags is" \
+        " a combination of NAME_FLAG_xxx bits. Result will be a REQUEST_NAME_REPLY_xxx value" \
+        " or None on error."
+        message = Message.new_method_call \
+          (
+            destination = DBUS.SERVICE_DBUS,
+            path = DBUS.PATH_DBUS,
+            iface = DBUS.INTERFACE_DBUS,
+            method = "RequestName"
+          )
+        message.append_objects("su", name, flags)
+        reply = await self.send_await_reply(message, timeout = timeout)
+        if error != None and reply.type == DBUS.MESSAGE_TYPE_ERROR :
+            reply.set_error(error)
+            result = None
+        else :
+            result = reply.expect_return_objects("u")[0]
+        #end if
+        return \
+            result
+    #end bus_request_name_async
+
     def bus_release_name(self, name, error = None) :
         "asks the D-Bus daemon to release your registration of the specified bus name," \
         " blocking the thread until the reply is received."
@@ -2567,6 +2700,27 @@ class Connection :
         return \
             result
     #end bus_release_name
+
+    async def bus_release_name_async(self, name, error = None, timeout = DBUS.TIMEOUT_USE_DEFAULT) :
+        "asks the D-Bus daemon to release your registration of the specified bus name."
+        message = Message.new_method_call \
+          (
+            destination = DBUS.SERVICE_DBUS,
+            path = DBUS.PATH_DBUS,
+            iface = DBUS.INTERFACE_DBUS,
+            method = "ReleaseName"
+          )
+        message.append_objects("s", name)
+        reply = await self.send_await_reply(message, timeout = timeout)
+        if error != None and reply.type == DBUS.MESSAGE_TYPE_ERROR :
+            reply.set_error(error)
+            result = None
+        else :
+            result = reply.expect_return_objects("u")[0]
+        #end if
+        return \
+            result
+    #end bus_release_name_async
 
     def bus_name_has_owner(self, name, error = None) :
         "asks the D-Bus daemon if anybody has claimed the specified bus name, blocking" \
@@ -2578,6 +2732,27 @@ class Connection :
             result
     #end bus_name_has_owner
 
+    async def bus_name_has_owner_async(self, name, error = None, timeout = DBUS.TIMEOUT_USE_DEFAULT) :
+        "asks the D-Bus daemon if anybody has claimed the specified bus name."
+        message = Message.new_method_call \
+          (
+            destination = DBUS.SERVICE_DBUS,
+            path = DBUS.PATH_DBUS,
+            iface = DBUS.INTERFACE_DBUS,
+            method = "NameHasOwner"
+          )
+        message.append_objects("s", name)
+        reply = await self.send_await_reply(message, timeout = timeout)
+        if error != None and reply.type == DBUS.MESSAGE_TYPE_ERROR :
+            reply.set_error(error)
+            result = None
+        else :
+            result = reply.expect_return_objects("b")[0]
+        #end if
+        return \
+            result
+    #end bus_name_has_owner_async
+
     def bus_start_service_by_name(self, name, flags = 0, error = None) :
         error, my_error = _get_error(error)
         outflags = ct.c_uint()
@@ -2585,6 +2760,26 @@ class Connection :
         my_error.raise_if_set()
         return \
             outflags.value
+    #end bus_start_service_by_name
+
+    async def bus_start_service_by_name_async(self, name, flags = 0, error = None, timeout = DBUS.TIMEOUT_USE_DEFAULT) :
+        message = Message.new_method_call \
+          (
+            destination = DBUS.SERVICE_DBUS,
+            path = DBUS.PATH_DBUS,
+            iface = DBUS.INTERFACE_DBUS,
+            method = "StartServiceByName"
+          )
+        message.append_objects("su", name, flags)
+        reply = await self.send_await_reply(message, timeout = timeout)
+        if error != None and reply.type == DBUS.MESSAGE_TYPE_ERROR :
+            reply.set_error(error)
+            result = None
+        else :
+            result = reply.expect_return_objects("u")[0]
+        #end if
+        return \
+            result
     #end bus_start_service_by_name
 
     def bus_add_match(self, rule, error = None) :
@@ -2596,6 +2791,26 @@ class Connection :
         my_error.raise_if_set()
     #end bus_add_match
 
+    async def bus_add_match_async(self, rule, error = None, timeout = DBUS.TIMEOUT_USE_DEFAULT) :
+        "adds a match rule for messages you want to receive. By default you get all" \
+        " messages addressed to your bus name(s); but you can use this, for example," \
+        " to request notification of signals indicating useful events on the system."
+        message = Message.new_method_call \
+          (
+            destination = DBUS.SERVICE_DBUS,
+            path = DBUS.PATH_DBUS,
+            iface = DBUS.INTERFACE_DBUS,
+            method = "AddMatch"
+          )
+        message.append_objects("s", rule)
+        reply = await self.send_await_reply(message, timeout = timeout)
+        if error != None and reply.type == DBUS.MESSAGE_TYPE_ERROR :
+            reply.set_error(error)
+        else :
+            reply.expect_return_objects("")
+        #end if
+    #end bus_add_match_async
+
     def bus_remove_match(self, rule, error = None) :
         "removes a previously-added match rule for messages you previously wanted" \
         " to receive."
@@ -2603,6 +2818,29 @@ class Connection :
         dbus.dbus_bus_remove_match(self._dbobj, format_rule(rule).encode(), error._dbobj)
         my_error.raise_if_set()
     #end bus_remove_match
+
+    async def bus_remove_match_async(self, rule, error = None, timeout = DBUS.TIMEOUT_USE_DEFAULT) :
+        "removes a previously-added match rule for messages you previously wanted" \
+        " to receive."
+        message = Message.new_method_call \
+          (
+            destination = DBUS.SERVICE_DBUS,
+            path = DBUS.PATH_DBUS,
+            iface = DBUS.INTERFACE_DBUS,
+            method = "RemoveMatch"
+          )
+        message.append_objects("s", rule)
+        reply = await self.send_await_reply(message, timeout = timeout)
+        if error != None and reply.type == DBUS.MESSAGE_TYPE_ERROR :
+            reply.set_error(error)
+        else :
+            reply.expect_return_objects("")
+        #end if
+    #end bus_remove_match_async
+
+    #+
+    # End calls to D-Bus Daemon
+    #-
 
     def attach_asyncio(self, loop = None) :
         "attaches this Connection object to an asyncio event loop. If none is" \

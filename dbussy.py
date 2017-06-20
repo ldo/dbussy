@@ -1986,6 +1986,10 @@ class Connection :
     #end read_write
 
     def borrow_message(self) :
+        "tries to peek at the next available message waiting to be read, returning" \
+        " None if these isn’t one. Call the Message’s return_borrowed() method" \
+        " to return it to the queue, or steal_borrowed() to confirm that you have" \
+        " read the message."
         msg = dbus.dbus_connection_borrow_message(self._dbobj)
         if msg != None :
             msg = Message(msg)

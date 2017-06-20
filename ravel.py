@@ -158,7 +158,7 @@ def guess_sequence_signature(args) :
 # High-level bus connection
 #-
 
-class HandlerError(Exception) :
+class ErrorReturn(Exception) :
     "Dispatch handlers can raise this to report an error that will be returned" \
     " in a message back to the other end of the connection."
 
@@ -174,7 +174,7 @@ class HandlerError(Exception) :
             result
     #end as_error
 
-#end HandlerError
+#end ErrorReturn
 
 def _signal_key(fallback, interface, name) :
     # constructs a key for the signal-listener dictionary from the
@@ -1589,7 +1589,7 @@ def _message_interface_dispatch(connection, message, bus) :
                         try :
                             args = message.expect_objects(call_info["in_signature"])
                         except (TypeError, ValueError) :
-                            raise HandlerError \
+                            raise ErrorReturn \
                               (
                                 name = DBUS.ERROR_INVALID_ARGS,
                                 message = "message arguments do not match expected signature"
@@ -1632,10 +1632,10 @@ def _message_interface_dispatch(connection, message, bus) :
                         result = func(*args, **kwargs)
                         if isinstance(result, types.CoroutineType) :
                             async def await_result(coro) :
-                                # just to gobble any HandlerError
+                                # just to gobble any ErrorReturn
                                 try :
                                     await coro
-                                except HandlerError :
+                                except ErrorReturn :
                                     pass
                                 #end try
                             #end await_result
@@ -1646,7 +1646,7 @@ def _message_interface_dispatch(connection, message, bus) :
                                 "invalid result from signal handler: %s" % repr(result)
                               )
                         #end if
-                    except HandlerError :
+                    except ErrorReturn :
                         pass
                     #end try
                 #end for
@@ -1710,7 +1710,7 @@ def _message_interface_dispatch(connection, message, bus) :
                         try :
                             args = message.expect_objects(call_info["in_signature"])
                         except (TypeError, ValueError) :
-                            raise HandlerError \
+                            raise ErrorReturn \
                               (
                                 name = DBUS.ERROR_INVALID_ARGS,
                                 message = "message arguments do not match expected signature"
@@ -1776,7 +1776,7 @@ def _message_interface_dispatch(connection, message, bus) :
                             #end if
                         #end if
                         result = method(iface, *args, **kwargs)
-                    except HandlerError as err :
+                    except ErrorReturn as err :
                         result = err.as_error()
                     #end try
                     allow_set_result = False
@@ -1794,7 +1794,7 @@ def _message_interface_dispatch(connection, message, bus) :
                             async def await_result(coro) :
                                 try :
                                     result = await coro
-                                except HandlerError as err :
+                                except ErrorReturn as err :
                                     result = err.as_error()
                                 #end try
                                 if result == None and to_return_result != None :
@@ -3029,7 +3029,7 @@ class PropertyHandler :
                 #end for
                 try :
                     propvalue = getter(**kwargs)
-                except HandlerError as err :
+                except ErrorReturn as err :
                     propvalue = err.as_error()
                 #end try
                 if isinstance(propvalue, types.CoroutineType) :
@@ -3114,7 +3114,7 @@ class PropertyHandler :
                 setter = getattr(dispatch, propentry["setter"].__name__)
                 try :
                     if propentry["type"] != None and propentry["type"] != dbus.parse_single_signature(proptype) :
-                        raise HandlerError \
+                        raise ErrorReturn \
                           (
                             name = DBUS.ERROR_INVALID_ARGS,
                             message =
@@ -3140,7 +3140,7 @@ class PropertyHandler :
                         #end if
                     #end for
                     setresult = setter(**kwargs)
-                except HandlerError as err :
+                except ErrorReturn as err :
                     setresult = err.as_error()
                 #end try
                 if isinstance(setresult, types.CoroutineType) :
@@ -3222,7 +3222,7 @@ class PropertyHandler :
                 #end for
                 try :
                     propvalue = getter(**kwargs)
-                except HandlerError as err :
+                except ErrorReturn as err :
                     properror = err.as_error()
                     break
                 #end try

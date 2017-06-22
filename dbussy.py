@@ -12,6 +12,7 @@ asyncio module.
 
 import os
 import builtins
+import operator
 import array
 import types
 import enum
@@ -4615,6 +4616,164 @@ class _RuleParser :
 
 unformat_rule = _RuleParser.unformat_rule
 del _RuleParser
+
+def matches_rule(message, rule, destinations = None) :
+    "does Message message match against the specified rule."
+    if not isinstance(message, Message) :
+        raise TypeError("message must be a Message")
+    #end if
+    rule = unformat_rule(rule)
+    eavesdrop = rule.get("eavesdrop", "false") == "true"
+    rule.pop("eavesdrop", None)
+
+    def match_message_type(expect, actual) :
+        return \
+            actual == Message.type_from_string(expect)
+    #end match_message_type
+
+    def match_path_namespace(expect, actual) :
+        return \
+            (
+                expect == actual
+            or
+                actual.startswith(expect) and actual[len(expect)] == "/"
+            )
+    #end match_path_namespace
+
+    def match_dotted_namespace(expect, actual) :
+        return \
+            (
+                expect == actual
+            or
+                actual.startswith(expect) and actual[len(expect)] == "."
+            )
+    #end match_dotted_namespace
+
+    def get_nth_arg(msg, n, expect_types) :
+        msg_signature = parse_signature(msg.signature)
+        if n >= len(msg_signature) :
+            raise IndexError("arg nr %d beyond nr args %d" % (n, len(msg_signature)))
+        #end if
+        val = msg.all_objects[n]
+        valtype = msg_signature[n]
+        if valtype not in expect_types :
+            if False :
+                raise TypeError \
+                  (
+                        "expecting one of types %s, not %s for arg %d val %s"
+                    %
+                        ((repr(expect_types), repr(valtype), n, repr(val)))
+                  )
+            #end if
+            val = None # never match
+        #end if
+        return \
+            val
+    #end get_nth_arg
+
+    def get_arg_0_str(message) :
+        return \
+            get_nth_arg(message, [BasicType(TYPE.STRING)])
+    #end get_arg_0_str
+
+    def match_arg_paths(expect, actual) :
+        return \
+            (
+                expect == actual
+            or
+                expect.endswith("/") and actual.startswith(expect)
+            or
+                actual.endswith("/") and expect.startswith(actual)
+            )
+    #end match_arg_paths
+
+    match_types = \
+        ( # note that message attribute value of None will fail to match
+          # any expected string value, which is exactly what we want
+            ("type", None, match_message_type, None),
+            ("sender", None, operator.eq, None),
+            ("interface", None, operator.eq, None),
+            ("member", None, operator.eq, None),
+            ("path", None, operator.eq, None),
+            ("destination", None, operator.eq, None),
+            ("path_namespace", "path", match_path_namespace, None),
+            ("arg0namespace", None, match_dotted_namespace, get_arg_0_str),
+            # “arg«n»path” handled specially below
+        )
+
+#begin matches_rule
+    keys_used = set(rule.keys())
+    matches = \
+        (
+            eavesdrop
+        or
+            destinations == None
+        or
+            message.destination == None
+        or
+            message.destination in destinations
+        )
+    if matches :
+        try_matching = iter(match_types)
+        while True :
+            try_rule = next(try_matching, None)
+            if try_rule == None :
+                break
+            rulekey, attrname, action, accessor = try_rule
+            if attrname == None :
+                attrname = rulekey
+            #end if
+            if rulekey in rule :
+                if accessor != None :
+                    val = accessor(message)
+                else :
+                    val = getattr(message, attrname)
+                #end if
+                keys_used.remove(rulekey)
+                if not action(rule[rulekey], val) :
+                    matches = False
+                    break
+                #end if
+            #end if
+        #end while
+    #end if
+    if matches :
+        try_matching = iter(rule.keys())
+        while True :
+            try_key = next(try_matching, None)
+            if try_key == None :
+                break
+            if try_key.startswith("arg") :
+                argnr = try_key[3:]
+                is_path = argnr.endswith("path")
+                if is_path :
+                    argnr = argnr[:-4]
+                #end if
+                argnr = int(argnr)
+                if not (0 <= argnr < 64) :
+                    raise ValueError("argnr %d out of range" % argnr)
+                #end if
+                argval = get_nth_arg \
+                  (
+                    message,
+                    argnr,
+                    [BasicType(TYPE.STRING)] + ([], [BasicType(TYPE.OBJECT_PATH)])[is_path]
+                  )
+                keys_used.remove(try_key)
+                if not (operator.eq, match_arg_paths)[is_path](rule[try_key], argval) :
+                    matches = False
+                    break
+                #end if
+            #end if
+        #end while
+    #end if
+    if matches and len(keys_used) != 0 :
+        # fixme: not checking for unrecognized rule keys if I didn’t try matching them all
+        raise KeyError("unrecognized rule keywords: %s" % ", ".join(sorted(keys_used)))
+    #end if
+    return \
+        matches
+#end matches_rule
 
 class SignatureIter :
     "wraps a DBusSignatureIter object. Do not instantiate directly; use the init" \

@@ -3137,6 +3137,9 @@ class Server :
         " within that time."
         if len(self._new_connections) != 0 :
             result = self._new_connections.pop(0)
+        elif timeout == 0 :
+            # might as well short-circuit the whole waiting process
+            result = None
         else :
             awaiting = self.loop.create_future()
             self._await_new_connections.append(awaiting)
@@ -3146,8 +3149,6 @@ class Server :
                 if timeout == DBUS.TIMEOUT_USE_DEFAULT :
                     timeout = DBUSX.DEFAULT_TIMEOUT
                 #end if
-                start_time = self.loop.time()
-                end_time = start_time + timeout
             #end if
             await asyncio.wait \
               (

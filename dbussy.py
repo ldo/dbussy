@@ -3284,9 +3284,9 @@ class Message :
         result = dbus.dbus_message_new_method_call \
           (
             (lambda : None, lambda : destination.encode())[destination != None](),
-            (lambda : None, lambda : path.encode())[path != None](),
+            path.encode(),
             (lambda : None, lambda : iface.encode())[iface != None](),
-            (lambda : None, lambda : method.encode())[method != None](),
+            method.encode(),
           )
         if result == None :
             raise DBusFailure("dbus_message_new_method_call failed")

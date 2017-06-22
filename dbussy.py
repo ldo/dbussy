@@ -3166,7 +3166,7 @@ class Server :
             #end if
         #end if
         if result != None and self.autoattach_new_connections :
-            result.attach_asyncio()
+            result.attach_asyncio(self.loop)
         #end if
         return \
             result

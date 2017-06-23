@@ -776,6 +776,18 @@ class DictType(Type) :
 
 #end DictType
 
+def data_key(data) :
+    "returns a unique value that allows data to be used as a dict/set key."
+    if isinstance(data, (bytes, float, int, str, tuple)) :
+        result = data
+    else :
+        # data itself is non-hashable
+        result = id(data)
+    #end if
+    return \
+        result
+#end data_key
+
 #+
 # Library prototypes
 #-
@@ -2303,8 +2315,7 @@ class Connection :
         #end wrap_free_data
 
     #begin add_filter
-        filter_key = (function, id(user_data))
-          # use id to allow non-hashable user_data
+        filter_key = (function, data_key(user_data))
         filter_value = \
             {
                 "function" : DBUS.HandleMessageFunction(wrap_function),
@@ -2321,8 +2332,7 @@ class Connection :
     def remove_filter(self, function, user_data) :
         "removes a message filter added by add_filter. The filter is identified" \
         " by both the function object and the user_data that was passed."
-        filter_key = (function, id(user_data))
-          # use id to allow non-hashable user_data
+        filter_key = (function, data_key(user_data))
         if filter_key not in self._filters :
             raise KeyError("removing nonexistent Connection filter")
         #end if
@@ -2341,7 +2351,7 @@ class Connection :
         self._object_paths[path] = {"vtable" : vtable, "user_data" : user_data} # ensure it doesn’t disappear prematurely
         error, my_error = _get_error(error)
         if user_data != None :
-            c_user_data = id(user_data)
+            c_user_data = data_key(user_data)
             self._user_data[c_user_data] = user_data
         else :
             c_user_data = None
@@ -2359,7 +2369,7 @@ class Connection :
         self._object_paths[path] = {"vtable" : vtable, "user_data" : user_data} # ensure it doesn’t disappear prematurely
         error, my_error = _get_error(error)
         if user_data != None :
-            c_user_data = id(user_data)
+            c_user_data = data_key(user_data)
             self._user_data[c_user_data] = user_data
         else :
             c_user_data = None
@@ -2378,7 +2388,7 @@ class Connection :
             raise DBusFailure("dbus_connection_unregister_object_path failed")
         #end if
         user_data = self._object_paths[path]["user_data"]
-        c_user_data = id(user_data)
+        c_user_data = data_key(user_data)
         nr_remaining_refs = sum(int(self._object_paths[p]["user_data"] == user_data) for p in self._object_paths if p != path)
         if nr_remaining_refs == 0 :
             try :

@@ -1800,6 +1800,41 @@ def _loop_attach(self, loop, dispatch) :
     self = None # avoid circularity
 #end _loop_attach
 
+class _MatchActionEntry :
+    __slots__ = ("rule", "actions")
+
+    class _Action :
+        __slots__ = ("func", "user_data")
+
+        def __init__(self, func, user_data) :
+            self.func = func
+            self.user_data = user_data
+        #end __init__
+
+        def __eq__(a, b) :
+            # needed to allow equality comparison of set entries
+            return \
+                (
+                    a.func == b.func
+                and
+                    data_key(a.user_data) == data_key(b.user_data)
+                )
+        #end __eq__
+
+        def __hash__(self) :
+            return \
+                hash((self.func, data_key(self.user_data)))
+        #end __hash__
+
+    #end _Action
+
+    def __init__(self, rule) :
+        self.rule = rule
+        self.actions = set()
+    #end __init__
+
+#end _MatchActionEntry
+
 class Connection :
     "wrapper around a DBusConnection object. Do not instantiate directly; use the open" \
     " or bus_get methods."
@@ -1810,6 +1845,7 @@ class Connection :
         "__weakref__",
         "_dbobj",
         "_filters",
+        "_match_actions",
         "loop",
         "_user_data",
         # need to keep references to ctypes-wrapped functions
@@ -1841,6 +1877,7 @@ class Connection :
             self._dbobj = _dbobj
             self._user_data = {}
             self._filters = {}
+            self._match_actions = {}
             self.loop = None
             self._object_paths = {}
             celf._instances[_dbobj] = self
@@ -2848,6 +2885,95 @@ class Connection :
             reply.expect_return_objects("")
         #end if
     #end bus_remove_match_async
+
+    @staticmethod
+    def _rule_action_match(self, message, _) :
+        # installed as a message filter to invoke actions corresponding to rules
+        # that the message matches.
+        for entry in self._match_actions.values() :
+            if matches_rule(message, entry.rule) :
+                for action in entry.actions :
+                    result = action.func(self, message, action.user_data)
+                    if isinstance(result, types.CoroutineType) :
+                        assert self.loop != None, "no event loop to attach coroutine to"
+                        self.loop.create_task(result)
+                    #end if
+                #end for
+            #end if
+        #end for
+        return \
+            DBUS.HANDLER_RESULT_NOT_YET_HANDLED
+    #end _rule_action_match
+
+    def bus_add_match_action(self, rule, func, user_data, error = None) :
+        "adds a message filter that invokes func(conn, message, user_data)" \
+        " for each incoming message that matches the specified rule. Unlike" \
+        " the underlying add_filter and bus_add_match calls, this allows you" \
+        " to associate the action with the particular matching rule."
+        rulekey = format_rule(rule)
+        rule = unformat_rule(rule)
+        if rulekey not in self._match_actions :
+            self.bus_add_match(rulekey, error) # could fail here with bad rule
+            if error == None or not error.is_set :
+                if len(self._match_actions) == 0 :
+                    self.add_filter(self._rule_action_match, None)
+                #end if
+                self._match_actions[rulekey] = _MatchActionEntry(rule)
+            #end if
+        #end if
+        if error == None or not error.is_set :
+            self._match_actions[rulekey].actions.add(_MatchActionEntry._Action(func, user_data))
+        #end if
+    #end bus_add_match_action
+
+    def bus_remove_match_action(self, rule, func, user_data, error = None) :
+        "removes a message filter previously installed with bus_add_match_action."
+        rulekey = format_rule(rule)
+        rule = unformat_rule(rule)
+        self._match_actions[rulekey].actions.remove(_MatchActionEntry._Action(func, user_data))
+        if len(self._match_actions[rulekey].actions) == 0 :
+            self.bus_remove_match(rulekey, error) # shouldn’t fail!
+            del self._match_actions[rulekey]
+            if len(self._match_actions) == 0 :
+                self.remove_filter(self._rule_action_match, None)
+            #end if
+        #end if
+    #end bus_remove_match_action
+
+    async def bus_add_match_action_async(self, rule, func, user_data, error = None, timeout = DBUS.TIMEOUT_USE_DEFAULT) :
+        "adds a message filter that invokes func(conn, message, user_data)" \
+        " for each incoming message that matches the specified rule. Unlike" \
+        " the underlying add_filter and bus_add_match calls, this allows you" \
+        " to associate the action with the particular matching rule."
+        rulekey = format_rule(rule)
+        rule = unformat_rule(rule)
+        if rulekey not in self._match_actions :
+            await self.bus_add_match_async(rulekey, error, timeout) # could fail here with bad rule
+            if error == None or not error.is_set :
+                if len(self._match_actions) == 0 :
+                    self.add_filter(self._rule_action_match, None)
+                #end if
+                self._match_actions[rulekey] = _MatchActionEntry(rule)
+            #end if
+        #end if
+        if error == None or not error.is_set :
+            self._match_actions[rulekey].actions.add(_MatchActionEntry._Action(func, user_data))
+        #end if
+    #end bus_add_match_action_async
+
+    async def bus_remove_match_action_async(self, rule, func, user_data, error = None, timeout = DBUS.TIMEOUT_USE_DEFAULT) :
+        "removes a message filter previously installed with bus_add_match_action."
+        rulekey = format_rule(rule)
+        rule = unformat_rule(rule)
+        self._match_actions[rulekey].actions.remove(_MatchActionEntry._Action(func, user_data))
+        if len(self._match_actions[rulekey].actions) == 0 :
+            await self.bus_remove_match_async(rulekey, error, timeout) # shouldn’t fail!
+            del self._match_actions[rulekey]
+            if len(self._match_actions) == 0 :
+                self.remove_filter(self._rule_action_match, None)
+            #end if
+        #end if
+    #end bus_remove_match_action_async
 
     #+
     # End calls to D-Bus Daemon

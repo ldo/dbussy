@@ -4625,7 +4625,6 @@ def matches_rule(message, rule, destinations = None) :
     #end if
     rule = unformat_rule(rule)
     eavesdrop = rule.get("eavesdrop", "false") == "true"
-    rule.pop("eavesdrop", None)
 
     def match_message_type(expect, actual) :
         return \
@@ -4703,7 +4702,7 @@ def matches_rule(message, rule, destinations = None) :
         )
 
 #begin matches_rule
-    keys_used = set(rule.keys())
+    keys_used = set(rule.keys()) - {"eavesdrop"}
     matches = \
         (
             eavesdrop

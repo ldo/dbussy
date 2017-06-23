@@ -2889,7 +2889,8 @@ class Connection :
     @staticmethod
     def _rule_action_match(self, message, _) :
         # installed as a message filter to invoke actions corresponding to rules
-        # that the message matches.
+        # that the message matches. Always returns a “handled” status, so this
+        # Connection should not be used for normal method calls.
         for entry in self._match_actions.values() :
             if matches_rule(message, entry.rule) :
                 for action in entry.actions :
@@ -2902,14 +2903,18 @@ class Connection :
             #end if
         #end for
         return \
-            DBUS.HANDLER_RESULT_NOT_YET_HANDLED
+            DBUS.HANDLER_RESULT_HANDLED
     #end _rule_action_match
 
     def bus_add_match_action(self, rule, func, user_data, error = None) :
         "adds a message filter that invokes func(conn, message, user_data)" \
         " for each incoming message that matches the specified rule. Unlike" \
         " the underlying add_filter and bus_add_match calls, this allows you" \
-        " to associate the action with the particular matching rule."
+        " to associate the action with the particular matching rule.\n" \
+        "\n" \
+        "Note that the message filter installed to process these rules always" \
+        " returns a DBUS.HANDLER_RESULT_HANDLED status; so do not use the same" \
+        " Connection object to handle normal method calls."
         rulekey = format_rule(rule)
         rule = unformat_rule(rule)
         if rulekey not in self._match_actions :
@@ -2944,7 +2949,11 @@ class Connection :
         "adds a message filter that invokes func(conn, message, user_data)" \
         " for each incoming message that matches the specified rule. Unlike" \
         " the underlying add_filter and bus_add_match calls, this allows you" \
-        " to associate the action with the particular matching rule."
+        " to associate the action with the particular matching rule.\n" \
+        "\n" \
+        "Note that the message filter installed to process these rules always" \
+        " returns a DBUS.HANDLER_RESULT_HANDLED status; so do not use the same" \
+        " Connection object to handle normal method calls."
         rulekey = format_rule(rule)
         rule = unformat_rule(rule)
         if rulekey not in self._match_actions :

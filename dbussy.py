@@ -2388,7 +2388,7 @@ class Connection :
         self._object_paths[path] = {"vtable" : vtable, "user_data" : user_data} # ensure it doesn’t disappear prematurely
         error, my_error = _get_error(error)
         if user_data != None :
-            c_user_data = data_key(user_data)
+            c_user_data = id(user_data)
             self._user_data[c_user_data] = user_data
         else :
             c_user_data = None
@@ -2406,7 +2406,7 @@ class Connection :
         self._object_paths[path] = {"vtable" : vtable, "user_data" : user_data} # ensure it doesn’t disappear prematurely
         error, my_error = _get_error(error)
         if user_data != None :
-            c_user_data = data_key(user_data)
+            c_user_data = id(user_data)
             self._user_data[c_user_data] = user_data
         else :
             c_user_data = None
@@ -2425,7 +2425,7 @@ class Connection :
             raise DBusFailure("dbus_connection_unregister_object_path failed")
         #end if
         user_data = self._object_paths[path]["user_data"]
-        c_user_data = data_key(user_data)
+        c_user_data = id(user_data)
         nr_remaining_refs = sum(int(self._object_paths[p]["user_data"] == user_data) for p in self._object_paths if p != path)
         if nr_remaining_refs == 0 :
             try :

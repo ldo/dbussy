@@ -1108,6 +1108,24 @@ def starter_bus() :
         Connection(dbus.Connection.bus_get(DBUS.BUS_STARTER, private = False))
 #end starter_bus
 
+async def session_bus_async() :
+    "returns a Connection object for the current D-Bus session bus."
+    return \
+        Connection(await dbus.Connection.bus_get_async(DBUS.BUS_SESSION, private = False))
+#end session_bus_async
+
+async def system_bus_async() :
+    "returns a Connection object for the D-Bus system bus."
+    return \
+        Connection(await dbus.Connection.bus_get_async(DBUS.BUS_SYSTEM, private = False))
+#end system_bus_async
+
+async def starter_bus_async() :
+    "returns a Connection object for the D-Bus starter bus."
+    return \
+        Connection(await dbus.Connection.bus_get_async(DBUS.BUS_STARTER, private = False))
+#end starter_bus_async
+
 def connect_server(address) :
     "opens a connection to a server at the specified network address and" \
     " returns a Connection object for the connection."

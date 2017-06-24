@@ -1275,16 +1275,15 @@ class BusPeer :
             "sends a set-property request to change the property value. There must already" \
             " be a registered interface instance with that name which defines the property" \
             " for the object."
-            return \
-                self.conn.set_prop_blocking \
-                  (
-                    destination = self.bus_name,
-                    path = self.path,
-                    interface = interface,
-                    name = name,
-                    value = value,
-                    timeout = timeout,
-                  )
+            self.conn.set_prop_blocking \
+              (
+                destination = self.bus_name,
+                path = self.path,
+                interface = interface,
+                name = name,
+                value = value,
+                timeout = timeout,
+              )
         #end set_prop_blocking
 
         async def set_prop_async(self, *, interface, name, value, timeout = DBUS.TIMEOUT_USE_DEFAULT) :
@@ -1450,16 +1449,15 @@ class BusPeer :
         "sends a set-property request to change the property value. There must already" \
         " be a registered interface instance with that name which defines the property" \
         " for the specified object path."
-        return \
-            self.conn.set_prop_blocking \
-              (
-                destination = self.bus_name,
-                path = path,
-                interface = interface,
-                name = name,
-                value = value,
-                timeout = timeout,
-              )
+        self.conn.set_prop_blocking \
+          (
+            destination = self.bus_name,
+            path = path,
+            interface = interface,
+            name = name,
+            value = value,
+            timeout = timeout,
+          )
     #end set_prop_blocking
 
     async def set_prop_async(self, *, path, interface, name, value, timeout = DBUS.TIMEOUT_USE_DEFAULT) :

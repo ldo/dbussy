@@ -593,6 +593,11 @@ class BasicType(Type) :
         self.code = code
     #end __init__
 
+    def __repr__(self) :
+        return \
+            "%s(%s)" % (type(self).__name__, repr(self.code))
+    #end __repr__
+
     @property
     def signature(self) :
         return \
@@ -635,6 +640,11 @@ class VariantType(Type) :
             chr(TYPE.VARIANT.value)
     #end signature
 
+    def __repr__(self) :
+        return \
+            "%s()" % type(self).__name__
+    #end __repr__
+
     def __eq__(t1, t2) :
         return \
             isinstance(t2, VariantType)
@@ -667,6 +677,11 @@ class StructType(Type) :
         #end if
         self.elttypes = tuple(types)
     #end __init__
+
+    def __repr__(self) :
+        return \
+            "%s(%s)" % (type(self).__name__, repr(self.elttypes))
+    #end __repr__
 
     @property
     def signature(self) :
@@ -710,6 +725,11 @@ class ArrayType(Type) :
         self.elttype = elttype
     #end __init__
 
+    def __repr__(self) :
+        return \
+            "%s[%s]" % (type(self).__name__, repr(self.elttype))
+    #end __repr__
+
     @property
     def signature(self) :
         return \
@@ -743,6 +763,11 @@ class DictType(Type) :
         self.keytype = keytype
         self.valuetype = valuetype
     #end keytype
+
+    def __repr__(self) :
+        return \
+            "%s[%s : %s]" % (type(self).__name__, repr(self.keytype), repr(self.valuetype))
+    #end __repr__
 
     @property
     def signature(self) :

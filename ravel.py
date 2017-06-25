@@ -2909,6 +2909,19 @@ def def_proxy_interface(kind, *, name, introspected, is_async) :
         proxy_factory
 #end def_proxy_interface
 
+async def set_prop_flush(iface) :
+    "iface must be either a BusPeer.RootProxy or BusPeer.Object.ProxyInterface" \
+    " instance; calls the set_prop_flush() method on the correct root proxy in" \
+    " either case."
+    if isinstance(iface, BusPeer.RootProxy) :
+        await iface.set_prop_flush()
+    elif isinstance(iface, BusPeer.Object.ProxyInterface) :
+        await iface._parent.set_prop_flush()
+    else :
+        raise TypeError("iface type %s is not a RootProxy or a ProxyInterface" % type(iface).__name__)
+    #end if
+#end set_prop_flush
+
 #+
 # Predefined interfaces
 #-

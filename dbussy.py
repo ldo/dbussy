@@ -803,7 +803,7 @@ class DictType(Type) :
 
 def data_key(data) :
     "returns a unique value that allows data to be used as a dict/set key."
-    if isinstance(data, (bytes, float, int, str, tuple)) :
+    if isinstance(data, (bytes, float, frozenset, int, str, tuple)) :
         result = data
     else :
         # data itself is non-hashable

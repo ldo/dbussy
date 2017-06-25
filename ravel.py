@@ -1540,14 +1540,14 @@ class BusPeer :
         "sends an Introspect request to the specified bus name and object path" \
         " (if interface is not one of the standard interfaces), and generates" \
         " a client-side proxy interface for the interface with the specified name."
-        return await \
-            self.conn.get_proxy_interface_async \
+        return \
+            (await self.conn.get_proxy_interface_async \
               (
                 destination = self.bus_name,
                 path = path,
                 interface = interface,
                 timeout = timeout,
-              )(
+              ))(
                 connection = self.conn.connection,
                 dest = self.bus_name,
                 timeout = timeout,

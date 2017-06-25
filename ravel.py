@@ -306,7 +306,7 @@ class Connection :
         if self == None :
             self = super().__new__(celf)
             self.connection = connection
-            self.loop = None
+            self.loop = connection.loop
             self.props_change_notify_delay = 0
             self._dispatch = None # only used server-side
             self._props_changed = None
@@ -1110,26 +1110,20 @@ def starter_bus() :
 
 async def session_bus_async(loop = None) :
     "returns a Connection object for the current D-Bus session bus."
-    result = Connection(await dbus.Connection.bus_get_async(DBUS.BUS_SESSION, private = False, loop = loop))
-    result.loop = result.connection.loop
     return \
-        result
+        Connection(await dbus.Connection.bus_get_async(DBUS.BUS_SESSION, private = False, loop = loop))
 #end session_bus_async
 
 async def system_bus_async(loop = None) :
     "returns a Connection object for the D-Bus system bus."
-    result = Connection(await dbus.Connection.bus_get_async(DBUS.BUS_SYSTEM, private = False, loop = loop))
-    result.loop = result.connection.loop
     return \
-        result
+        Connection(await dbus.Connection.bus_get_async(DBUS.BUS_SYSTEM, private = False, loop = loop))
 #end system_bus_async
 
 async def starter_bus_async(loop = None) :
     "returns a Connection object for the D-Bus starter bus."
-    result = Connection(await dbus.Connection.bus_get_async(DBUS.BUS_STARTER, private = False, loop = loop))
-    result.loop = result.connection.loop
     return \
-        result
+        Connection(await dbus.Connection.bus_get_async(DBUS.BUS_STARTER, private = False, loop = loop))
 #end starter_bus_async
 
 def connect_server(address) :

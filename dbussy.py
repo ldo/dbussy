@@ -4852,7 +4852,7 @@ def matches_rule(message, rule, destinations = None) :
 
     def get_arg_0_str(message) :
         return \
-            get_nth_arg(message, [BasicType(TYPE.STRING)])
+            get_nth_arg(message, 0, [BasicType(TYPE.STRING)])
     #end get_arg_0_str
 
     def match_arg_paths(expect, actual) :

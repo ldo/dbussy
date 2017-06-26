@@ -4934,7 +4934,7 @@ def matches_rule(message, rule, destinations = None) :
             try_key = next(try_matching, None)
             if try_key == None :
                 break
-            if try_key.startswith("arg") :
+            if try_key.startswith("arg") and not try_key.endswith("namespace") :
                 argnr = try_key[3:]
                 is_path = argnr.endswith("path")
                 if is_path :

@@ -2943,8 +2943,9 @@ class Connection :
         " to associate the action with the particular matching rule.\n" \
         "\n" \
         "Note that the message filter installed to process these rules always" \
-        " returns a DBUS.HANDLER_RESULT_HANDLED status; so do not use the same" \
-        " Connection object to handle normal method calls."
+        " returns a DBUS.HANDLER_RESULT_HANDLED status; so either only use this" \
+        " to listen for signals, or do not use the same Connection object to" \
+        " handle normal method calls."
         rulekey = format_rule(rule)
         rule = unformat_rule(rule)
         if rulekey not in self._match_actions :
@@ -2982,8 +2983,9 @@ class Connection :
         " to associate the action with the particular matching rule.\n" \
         "\n" \
         "Note that the message filter installed to process these rules always" \
-        " returns a DBUS.HANDLER_RESULT_HANDLED status; so do not use the same" \
-        " Connection object to handle normal method calls."
+        " returns a DBUS.HANDLER_RESULT_HANDLED status; so either only use this" \
+        " to listen for signals, or do not use the same Connection object to" \
+        " handle normal method calls."
         rulekey = format_rule(rule)
         rule = unformat_rule(rule)
         if rulekey not in self._match_actions :

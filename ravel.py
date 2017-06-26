@@ -291,7 +291,14 @@ class Connection :
             "loop",
             "props_change_notify_delay",
             "user_data",
+            "bus_names_acquired",
+            "bus_names_pending",
             "_dispatch",
+            "_registered_bus_names_listeners",
+            "_bus_name_acquired_action",
+            "_bus_name_acquired_action_arg",
+            "_bus_name_lost_action",
+            "_bus_name_lost_action_arg",
             "_props_changed",
         ) # to forestall typos
 
@@ -309,7 +316,16 @@ class Connection :
             self.loop = connection.loop
             self.props_change_notify_delay = 0
             self._dispatch = None # only used server-side
+            unique_name = connection.bus_unique_name
+            assert unique_name != None, "connection not yet registered"
+            self.bus_names_acquired = {unique_name}
+            self.bus_names_pending = set()
+            self._registered_bus_names_listeners = False
             self._props_changed = None
+            self._bus_name_acquired_action = None
+            self._bus_name_acquired_action_arg = None
+            self._bus_name_lost_action = None
+            self._bus_name_lost_action_arg = None
             self.user_data = _UserData(self)
             celf._instances[connection] = self
             for interface in \
@@ -370,28 +386,128 @@ class Connection :
             self
     #end attach_asyncio
 
-    class BusName :
-        __slots__ = ("conn", "name")
+    @staticmethod
+    def _bus_name_acquired(conn, msg, self) :
+        bus_name = msg.expect_objects("s")[0]
+        self.bus_names_pending.discard(bus_name)
+        if bus_name not in self.bus_names_acquired :
+            self.bus_names_acquired.add(bus_name)
+            if self._bus_name_acquired_action != None :
+                result = self._bus_name_acquired_action(self, bus_name, self._bus_name_acquired_action_arg)
+                if isinstance(result, types.CoroutineType) :
+                    assert self.loop != None, "no event loop to attach coroutine to"
+                    self.loop.create_task(result)
+                #end if
+            #end if
+        #end if
+    #end _bus_name_acquired
 
-        def __init__(self, conn, name) :
-            self.conn = conn
-            self.name = name
-        #end __init__
+    @staticmethod
+    def _bus_name_lost(conn, msg, self) :
+        bus_name = msg.expect_objects("s")[0]
+        self.bus_names_pending.discard(bus_name)
+        if bus_name in self.bus_names_acquired :
+            self.bus_names_acquired.remove(bus_name)
+            if self._bus_name_lost_action != None :
+                result = self._bus_name_lost_action(self, bus_name, self._bus_name_lost_action_arg)
+                if isinstance(result, types.CoroutineType) :
+                    assert self.loop != None, "no event loop to attach coroutine to"
+                    self.loop.create_task(result)
+                #end if
+            #end if
+        #end if
+    #end _bus_name_lost
 
-        def __del__(self) :
-            self.conn.connection.bus_release_name(self.name)
-        #end __del__
+    def set_bus_name_acquired_action(self, action, action_arg) :
+        "sets the action (if not None) to be called on receiving a bus-name-acquired" \
+        " signal. action is invoked as\n" \
+        "\n" \
+        "    action(conn, bus_name, action_arg)\n" \
+        "\n" \
+        "where conn is the Connection object and bus_name is the name."
+        self._bus_name_acquired_action = action
+        self._bus_name_acquired_action_arg = action_arg
+    #end set_bus_name_acquired_action
 
-    #end BusName
+    def set_bus_name_lost_action(self, action, action_arg) :
+        "sets the action (if not None) to be called on receiving a bus-name-lost" \
+        " signal. action is invoked as\n" \
+        "\n" \
+        "    action(conn, bus_name, action_arg)\n" \
+        "\n" \
+        "where conn is the Connection object and bus_name is the name."
+        self._bus_name_lost_action = action
+        self._bus_name_lost_action_arg = action_arg
+    #end set_bus_name_lost_action
 
     def request_name(self, bus_name, flags) :
-        "registers a bus name, returning a Connection.BusName object; hold on" \
-        " to this for as long as you want the name registered. When Python" \
-        " disposes of the object, the name will be released."
-        self.connection.bus_request_name(bus_name, flags)
+        "registers a bus name."
+        if not self._registered_bus_names_listeners :
+            self.connection.bus_add_match_action \
+              (
+                rule = "type=signal,interface=org.freedesktop.DBus,member=NameAcquired",
+                func = self._bus_name_acquired,
+                user_data = self
+              )
+            self.connection.bus_add_match_action \
+              (
+                rule = "type=signal,interface=org.freedesktop.DBus,member=NameLost",
+                func = self._bus_name_lost,
+                user_data = self
+              )
+            self._registered_bus_names_listeners = True
+        #end if
         return \
-            type(self).BusName(self, bus_name)
+            self.connection.bus_request_name(bus_name, flags)
     #end request_name
+
+    async def request_name_async(self, bus_name, flags, error = None, timeout = DBUS.TIMEOUT_USE_DEFAULT) :
+        "registers a bus name."
+        assert self.loop != None, "no event loop to attach coroutine to"
+        if not self._registered_bus_names_listeners :
+            self._registered_bus_names_listeners = True # do first in case of reentrant call
+            await self.connection.bus_add_match_action_async \
+              (
+                rule = "type=signal,interface=org.freedesktop.DBus,member=NameAcquired",
+                func = self._bus_name_acquired,
+                user_data = self
+              )
+            await self.connection.bus_add_match_action_async \
+              (
+                rule = "type=signal,interface=org.freedesktop.DBus,member=NameLost",
+                func = self._bus_name_lost,
+                user_data = self
+              )
+        #end if
+        is_acquired = bus_name in self.bus_names_acquired
+        is_pending = bus_name in self.bus_names_pending
+        if not (is_acquired or is_pending) :
+            self.bus_names_pending.add(bus_name)
+            result = await self.connection.bus_request_name_async(bus_name, flags, error = error, timeout = timeout)
+            if error != None and error.is_set or result != DBUS.REQUEST_NAME_REPLY_IN_QUEUE :
+                self.bus_names_pending.discard(bus_name)
+            #end if
+        elif is_pending :
+            result = DBUS.REQUEST_NAME_REPLY_IN_QUEUE
+        else :
+            result = DBUS.REQUEST_NAME_REPLY_ALREADY_OWNER
+        #end if
+        return \
+            result
+    #end request_name_async
+
+    def release_name(self, bus_name) :
+        "releases a registered bus name."
+        return \
+            self.connection.bus_release_name(bus_name)
+    #end release_name
+
+    async def release_name_async(self, bus_name, error = None, timeout = DBUS.TIMEOUT_USE_DEFAULT) :
+        "releases a registered bus name."
+        assert self.loop != None, "no event loop to attach coroutine to"
+        return \
+            await self.connection.bus_release_name_async(bus_name, error = error, timeout = timeout)
+    #end release_name_async
 
     def _trim_dispatch(self) :
         # removes empty subtrees from the object tree.
@@ -3282,7 +3398,7 @@ class PropertyHandler :
 
 def _atexit() :
     # disable all __del__ methods at process termination to avoid unpredictable behaviour
-    for cls in Connection, Connection.BusName, Server :
+    for cls in Connection, Server :
         delattr(cls, "__del__")
     #end for
 #end _atexit

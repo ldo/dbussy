@@ -618,7 +618,7 @@ class BasicType(Type) :
             #end if
         elif self.code == TYPE.UNIX_FD :
             val = DBUS.subtype_uint32(val)
-        elif DBUS.basic_to_ctypes(self.code.value) == ct.c_char_p :
+        elif DBUS.basic_to_ctypes[self.code.value] == ct.c_char_p :
             if not isinstance(val, str) :
                 raise TypeError("expecting a string, not %s: %s" % (type(val).__name__, repr(val)))
             #end if

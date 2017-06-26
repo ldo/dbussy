@@ -2921,6 +2921,7 @@ class Connection :
         # from eavesdropping on method calls not addressed to me, this routine
         # always returns a “handled” status. That means this same Connection
         # object should not also be used for normal method calls.
+        handled = False
         for entry in self._match_actions.values() :
             if matches_rule(message, entry.rule) :
                 for action in entry.actions :
@@ -2930,10 +2931,11 @@ class Connection :
                         self.loop.create_task(result)
                     #end if
                 #end for
+                handled = True # passed to at least one handler
             #end if
         #end for
         return \
-            DBUS.HANDLER_RESULT_HANDLED
+            (DBUS.HANDLER_RESULT_NOT_YET_HANDLED, DBUS.HANDLER_RESULT_HANDLED)[handled]
     #end _rule_action_match
 
     def bus_add_match_action(self, rule, func, user_data, error = None) :

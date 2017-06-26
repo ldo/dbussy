@@ -4813,18 +4813,26 @@ def matches_rule(message, rule, destinations = None) :
     def match_path_namespace(expect, actual) :
         return \
             (
-                expect == actual
-            or
-                actual.startswith(expect) and actual[len(expect)] == "/"
+                actual != None
+            and
+                (
+                    expect == actual
+                or
+                    actual.startswith(expect) and actual[len(expect)] == "/"
+                )
             )
     #end match_path_namespace
 
     def match_dotted_namespace(expect, actual) :
         return \
             (
-                expect == actual
-            or
-                actual.startswith(expect) and actual[len(expect)] == "."
+                actual != None
+            and
+                (
+                    expect == actual
+                or
+                    actual.startswith(expect) and actual[len(expect)] == "."
+                )
             )
     #end match_dotted_namespace
 
@@ -4858,11 +4866,15 @@ def matches_rule(message, rule, destinations = None) :
     def match_arg_paths(expect, actual) :
         return \
             (
-                expect == actual
-            or
-                expect.endswith("/") and actual.startswith(expect)
-            or
-                actual.endswith("/") and expect.startswith(actual)
+                actual != None
+            and
+                (
+                    expect == actual
+                or
+                    expect.endswith("/") and actual.startswith(expect)
+                or
+                    actual.endswith("/") and expect.startswith(actual)
+                )
             )
     #end match_arg_paths
 

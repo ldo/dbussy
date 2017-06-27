@@ -651,14 +651,124 @@ class VariantType(Type) :
     #end __eq__
 
     def validate(self, val) :
-        if not isinstance(val, (bool, int, float, str, tuple, list, dict)) :
+
+        def get_common_type(elt_types, required) :
+            if len(elt_types) != 0 :
+                if all(elt == BasicType(TYPE.STRING) for elt in elt_types) :
+                    common_type = BasicType(TYPE.STRING)
+                elif all(isinstance(elt, BasicType) and elt.code.value in DBUS.int_convert for elt in elt_types) :
+                    types = set(t.code for t in elt_types)
+                    if types == {TYPE.BOOLEAN} :
+                        common_type = BasicType(TYPE.BOOLEAN)
+                    else :
+                        largest_signed = None
+                        largest_unsigned = None
+                        for t in TYPE.INT16, TYPE.INT32, TYPE.INT64 :
+                            if t in types :
+                                largest_signed = t
+                            #end if
+                        #end if
+                        for t in TYPE.BOOLEAN, TYPE.BYTE, TYPE.UINT16, TYPE.UINT32, TYPE.UINT64 :
+                            if t in types :
+                                largest_unsigned = t
+                            #end if
+                        #end if
+                        if largest_unsigned == None :
+                            assert largest_signed != None
+                            common_type = BasicType(largest_signed)
+                        elif largest_signed != None :
+                            if largest_unsigned == TYPE.UINT64 :
+                                raise ValueError("no common D-Bus integer type among %s" % repr(elt_types))
+                            elif largest_signed == TYPE.INT64 or largest_unsigned == TYPE.UINT32 :
+                                common_type = BasicType(TYPE.INT64)
+                            elif largest_signed == TYPE.INT32 or largest_unsigned == TYPE.UINT16 :
+                                common_type = BasicType(TYPE.INT32)
+                            else :
+                                assert largest_signed == TYPE.INT16
+                                common_type = BasicType(TYPE.INT16) # also good for TYPE.BYTE and TYPE.BOOLEAN
+                            #end if
+                        else :
+                            assert largest_unsigned != None
+                            common_type = BasicType(largest_unsigned)
+                        #end if
+                    #end if
+                elif all(elt == BasicType(TYPE.DOUBLE) for elt in elt_types) :
+                    common_type = BasicType(TYPE.DOUBLE)
+                else :
+                    if required :
+                        raise ValueError("no common type among %s" % repr(elt_types))
+                    #end if
+                    common_type = None
+                #end if
+            else :
+                common_type = BasicType(TYPE.STRING) # arbitrary
+            #end if
+            return \
+                common_type
+        #end get_common_type
+
+    #begin validate
+        if isinstance(val, bool) :
+            valtype = BasicType(TYPE.BOOLEAN)
+        elif isinstance(val, int) :
+            int_convert = dict((DBUS.int_convert[t], t) for t in DBUS.int_convert)
+            try_subtypes = iter \
+              ( # try types in order from smallest to largest
+                # putting signed ones first is arbitrary
+                [
+                    # DBUS.subtype_boolean, # use only for explicit bool values
+                    DBUS.subtype_byte,
+                    DBUS.subtype_int16,
+                    DBUS.subtype_uint16,
+                    DBUS.subtype_int32,
+                    DBUS.subtype_uint32,
+                    DBUS.subtype_int64,
+                    DBUS.subtype_uint64,
+                ]
+              )
+            while True :
+                try_subtype = next(try_subtypes, None)
+                if try_subtype == None :
+                    raise ValueError("int %d not representable in any D-Bus integer type" % val)
+                #end if
+                try :
+                    try_subtype(val)
+                except ValueError :
+                    pass
+                else :
+                    valtype = BasicType(TYPE(int_convert[try_subtype]))
+                    break
+                #end try
+            #end while
+        elif isinstance(val, float) :
+            valtype = BasicType(TYPE.DOUBLE)
+        elif isinstance(val, str) :
+            valtype = BasicType(TYPE.STRING)
+        elif isinstance(val, (tuple, list)) :
+            variant_elts = list(self.validate(elt) for elt in val)
+            elt_types = list(elt[0] for elt in variant_elts)
+            common_type = get_common_type(elt_types, False)
+            if common_type != None :
+                valtype = ArrayType(common_type)
+            else :
+                valtype = StructType(*elt_types)
+            #end if
+        elif isinstance(val, dict) :
+            key_types = list(self.validate(elt)[0] for elt in val.keys())
+            val_types = list(self.validate(elt)[0] for elt in val.values())
+            common_val_type = get_common_type(val_types, False)
+            if common_val_type == None :
+                common_val_type = self
+            #end if
+            valtype = DictType(get_common_type(key_types, True), common_val_type)
+        else :
             raise TypeError \
               (
                 "type %s not representable in D-Bus for value %s" % (type(val).__name__, repr(val))
               )
         #end if
         return \
-            val
+            (valtype, val)
     #end validate
 
 #end VariantType

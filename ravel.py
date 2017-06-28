@@ -1145,23 +1145,31 @@ class Connection :
 
     def get_proxy_interface(self, destination, path, interface, timeout = DBUS.TIMEOUT_USE_DEFAULT) :
         "sends an Introspect request to the specified bus name and object path" \
-        " (if interface is not one of the standard interfaces), and generates" \
-        " a client-side proxy interface for the interface with the specified name."
-        if interface in dbus.standard_interfaces :
-            definition = dbus.standard_interfaces[interface]
-        else :
-            introspection = self.introspect(destination, path, timeout)
-            interfaces = introspection.interfaces_by_name
-            if interface not in interfaces :
-                raise dbus.DBusError \
-                  (
-                    DBUS.ERROR_UNKNOWN_INTERFACE,
-                        "peer “%s” object “%s” does not understand interface “%s”"
-                    %
-                        (destination, path, interface)
-                  )
+        " (if interface is not an Interface object or the name of one of the standard" \
+        " interfaces), and generates a client-side proxy interface for that interface."
+        if isinstance(interface, dbus.Introspection.Interface) :
+            definition = interface
+            interface = definition.name
+        elif isinstance(interface, str) :
+            if interface in dbus.standard_interfaces :
+                definition = dbus.standard_interfaces[interface]
+            else :
+                introspection = self.introspect(destination, path, timeout)
+                interfaces = introspection.interfaces_by_name
+                if interface not in interfaces :
+                    raise dbus.DBusError \
+                      (
+                        DBUS.ERROR_UNKNOWN_INTERFACE,
+                            "peer “%s” object “%s” does not understand interface “%s”"
+                        %
+                            (destination, path, interface)
+                      )
+                #end if
+                definition = interfaces[interface]
+                interface = definition.name
             #end if
-            definition = interfaces[interface]
+        else :
+            raise TypeError("interface must be an Interface or name of one")
         #end if
         return \
             def_proxy_interface \
@@ -1175,24 +1183,31 @@ class Connection :
 
     async def get_proxy_interface_async(self, destination, path, interface, timeout = DBUS.TIMEOUT_USE_DEFAULT) :
         "sends an Introspect request to the specified bus name and object path" \
-        " (if interface is not one of the standard interfaces), and generates" \
-        " a client-side proxy interface for the interface with the specified name."
+        " (if interface is not an Interface object or the name of one of the standard" \
+        " interfaces), and generates a client-side proxy interface for that interface."
         assert self.loop != None, "no event loop to attach coroutine to"
-        if interface in dbus.standard_interfaces :
-            definition = dbus.standard_interfaces[interface]
-        else :
-            introspection = await self.introspect_async(destination, path, timeout)
-            interfaces = introspection.interfaces_by_name
-            if interface not in interfaces :
-                raise dbus.DBusError \
-                  (
-                    DBUS.ERROR_UNKNOWN_INTERFACE,
-                        "peer “%s” object “%s” does not understand interface “%s”"
-                    %
-                        (destination, path, interface)
-                  )
+        if isinstance(interface, dbus.Introspection.Interface) :
+            definition = interface
+            interface = definition.name
+        elif isinstance(interface, str) :
+            if interface in dbus.standard_interfaces :
+                definition = dbus.standard_interfaces[interface]
+            else :
+                introspection = await self.introspect_async(destination, path, timeout)
+                interfaces = introspection.interfaces_by_name
+                if interface not in interfaces :
+                    raise dbus.DBusError \
+                      (
+                        DBUS.ERROR_UNKNOWN_INTERFACE,
+                            "peer “%s” object “%s” does not understand interface “%s”"
+                        %
+                            (destination, path, interface)
+                      )
+                #end if
+                definition = interfaces[interface]
             #end if
-            definition = interfaces[interface]
+        else :
+            raise TypeError("interface must be an Interface or name of one")
         #end if
         return \
             def_proxy_interface \

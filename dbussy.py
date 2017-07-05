@@ -2919,7 +2919,8 @@ class Connection :
         # that the message matches. To avoid spurious method-not-handled errors
         # from eavesdropping on method calls not addressed to me, this routine
         # always returns a “handled” status. That means this same Connection
-        # object should not also be used for normal method calls.
+        # object should not be used for both eavesdropping and for normal
+        # method calls.
         handled = False
         for entry in self._match_actions.values() :
             if matches_rule(message, entry.rule) :

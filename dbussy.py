@@ -4818,7 +4818,7 @@ def matches_rule(message, rule, destinations = None) :
                 (
                     expect == actual
                 or
-                    actual.startswith(expect) and actual[len(expect)] == "/"
+                    actual.startswith(expect) and (expect == "/" or actual[len(expect)] == "/")
                 )
             )
     #end match_path_namespace

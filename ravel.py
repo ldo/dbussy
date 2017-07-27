@@ -1347,6 +1347,7 @@ class BusPeer :
             if not isinstance(conn, Connection) :
                 raise TypeError("conn must be a Connection")
             #end if
+            dbus.validate_bus_name(bus_name)
             self.conn = conn
             self.bus_name = bus_name
             self.path = path
@@ -2068,6 +2069,7 @@ def interface \
     if not isinstance(name, str) :
         raise ValueError("name is required")
     #end if
+    dbus.validate_interface(name)
 
     def decorate(celf) :
         if not isinstance(celf, type) :
@@ -2212,6 +2214,7 @@ def method \
     " altogether, unless you want to receive signals from the server; instead, use" \
     " Connection.get_proxy_object() to send method calls to the server."
 
+    dbus.validate_member(name)
     in_signature = dbus.parse_signature(in_signature)
     out_signature = dbus.parse_signature(out_signature)
     for cond, msg in \
@@ -2330,6 +2333,7 @@ def signal \
     "On the server side, the actual function need only be a dummy, since it is just" \
     " a placeholder for storing the information used by Connection.send_signal()."
 
+    dbus.validate_member(name)
     in_signature = dbus.parse_signature(in_signature)
     if arg_attrs != None and args_keyword == None :
         raise ValueError("need args_keyword with arg_attrs")

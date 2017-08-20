@@ -5174,6 +5174,13 @@ def validate_path(path, error = None) :
         result
 #end validate_path
 
+def valid_path(path) :
+    "returns path if valid, raising appropriate exception if not."
+    validate_path(path)
+    return \
+        path
+#end valid_path
+
 def split_path(path) :
     "convenience routine for splitting a path into a list of components."
     if isinstance(path, (tuple, list)) :
@@ -5209,6 +5216,13 @@ def validate_interface(name, error = None) :
         result
 #end validate_interface
 
+def valid_interface(name) :
+    "returns name if it is a valid interface name, raising appropriate exception if not."
+    validate_interface(name)
+    return \
+        name
+#end valid_interface
+
 def validate_member(name, error = None) :
     error, my_error = _get_error(error)
     result = dbus.dbus_validate_member(name.encode(), error._dbobj) != 0
@@ -5216,6 +5230,13 @@ def validate_member(name, error = None) :
     return \
         result
 #end validate_member
+
+def valid_member(name) :
+    "returns name if it is a valid member name, raising appropriate exception if not."
+    validate_member(name)
+    return \
+        name
+#end valid_member
 
 def validate_error_name(name, error = None) :
     error, my_error = _get_error(error)
@@ -5225,6 +5246,13 @@ def validate_error_name(name, error = None) :
         result
 #end validate_error_name
 
+def valid_error_name(name) :
+    "returns name if it is a valid error name, raising appropriate exception if not."
+    validate_error_name(name)
+    return \
+        name
+#end valid_error_name
+
 def validate_bus_name(name, error = None) :
     error, my_error = _get_error(error)
     result = dbus.dbus_validate_bus_name(name.encode(), error._dbobj) != 0
@@ -5232,6 +5260,13 @@ def validate_bus_name(name, error = None) :
     return \
         result
 #end validate_bus_name
+
+def valid_bus_name(name) :
+    "returns name if it is a valid bus name, raising appropriate exception if not."
+    validate_bus_name(name)
+    return \
+        name
+#end valid_bus_name
 
 def validate_utf8(alleged_utf8, error = None) :
     "alleged_utf8 must be null-terminated bytes."
@@ -5241,6 +5276,14 @@ def validate_utf8(alleged_utf8, error = None) :
     return \
         result
 #end validate_utf8
+
+def valid_utf8(alleged_utf8) :
+    "returns alleged_utf8 if it is a valid utf-8 bytes value, raising" \
+    " appropriate exception if not."
+    validate_utf8(alleged_utf8)
+    return \
+        alleged_utf8
+#end valid_utf8
 
 #+
 # Introspection representation

@@ -188,6 +188,23 @@ converted to and from the standard D-Bus introspection XML
 representation.
 
 
+No Type-Guessing!
+=================
+
+Unlike some other Python bindings for D-Bus libraries, DBussy never
+tries to guess how to convert Python types to D-Bus types. For
+example, D-Bus provides many different sizes of integer, in both
+signed and unsigned variants; when retrieving an integer parameter
+from a message, DBussy will convert all of these to Python integers,
+but when putting a Python integer into a message parameter, there must
+always be a signature somewhere specifying which specific D-Bus
+integer type to convert it to.
+
+Also, D-Bus variants are always represented in Python as a 2-tuple:
+the first element is the signature of the actual type being passed,
+and the second is the value of that type.
+
+
 Ravel: The Higher-Level Interface
 =================================
 

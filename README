@@ -379,11 +379,16 @@ raised asynchronously. But if you don’t like the idea that execution
 will be deferred, you can await the completion of all such pending
 property-setting calls with the following call on the root proxy:
 
-    await iface.set_prop_flush()
+    await iface_root.set_prop_flush()
 
-This means you can batch up a whole series of property-setting calls
-on any number of objects on the same interface and bus name, then
-wait for them all to complete with a single flush call.
+or on the actual proxy interface:
+
+    await ravel.set_prop_flush(iface)
+
+whichever is more convenient. This means you can batch up a whole
+series of property-setting calls on any number of objects on the same
+interface and bus name, then wait for them all to complete with a
+single flush call.
 
 
 Interface Classes
@@ -660,4 +665,4 @@ it.
 
 
 Lawrence D'Oliveiro <ldo@geek-central.gen.nz>
-2017 May 23
+2017 August 30

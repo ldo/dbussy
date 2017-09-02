@@ -4092,7 +4092,7 @@ class Message :
     def signature(self) :
         result = dbus.dbus_message_get_signature(self._dbobj)
         if result != None :
-            result = result.decode()
+            result = DBUS.Signature(result.decode())
         #end if
         return \
             result

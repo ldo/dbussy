@@ -6286,6 +6286,32 @@ standard_interfaces = \
                           ),
                     ],
               ),
+        DBUS.INTERFACE_MONITORING :
+            Introspection.Interface
+              (
+                name = DBUS.INTERFACE_MONITORING,
+                methods =
+                    [
+                        Introspection.Interface.Method
+                          (
+                            name = "BecomeMonitor",
+                            args =
+                                [
+                                    Introspection.Interface.Method.Arg
+                                      (
+                                        type = ArrayType(BasicType(TYPE.STRING)),
+                                        direction = Introspection.DIRECTION.IN,
+                                      ), # match rules to add to the connection
+                                    Introspection.Interface.Method.Arg
+                                      (
+                                        type = BasicType(TYPE.UINT32),
+                                          # match rules to add to the connection
+                                        direction = Introspection.DIRECTION.IN,
+                                      ), # flags (currently unused)
+                                ],
+                          ),
+                    ],
+              ),
         DBUSX.INTERFACE_OBJECT_MANAGER :
             Introspection.Interface
               (

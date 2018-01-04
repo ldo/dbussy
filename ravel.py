@@ -2596,7 +2596,7 @@ def def_proxy_interface(kind, *, name, introspected, is_async) :
     #end proxy
 
     def def_method(intr_method) :
-        # constructs a method-call method,
+        # constructs a method-call method.
 
         if is_async :
 

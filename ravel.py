@@ -156,7 +156,7 @@ class Connection :
             "__weakref__",
             "connection",
             "loop",
-            "props_change_notify_delay",
+            "notify_delay",
             "user_data",
             "bus_names_acquired",
             "bus_names_pending",
@@ -181,7 +181,7 @@ class Connection :
             self = super().__new__(celf)
             self.connection = connection
             self.loop = connection.loop
-            self.props_change_notify_delay = 0
+            self.notify_delay = 0
             self._dispatch = None # only used server-side
             unique_name = connection.bus_unique_name
             assert unique_name != None, "connection not yet registered"
@@ -731,7 +731,7 @@ class Connection :
             if key not in self._props_changed :
                 self._props_changed[key] = \
                     {
-                        "at" : self.loop.time() + self.props_change_notify_delay,
+                        "at" : self.loop.time() + self.notify_delay,
                         "changed" : {},
                         "invalidated" : set(),
                     }
@@ -742,8 +742,8 @@ class Connection :
                 self._props_changed[key]["invalidated"].add(propname)
             #end if
             if queue_task :
-                if self.props_change_notify_delay != 0 :
-                    self.loop.call_later(self.props_change_notify_delay, self._notify_props_changed)
+                if self.notify_delay != 0 :
+                    self.loop.call_later(self.notify_delay, self._notify_props_changed)
                 else :
                     self.loop.call_soon(self._notify_props_changed)
                 #end if

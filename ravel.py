@@ -727,7 +727,7 @@ class Connection :
                 self._props_changed = {}
                 queue_task = True
             #end if
-            key = (path, interface)
+            key = (dbus.unsplit_path(path), interface)
             if key not in self._props_changed :
                 self._props_changed[key] = \
                     {

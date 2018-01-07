@@ -1801,8 +1801,8 @@ def _message_interface_dispatch(connection, message, bus) :
                         #end if
                         result = DBUS.HANDLER_RESULT_HANDLED
                     elif isinstance(result, types.CoroutineType) :
+                        assert bus.loop != None, "no event loop to attach coroutine to"
                         if is_method :
-                            assert bus.loop != None, "no event loop to attach coroutine to"
                             # wait for result
                             async def await_result(coro) :
                                 try :

@@ -1794,8 +1794,6 @@ def _message_interface_dispatch(connection, message, bus) :
                     except ErrorReturn as err :
                         result = err.as_error()
                     #end try
-                    allow_set_result = False
-                      # block further calls to this instance of set_result from this point
                     if result == None :
                         if to_return_result != None :
                             # method handler used set_result mechanism

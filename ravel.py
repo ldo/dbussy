@@ -3235,6 +3235,7 @@ class PropertyHandler :
                 break
             propentry = props[propname]
             if "getter" in propentry :
+                getter = getattr(dispatch, propentry["getter"].__name__)
                 kwargs = {}
                 for keyword_keyword, value in \
                     (
@@ -3262,7 +3263,7 @@ class PropertyHandler :
             reply = message.new_error(properror.name, properror.message)
             bus.connection.send(reply)
         else :
-            _send_method_return(bus.connection, message, "a{sv}", [propvalue])
+            _send_method_return(bus.connection, message, "a{sv}", [propvalues])
         #end if
         return \
             DBUS.HANDLER_RESULT_HANDLED

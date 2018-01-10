@@ -6,7 +6,7 @@ client using proxy objects, all with the option of running via an
 asyncio event loop.
 """
 #+
-# Copyright 2017 Lawrence D'Oliveiro <ldo@geek-central.gen.nz>.
+# Copyright 2017-2018 Lawrence D'Oliveiro <ldo@geek-central.gen.nz>.
 # Licensed under the GNU Lesser General Public License v2.1 or later.
 #-
 
@@ -19,6 +19,7 @@ import atexit
 import dbussy as dbus
 from dbussy import \
     DBUS, \
+    DBUSX, \
     Introspection
 
 #+
@@ -161,12 +162,15 @@ class Connection :
             "bus_names_acquired",
             "bus_names_pending",
             "_dispatch",
+            "_managed_objects",
             "_registered_bus_names_listeners",
             "_bus_name_acquired_action",
             "_bus_name_acquired_action_arg",
             "_bus_name_lost_action",
             "_bus_name_lost_action_arg",
             "_props_changed",
+            "_objects_added",
+            "_objects_removed",
         ) # to forestall typos
 
     _instances = WeakValueDictionary()
@@ -183,12 +187,15 @@ class Connection :
             self.loop = connection.loop
             self.notify_delay = 0
             self._dispatch = None # only used server-side
+            self._managed_objects = None
             unique_name = connection.bus_unique_name
             assert unique_name != None, "connection not yet registered"
             self.bus_names_acquired = {unique_name}
             self.bus_names_pending = set()
             self._registered_bus_names_listeners = False
             self._props_changed = None
+            self._objects_added = None
+            self._objects_removed = None
             self._bus_name_acquired_action = None
             self._bus_name_acquired_action_arg = None
             self._bus_name_lost_action = None
@@ -600,6 +607,50 @@ class Connection :
           )
     #end unlisten_propchanged
 
+    def listen_objects_added(self, func) :
+        self.listen_signal \
+          (
+            path = "/",
+            fallback = True,
+            interface = DBUSX.INTERFACE_OBJECT_MANAGER,
+            name = "InterfacesAdded",
+            func = func,
+          )
+    #end listen_objects_added
+
+    def unlisten_objects_added(self, func) :
+        self.unlisten_signal \
+          (
+            path = "/",
+            fallback = True,
+            interface = DBUSX.INTERFACE_OBJECT_MANAGER,
+            name = "InterfacesAdded",
+            func = func,
+          )
+    #end unlisten_objects_added
+
+    def listen_objects_removed(self, func) :
+        self.listen_signal \
+          (
+            path = "/",
+            fallback = True,
+            interface = DBUSX.INTERFACE_OBJECT_MANAGER,
+            name = "InterfacesRemoved",
+            func = func,
+          )
+    #end listen_objects_removed
+
+    def unlisten_objects_removed(self, func) :
+        self.unlisten_signal \
+          (
+            path = "/",
+            fallback = True,
+            interface = DBUSX.INTERFACE_OBJECT_MANAGER,
+            name = "InterfacesRemoved",
+            func = func,
+          )
+    #end unlisten_objects_removed
+
     def get_dispatch_interface(self, path, interface_name) :
         "returns the appropriate instance of a previously-registered interface" \
         " class for handling calls to the specified interface name for the" \
@@ -709,6 +760,66 @@ class Connection :
         #end if
     #end _notify_props_changed
 
+    def _get_all_my_props(self, message, path, interface_name) :
+        # utility wrapper that retrieves all property values for the specified
+        # object path defined by the specified interface. Returns two results:
+        # property values, and list of (propname, coroutine) tuples for async
+        # propgetters. Could raise ErrorReturn if a propgetter does so.
+        dispatch = self.get_dispatch_interface(path, interface_name)
+        props = type(dispatch)._interface_props
+        propnames = iter(props.keys())
+        properror = None
+        propvalues = {}
+        to_await = []
+        while True :
+            propname = next(propnames, None)
+            if propname == None :
+                break
+            propentry = props[propname]
+            if "getter" in propentry :
+                getter = getattr(dispatch, propentry["getter"].__name__)
+                kwargs = {}
+                for keyword_keyword, value in \
+                    (
+                        ("name_keyword", lambda : propname),
+                        ("connection_keyword", lambda : self.connection),
+                        ("message_keyword", lambda : message),
+                        ("path_keyword", lambda : path),
+                        ("bus_keyword", lambda : bus),
+                    ) \
+                :
+                    if getter._propgetter_info[keyword_keyword] != None :
+                        value = value()
+                        if value == None :
+                            raise ValueError \
+                              (
+                                    "getter for prop “%s” expects a %s arg but"
+                                    " no value supplied for that"
+                                %
+                                    (propname, keyword_keyword)
+                              )
+                        #end if
+                        kwargs[getter._propgetter_info[keyword_keyword]] = value
+                    #end if
+                #end for
+                propvalue = getter(**kwargs)
+                  # could raise ErrorReturn
+                if isinstance(propvalue, types.CoroutineType) :
+                    if self.loop == None  :
+                        raise TypeError \
+                          (
+                            "not expecting getter for prop “%s” to be coroutine" % propname
+                          )
+                    #end if
+                    to_await.append((propname, propvalue))
+                #end if
+                propvalues[propname] = (propentry["type"], propvalue)
+            #end if
+        #end for
+        return \
+            propvalues, to_await
+    #end _get_all_my_props
+
     def prop_changed(self, path, interface, propname, proptype, propvalue) :
         "indicates that a signal should be sent notifying of a change to the specified" \
         " property of the specified object path in the specified interface. propvalue" \
@@ -766,6 +877,281 @@ class Connection :
               )
         #end if
     #end prop_changed
+
+    def _notify_objects_added(self) :
+        # callback that is queued on the event loop to actually send the
+        # objects-added notification signals.
+        if self._objects_added != None :
+            notify_again = None
+            if self.loop != None :
+                now = self.loop.time()
+            else :
+                now = None
+            #end if
+            paths_to_delete = set()
+            for path in sorted(self._objects_added.keys()) :
+                entry = self._objects_added[path]
+                added = {}
+                for interface, iface_entry in entry.items() :
+                    when = iface_entry["at"]
+                    if when == None or when <= now :
+                        added[interface] = iface_entry["props"]
+                    else :
+                        if notify_again == None :
+                            notify_again = when
+                        else :
+                            notify_again = min(notify_again, when)
+                        #end if
+                    #end if
+                #end for
+                if len(added) != 0 :
+                    self.send_signal \
+                      (
+                        path = path,
+                        interface = DBUSX.INTERFACE_OBJECT_MANAGER,
+                        name = "InterfacesAdded",
+                        args = (path, added)
+                      )
+                    for interface in added :
+                        del entry[interface]
+                    #end for
+                #end if
+                if len(entry) == 0 :
+                    paths_to_delete.add(path)
+                #end if
+            #end for
+            for path in paths_to_delete :
+                del self._objects_added[path]
+            #end for
+            if len(self._objects_added) == 0 :
+                self._objects_added = None
+            #end if
+            if notify_again != None :
+                self.loop.call_later(notify_again - now, self._notify_objects_added)
+            #end if
+        #end if
+    #end _notify_objects_added
+
+    def _notify_objects_removed(self) :
+        # callback that is queued on the event loop to actually send the
+        # objects-removed notification signals.
+        if self._objects_removed != None :
+            notify_again = None
+            if self.loop != None :
+                now = self.loop.time()
+            else :
+                now = None
+            #end if
+            paths_to_delete = set()
+            for path in sorted(self._objects_removed.keys()) :
+                entry = self._objects_removed[path]
+                removed = set()
+                for interface in entry :
+                    when = entry[interface]["at"]
+                    if when == None or when <= now :
+                        removed.add(interface)
+                    else :
+                        if notify_again == None :
+                            notify_again = when
+                        else :
+                            notify_again = min(notify_again, when)
+                        #end if
+                    #end if
+                #end for
+                if len(removed) != 0 :
+                    self.send_signal \
+                      (
+                        path = path,
+                        interface = DBUSX.INTERFACE_OBJECT_MANAGER,
+                        name = "InterfacesRemoved",
+                        args = (path, sorted(removed))
+                      )
+                    for interface in removed :
+                        del entry[interface]
+                    #end for
+                #end if
+                if len(entry) == 0 :
+                    paths_to_delete.add(path)
+                #end if
+            #end for
+            for path in paths_to_delete :
+                del self._objects_removed[path]
+            #end for
+            if len(self._objects_removed) == 0 :
+                self._objects_removed = None
+            #end if
+            if notify_again != None :
+                self.loop.call_later(notify_again - now, self._notify_objects_removed)
+            #end if
+        #end if
+    #end _notify_objects_removed
+
+    def object_added(self, path, interfaces_and_props) :
+        "Call this to send an ObjectManager notification about the addition of" \
+        " the specified interfaces and property values to the specified object" \
+        " path. The first call must specify the root path, but need not specify" \
+        " any interfaces_and_props; this triggers registration of the ObjectManager" \
+        " interface on this Connection."
+
+        added_entry = None
+        to_await = []
+        queue_task = False
+        notify_when = None
+
+        def queue_notify(deferred) :
+            if queue_task :
+                if deferred :
+                    delay = notify_when - self.loop.time()
+                else :
+                    delay = self.notify_delay
+                #end if
+                if delay > 0 :
+                    self.loop.call_later(delay, self._notify_objects_added)
+                else :
+                    self.loop.call_soon(self._notify_objects_added)
+                #end if
+            #end if
+        #end queue_notify
+
+        async def await_propvalues() :
+            nonlocal queue_task
+            for path, interface_name, propname, fute in to_await :
+                propvalue = await fute # don’t trap ErrorReturn
+                propvalues = added_entry[interface_name]["props"]
+                propvalues[propname] = (propvalues[propname][0], propvalue)
+            #end for
+            if self._objects_added == None : # might have happened in meantime
+                self._objects_added = {}
+                queue_task = True
+            #end if
+            self._objects_added[path] = added_entry # all prop values now complete
+            queue_notify(True)
+        #end await_propvalues
+
+    #begin object_added
+        path = dbus.unsplit_path(path)
+        if self._managed_objects == None :
+            if path != "/" :
+                raise RuntimeError("first call must be with root path")
+            #end if
+            self.register \
+              (
+                path = "/",
+                interface = ManagedObjectsHandler(),
+                fallback = True
+              )
+            self._managed_objects = {}
+        #end if
+        if interfaces_and_props != None :
+            if path in self._managed_objects :
+                obj_entry = self._managed_objects[path]
+            else :
+                obj_entry = set()
+                self._managed_objects[path] = obj_entry
+            #end if
+            if self._objects_added == None :
+                self._objects_added = {}
+                queue_task = True
+            #end if
+            if path in self._objects_added :
+                added_entry = self._objects_added[path]
+            else :
+                added_entry = {}
+            #end if
+            if self.loop != None :
+                notify_when = self.loop.time() + self.notify_delay
+            else :
+                notify_when = None
+            #end if
+            for interface, props in interfaces_and_props.items() :
+                if props != None :
+                    added_props = {}
+                    for propname, propvalue in props.items() :
+                        if not isinstance(propvalue, (list, tuple)) or len(propvalue) != 2 :
+                            raise TypeError \
+                              (
+                                "value for property “%s” must be (type, value) pair" % propname
+                              )
+                        #end if
+                        proptype = dbus.parse_single_signature(propvalue[0])
+                        propvalue = proptype.validate(propvalue[1])
+                        proptype = dbus.unparse_signature(proptype)
+                        added_props[propname] = (proptype, propvalue)
+                    #end for
+                else :
+                    added_props, await_props = self._get_all_my_props(None, path, interface)
+                      # propgetters should not expect a message arg
+                    for propname, propvalue in await_props :
+                        to_await.append((path, interface, propname, propvalue))
+                    #end for
+                #end if
+                added_entry[interface] = \
+                    {
+                        "at" : notify_when,
+                        "props" : added_props,
+                    }
+                obj_entry.add(interface)
+            #end for
+            if len(to_await) == 0 :
+                self._objects_added[path] = added_entry # all prop values complete
+            #end if
+            if self.loop != None :
+                if len(to_await) != 0 :
+                    self.loop.create_task(await_propvalues())
+                else :
+                    queue_notify(False)
+                #end if
+            else :
+                # cannot queue, notify immediately
+                self._notify_objects_added()
+            #end if
+        #end if
+    #end object_added
+
+    def object_removed(self, path, interfaces) :
+        "Call this to send an ObjectManager notification about the removal of the" \
+        " specified set/sequence of interfaces from the specified object path."
+        path = dbus.unsplit_path(path)
+        if self._managed_objects == None :
+            raise RuntimeError("ObjectManager interface not registered on this Connection")
+        #end if
+        queue_task = False
+        if self._objects_removed == None :
+            self._objects_removed = {}
+            queue_task = True
+        #end if
+        obj_entry = self._managed_objects[path]
+        if path in self._objects_removed :
+            removed_entry = self._objects_removed[path]
+        else :
+            removed_entry = {}
+            self._objects_removed[path] = removed_entry
+        #end if
+        if self.loop != None :
+            when = self.loop.time() + self.notify_delay
+        else :
+            when = None
+        #end if
+        for interface in interfaces :
+            removed_entry[interface] = {"at" : when}
+            obj_entry.remove(interface)
+        #end for
+        if len(obj_entry) == 0 :
+            del self._managed_objects[path]
+        #end if
+        if self.loop != None :
+            if queue_task :
+                if self.notify_delay != 0 :
+                    self.loop.call_later(self.notify_delay, self._notify_objects_removed)
+                else :
+                    self.loop.call_soon(self._notify_objects_removed)
+                #end if
+            #end if
+        else :
+            # cannot queue, notify immediately
+            self._notify_objects_removed()
+        #end if
+    #end object_removed
 
     def send_signal(self, *, path, interface, name, args) :
         "intended for server-side use: sends a signal with the specified" \
@@ -3237,65 +3623,29 @@ class PropertyHandler :
             #end if
         #end return_result
 
-        def await_result() :
-
-            propname = None
-
-            def future_done(fute) :
-                propvalues[propname] = (propvalues[propname][0], fute.result())
-                if len(to_await) != 0 :
-                    await_result()
-                else :
-                    return_result()
-                #end if
-            #end future_done
-
-        #begin await_result
-            propname, fute = to_await.pop(0)
-            bus.loop.create_task(fute).add_done_callback(future_done)
-        #end await_result
-
-    #begin get_all_props
-        interface_name, = args
-        dispatch = bus.get_dispatch_interface(path, interface_name)
-        props = type(dispatch)._interface_props
-        propnames = iter(props.keys())
-        while True :
-            propname = next(propnames, None)
-            if propname == None :
-                break
-            propentry = props[propname]
-            if "getter" in propentry :
-                getter = getattr(dispatch, propentry["getter"].__name__)
-                kwargs = {}
-                for keyword_keyword, value in \
-                    (
-                        ("name_keyword", lambda : propname),
-                        ("connection_keyword", lambda : bus.connection),
-                        ("message_keyword", lambda : message),
-                        ("path_keyword", lambda : path),
-                        ("bus_keyword", lambda : bus),
-                    ) \
-                :
-                    if getter._propgetter_info[keyword_keyword] != None :
-                        kwargs[getter._propgetter_info[keyword_keyword]] = value()
-                    #end if
-                #end for
+        async def await_propvalues() :
+            nonlocal properror
+            for propname, fute in to_await :
                 try :
-                    propvalue = getter(**kwargs)
+                    propvalue = await fute
                 except ErrorReturn as err :
                     properror = err.as_error()
                     break
                 #end try
-                if isinstance(propvalue, types.CoroutineType) :
-                    assert bus.loop != None, "no event loop to use to await propgetter result"
-                    to_await.append((propname, propvalue))
-                #end if
-                propvalues[propname] = (propentry["type"], propvalue)
-            #end if
-        #end for
+                propvalues[propname] = (propvalues[propname][0], propvalue)
+            #end for
+            return_result()
+        #end await_propvalues
+
+    #begin get_all_props
+        interface_name, = args
+        try :
+            propvalues, to_await = bus._get_all_my_props(message, path, interface_name)
+        except ErrorReturn as err :
+            properror = err.as_error()
+        #end try
         if len(to_await) != 0 :
-            await_result()
+            bus.loop.create_task(await_propvalues())
         else :
             return_result()
         #end if
@@ -3310,6 +3660,73 @@ class PropertyHandler :
     #end properties_changed
 
 #end PropertyHandler
+
+@interface(INTERFACE.CLIENT_AND_SERVER, name = DBUSX.INTERFACE_OBJECT_MANAGER)
+class ManagedObjectsHandler :
+    "Register this as a fallback at the root of your object tree to provide" \
+    " handling of the ObjectManager interface."
+
+    @method \
+      (
+        name = "GetManagedObjects",
+        in_signature = "",
+        out_signature = "a{oa{sv}}",
+        set_result_keyword = "set_result",
+        bus_keyword = "bus",
+        message_keyword = "message",
+      )
+    def get_managed_objects(self, bus, message, set_result) :
+
+        result = {}
+        to_await = []
+
+        async def await_propvalues() :
+            for path, interface_name, propname, fute in to_await :
+                propvalue = await fute
+                  # any ErrorReturn raised will be automatically converted
+                  # to error reply by _message_interface_dispatch (above)
+                propvalues = result[path][interface_name]
+                propvalues[propname] = (propvalues[propname][0], propvalue)
+            #end for
+            set_result(result)
+        #end await_propvalues
+
+    #begin get_managed_objects
+        "returns supported interfaces and current property values for all" \
+        " currently-existent managed objects."
+        for path, interfaces in bus._managed_objects.items() :
+            obj_entry = {}
+            for interface_name in interfaces :
+                obj_entry[interface_name], await_props = bus._get_all_my_props(message, path, interface_name)
+                for propname, propvalue in await_props :
+                    to_await.append((path, interface_name, propname, propvalue))
+                #end for
+            #end for
+            result[path] = obj_entry
+        #end for
+        if len(to_await) != 0 :
+            result = await_propvalues() # result will be available when this is done
+        else :
+            set_result(result)
+            result = DBUS.HANDLER_RESULT_HANDLED
+        #end if
+        return \
+            result
+    #end get_managed_objects
+
+    @signal(name = "InterfacesAdded", in_signature = "oa{sa{sv}}", stub = True)
+    def interfaces_added(self) :
+        "for use with Connection.send_signal."
+        pass
+    #end interfaces_added
+
+    @signal(name = "InterfacesRemoved", in_signature = "oas", stub = True)
+    def interfaces_removed(self) :
+        "for use with Connection.send_signal."
+        pass
+    #end interfaces_removed
+
+#end ManagedObjectsHandler
 
 #+
 # Cleanup

@@ -2361,7 +2361,7 @@ class Connection :
     def add_filter(self, function, user_data, free_data = None) :
         "adds a filter callback that gets to look at all incoming messages" \
         " before they get to the dispatch system. The same function can be added" \
-        " multiple times as long as the user_data is different"
+        " multiple times as long as the user_data is different."
 
         def wrap_function(c_conn, message, _data) :
             result = function(self, Message(dbus.dbus_message_ref(message)), user_data)
@@ -6141,7 +6141,7 @@ standard_interfaces = \
                           ),
                         Introspection.Interface.Signal
                           (
-                            name = "NameLost", # send to previous owner of name
+                            name = "NameLost", # sent to previous owner of name
                             args =
                                 [
                                     Introspection.Interface.Signal.Arg

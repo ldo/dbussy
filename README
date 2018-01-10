@@ -663,6 +663,13 @@ The ravel.PropertyHandler class defines the standard Properties
 interface, and automatically dispatches to @propgetter() and
 @propsetter() methods as defined in your registered interface classes.
 
+The ravel.ManagedObjectsHandler class defines the standard
+ObjectManager interface. It handles sending out of notifications as
+you call the object_added() and object_removed() methods on a
+Connection. It is not automatically registered on a Connection object;
+you have to trigger its registration by an initial call to
+Connection.object_added() with “/” as the object path.
+
 
 DBussy Examples
 ===============
@@ -682,4 +689,4 @@ it.
 
 
 Lawrence D'Oliveiro <ldo@geek-central.gen.nz>
-2017 August 30
+2018 January 10

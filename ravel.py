@@ -3223,12 +3223,43 @@ class PropertyHandler :
         bus_keyword = "bus"
       )
     def get_all_props(self, bus, message, path, args) :
+
+        properror = None
+        propvalues = {}
+        to_await = []
+
+        def return_result() :
+            if properror != None :
+                reply = message.new_error(properror.name, properror.message)
+                bus.connection.send(reply)
+            else :
+                _send_method_return(bus.connection, message, "a{sv}", [propvalues])
+            #end if
+        #end return_result
+
+        def await_result() :
+
+            propname = None
+
+            def future_done(fute) :
+                propvalues[propname] = (propvalues[propname][0], fute.result())
+                if len(to_await) != 0 :
+                    await_result()
+                else :
+                    return_result()
+                #end if
+            #end future_done
+
+        #begin await_result
+            propname, fute = to_await.pop(0)
+            bus.loop.create_task(fute).add_done_callback(future_done)
+        #end await_result
+
+    #begin get_all_props
         interface_name, = args
         dispatch = bus.get_dispatch_interface(path, interface_name)
         props = type(dispatch)._interface_props
         propnames = iter(props.keys())
-        properror = None
-        propvalues = {}
         while True :
             propname = next(propnames, None)
             if propname == None :
@@ -3256,14 +3287,17 @@ class PropertyHandler :
                     properror = err.as_error()
                     break
                 #end try
+                if isinstance(propvalue, types.CoroutineType) :
+                    assert bus.loop != None, "no event loop to use to await propgetter result"
+                    to_await.append((propname, propvalue))
+                #end if
                 propvalues[propname] = (propentry["type"], propvalue)
             #end if
         #end for
-        if properror != None :
-            reply = message.new_error(properror.name, properror.message)
-            bus.connection.send(reply)
+        if len(to_await) != 0 :
+            await_result()
         else :
-            _send_method_return(bus.connection, message, "a{sv}", [propvalues])
+            return_result()
         #end if
         return \
             DBUS.HANDLER_RESULT_HANDLED

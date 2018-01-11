@@ -3018,6 +3018,19 @@ class Connection :
         #end if
     #end bus_remove_match_action_async
 
+    def become_monitor(self, rules) :
+        "turns the connection into one that can only receive monitoring messages."
+        message = Message.new_method_call \
+          (
+            destination = DBUS.SERVICE_DBUS,
+            path = DBUS.PATH_DBUS,
+            iface = DBUS.INTERFACE_MONITORING,
+            method = "BecomeMonitor"
+          )
+        message.append_objects("asi", (list(format_rule(rule) for rule in rules)), 0)
+        self.send(message)
+    #end become_monitor
+
     #+
     # End calls to D-Bus Daemon
     #-

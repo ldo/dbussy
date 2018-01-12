@@ -20,6 +20,7 @@ import ctypes as ct
 from weakref import \
     ref as weak_ref, \
     WeakValueDictionary
+import threading
 import io
 import atexit
 import asyncio
@@ -1936,6 +1937,43 @@ class Connection :
         return \
             result
     #end open
+
+    @classmethod
+    async def open_async(celf, address, private, error = None, loop = None) :
+        "opens a Connection to a specified address, separate from the" \
+        " system or session buses."
+        # There is no nonblocking version of dbus_connection_open/dbus_connection_open_private,
+        # so I invoke it in a separate thread.
+
+        if loop == None :
+            loop = asyncio.get_event_loop()
+        #end if
+        error, my_error = _get_error(error)
+        awaiting = loop.create_future()
+
+        async def do_open_done(result) :
+            awaiting.set_result(result)
+        #end def do_open_done
+
+        def do_open() :
+            result = (dbus.dbus_connection_open, dbus.dbus_connection_open_private)[private](address.encode(), error._dbobj)
+            # A Future is not itself threadsafe, but I can thread-safely
+            # create a coroutine on the main thread to set it.
+            asyncio.run_coroutine_threadsafe(do_open_done(result), loop)
+        #end do_open
+
+    #begin open_async
+        subthread = threading.Thread(target = do_open)
+        subthread.start()
+        result = await awaiting
+        my_error.raise_if_set()
+        if result != None :
+            result = celf(result)
+            result.attach_asyncio(loop)
+        #end if
+        return \
+            result
+    #end open_async
 
     def close(self) :
         dbus.dbus_connection_close(self._dbobj)

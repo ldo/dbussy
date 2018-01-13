@@ -1145,6 +1145,16 @@ class Connection :
             else :
                 removed_entry[interface] = {"at" : when}
             #end if
+            if self._props_changed != None :
+                props_key = (path, interface)
+                if self._props_changed != None and props_key in self._props_changed :
+                    # cancel pending properties-changed notification
+                    del self._props_changed[key]
+                    if len(self._props_changed) == 0 :
+                        self._props_changed = None
+                    #end if
+                #end if
+            #end if
             obj_entry.remove(interface)
         #end for
         if len(obj_entry) == 0 :

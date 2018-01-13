@@ -1120,6 +1120,11 @@ class Connection :
             self._objects_removed = {}
             queue_task = True
         #end if
+        if self._objects_added != None :
+            added_entry = self._objects_added.get(path)
+        else :
+            added_entry = None
+        #end if
         obj_entry = self._managed_objects[path]
         if path in self._objects_removed :
             removed_entry = self._objects_removed[path]
@@ -1133,23 +1138,37 @@ class Connection :
             when = None
         #end if
         for interface in interfaces :
-            removed_entry[interface] = {"at" : when}
+            if added_entry != None and interface in added_entry :
+                # object-added notification was never sent, just cancel
+                # it and don’t send object-removed notification
+                del added_entry[interface]
+            else :
+                removed_entry[interface] = {"at" : when}
+            #end if
             obj_entry.remove(interface)
         #end for
         if len(obj_entry) == 0 :
             del self._managed_objects[path]
         #end if
-        if self.loop != None :
-            if queue_task :
-                if self.notify_delay != 0 :
-                    self.loop.call_later(self.notify_delay, self._notify_objects_removed)
-                else :
-                    self.loop.call_soon(self._notify_objects_removed)
-                #end if
+        if added_entry != None and len(added_entry) == 0 :
+            del self._objects_added[path]
+            if len(self._objects_added) == 0 :
+                self._objects_added = None
             #end if
-        else :
-            # cannot queue, notify immediately
-            self._notify_objects_removed()
+        #end if
+        if len(removed_entry) != 0 :
+            if self.loop != None :
+                if queue_task :
+                    if self.notify_delay != 0 :
+                        self.loop.call_later(self.notify_delay, self._notify_objects_removed)
+                    else :
+                        self.loop.call_soon(self._notify_objects_removed)
+                    #end if
+                #end if
+            else :
+                # cannot queue, notify immediately
+                self._notify_objects_removed()
+            #end if
         #end if
     #end object_removed
 

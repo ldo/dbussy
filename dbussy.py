@@ -2644,7 +2644,7 @@ class Connection :
                 addr = (DBUSX.SESSION_BUS_ADDRESS, DBUSX.SYSTEM_BUS_ADDRESS)[is_system_bus]
             #end if
             try :
-                result = await celf.open_async(addr, private, error)
+                result = await celf.open_async(addr, private, error, loop)
                 if error != None and error.is_set :
                     raise _Abort
                 #end if

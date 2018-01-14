@@ -805,7 +805,7 @@ class Connection :
                 propvalue = getter(**kwargs)
                   # could raise ErrorReturn
                 if isinstance(propvalue, types.CoroutineType) :
-                    if self.loop == None  :
+                    if self.loop == None :
                         raise TypeError \
                           (
                             "not expecting getter for prop “%s” to be coroutine" % propname
@@ -2040,7 +2040,7 @@ def _message_interface_dispatch(connection, message, bus) :
                         #end for
                         if call_info["args_keyword"] != None :
                             if call_info["arg_keys"] != None :
-                                args =  dict \
+                                args = dict \
                                   (
                                     (key, value)
                                     for key, value in zip(call_info["arg_keys"], args)
@@ -2161,7 +2161,7 @@ def _message_interface_dispatch(connection, message, bus) :
                         #end for
                         if call_info["args_keyword"] != None :
                             if call_info["arg_keys"] != None :
-                                args =  dict \
+                                args = dict \
                                   (
                                     (key, value)
                                     for key, value in zip(call_info["arg_keys"], args)
@@ -2309,7 +2309,7 @@ def def_attr_class(name, attrs) :
                 getattr(self, type(self).__slots__[i])
         #end __getitem__
 
-        def  __setitem__(self, i, val) :
+        def __setitem__(self, i, val) :
             setattr(self, type(self).__slots__[i], val)
         #end __setitem__
 
@@ -2637,7 +2637,7 @@ def signal \
         else :
             func_name = func.__name__
         #end if
-        func._signal_info =  \
+        func._signal_info = \
             {
                 "name" : func_name,
                 "in_signature" : in_signature,

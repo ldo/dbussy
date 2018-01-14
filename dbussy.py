@@ -5683,7 +5683,7 @@ class Introspection(_TagCommon) :
         self.name = name
         self.interfaces = list(interfaces)
         self.nodes = list(nodes)
-        self.annotations =  Introspection._get_annotations(annotations)
+        self.annotations = Introspection._get_annotations(annotations)
     #end __init__
 
     @property

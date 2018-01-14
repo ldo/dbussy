@@ -3717,7 +3717,7 @@ class ManagedObjectsHandler :
                 propvalues = result[path][interface_name]
                 propvalues[propname] = (propvalues[propname][0], propvalue)
             #end for
-            set_result(result)
+            set_result([result])
         #end await_propvalues
 
     #begin get_managed_objects
@@ -3734,13 +3734,13 @@ class ManagedObjectsHandler :
             result[path] = obj_entry
         #end for
         if len(to_await) != 0 :
-            result = await_propvalues() # result will be available when this is done
+            return_result = await_propvalues() # result will be available when this is done
         else :
-            set_result(result)
-            result = DBUS.HANDLER_RESULT_HANDLED
+            set_result([result])
+            return_result = None
         #end if
         return \
-            result
+            return_result
     #end get_managed_objects
 
     @signal(name = "InterfacesAdded", in_signature = "oa{sa{sv}}", stub = True)

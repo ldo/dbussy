@@ -3699,7 +3699,7 @@ class ManagedObjectsHandler :
       (
         name = "GetManagedObjects",
         in_signature = "",
-        out_signature = "a{oa{sv}}",
+        out_signature = "a{oa{sa{sv}}}",
         set_result_keyword = "set_result",
         bus_keyword = "bus",
         message_keyword = "message",

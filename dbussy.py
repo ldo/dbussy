@@ -3952,7 +3952,7 @@ class Message :
                     subiter.close()
                 elif isinstance(elttype, VariantType) :
                     if not isinstance(elt, (list, tuple)) or len(elt) != 2 :
-                        raise TypeError("sequence of 2 elements expected for variant")
+                        raise TypeError("sequence of 2 elements expected for variant: %s" % repr(elt))
                     #end if
                     actual_type = parse_single_signature(elt[0])
                     subiter = appenditer.open_container(DBUS.TYPE_VARIANT, actual_type.signature)

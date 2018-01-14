@@ -2644,11 +2644,10 @@ class Connection :
                 addr = (DBUSX.SESSION_BUS_ADDRESS, DBUSX.SYSTEM_BUS_ADDRESS)[is_system_bus]
             #end if
             try :
-                result = celf.open(addr, private, error)
+                result = await celf.open_async(addr, private, error)
                 if error != None and error.is_set :
                     raise _Abort
                 #end if
-                result.attach_asyncio(loop)
                 await result.bus_register_async(error = error, timeout = timeout)
                 if error != None and error.is_set :
                     raise _Abort

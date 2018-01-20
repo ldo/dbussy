@@ -3064,7 +3064,7 @@ class Connection :
             iface = DBUS.INTERFACE_MONITORING,
             method = "BecomeMonitor"
           )
-        message.append_objects("asi", (list(format_rule(rule) for rule in rules)), 0)
+        message.append_objects("asu", (list(format_rule(rule) for rule in rules)), 0)
         self.send(message)
     #end become_monitor
 

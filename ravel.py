@@ -13,6 +13,7 @@ asyncio event loop.
 import types
 import enum
 from weakref import \
+    ref as weak_ref, \
     WeakValueDictionary
 import asyncio
 import atexit
@@ -90,13 +91,15 @@ class _DispatchNode :
 
         def __init__(self, bus) :
             super().__init__(self)
-            self._ravel_bus = bus
+            self._ravel_bus = weak_ref(bus)
         #end __init
 
         def __delitem__(self, key) :
             super().__delitem__(key)
             if len(self) == 0 :
-                self._ravel_bus._trim_dispatch()
+                bus = self._ravel_bus()
+                assert bus != None, "parent Connection has gone"
+                bus._trim_dispatch()
             #end if
         #end __delitem__
 

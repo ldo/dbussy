@@ -262,6 +262,8 @@ class Connection :
 
     @staticmethod
     def _bus_name_acquired(conn, msg, self) :
+        # internal callback which keeps track of bus names and dispatches
+        # to user-specified action.
         bus_name = msg.expect_objects("s")[0]
         self.bus_names_pending.discard(bus_name)
         if bus_name not in self.bus_names_acquired :
@@ -278,6 +280,8 @@ class Connection :
 
     @staticmethod
     def _bus_name_lost(conn, msg, self) :
+        # internal callback which keeps track of bus names and dispatches
+        # to user-specified action.
         bus_name = msg.expect_objects("s")[0]
         self.bus_names_pending.discard(bus_name)
         if bus_name in self.bus_names_acquired :
@@ -1545,6 +1549,16 @@ def connect_server(address) :
     return \
         Connection(dbus.Connection.open(address, private = False))
 #end connect_server
+
+async def connect_server_async(address, loop = None) :
+    "opens a connection to a server at the specified network address and" \
+    " returns a Connection object for the connection."
+    return \
+        Connection \
+          (
+            await dbus.Connection.open_async(address, private = False, loop = loop)
+          )
+#end connect_server_async
 
 class Server :
     "listens for connections on a particular socket address, separate from" \

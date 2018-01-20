@@ -1036,6 +1036,8 @@ class Connection :
                 for interface_name, interface in level.interfaces.items() :
                     if component == None or interface.fallback :
                         result[interface_name] = interface.interface
+                          # Note that a fallback entry might be replaced
+                          # by a more specific one further down the path.
                     #end if
                 #end for
                 if (

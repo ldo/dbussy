@@ -448,6 +448,37 @@ class Connection :
         #end for
     #end _remove_matches
 
+    def register_additional_standard(self, **kwargs) :
+        "registers additional standard interfaces that are not automatically" \
+        " installed at Connection creation time. Currently the only one is" \
+        " the object-manager interface, registered with\n" \
+        "\n" \
+        "    «conn».register_additional_standard(managed_objects = True)\n"
+        for key in kwargs :
+            if kwargs[key] :
+                if key == "managed_objects" :
+                    if self._managed_objects != None :
+                        raise asyncio.InvalidStateError \
+                          (
+                            "object manager interface already registered"
+                          )
+                    #end if
+                    self.register \
+                      (
+                        path = "/",
+                        interface = ManagedObjectsHandler(),
+                        fallback = True
+                      )
+                    self._managed_objects = {}
+                else :
+                    raise TypeError("unrecognized argument keyword “%s”" % key)
+                #end if
+            #end if
+        #end for
+        return \
+            self
+    #end register_additional_standard
+
     def register(self, path, fallback, interface, replace = True) :
         "for server-side use; registers the specified instance of an @interface()" \
         " class for handling method calls on the specified path, and also on subpaths" \
@@ -990,12 +1021,43 @@ class Connection :
         #end if
     #end _notify_objects_removed
 
-    def object_added(self, path, interfaces_and_props) :
+    def find_interfaces_for_object(self, path) :
+        "returns a dict of interfaces, keyed by name, applicable to the" \
+        " given object path."
+        level = self._dispatch
+        result = {}
+        if level != None :
+            levels = iter(dbus.split_path(path))
+            while True :
+                component = next(levels, None)
+                for interface_name, interface in level.interfaces.items() :
+                    if component == None or interface.fallback :
+                        result[interface_name] = interface.interface
+                    #end if
+                #end for
+                if (
+                        component == None
+                          # reached bottom of path
+                    or
+                        component not in level.children
+                          # no handlers to be found further down path
+                ) :
+                    break
+                #end if
+                level = level.children[component]
+                  # search another step down the path
+            #end while
+        #end if
+        return \
+            result
+    #end find_interfaces_for_object
+
+    def object_added(self, path, interfaces_and_props = None) :
         "Call this to send an ObjectManager notification about the addition of" \
         " the specified interfaces and property values to the specified object" \
-        " path. The first call must specify the root path, but need not specify" \
-        " any interfaces_and_props; this triggers registration of the ObjectManager" \
-        " interface on this Connection."
+        " path. The ObjectManager interface must already have been registered on" \
+        " this Connection, by calling" \
+        " «conn».register_additional_standard(managed_objects = True)."
 
         added_entry = None
         to_await = []
@@ -1035,86 +1097,87 @@ class Connection :
     #begin object_added
         path = dbus.unsplit_path(path)
         if self._managed_objects == None :
-            if path != "/" :
-                raise RuntimeError("first call must be with root path")
-            #end if
-            self.register \
-              (
-                path = "/",
-                interface = ManagedObjectsHandler(),
-                fallback = True
-              )
-            self._managed_objects = {}
+            raise RuntimError("ObjectManager interface needs to be registered on this Connection")
         #end if
-        if interfaces_and_props != None :
-            if path in self._managed_objects :
-                obj_entry = self._managed_objects[path]
+        if interfaces_and_props == None :
+            # get all applicable interface names, props will be retrieved below
+            intfs = self.find_interfaces_for_object(path)
+            interfaces_and_props = dict \
+              (
+                (iface_name, None)
+                for iface_name in intfs
+                if len(intfs[iface_name]._interface_props) != 0
+              )
+        #end if
+        if path in self._managed_objects :
+            obj_entry = self._managed_objects[path]
+        else :
+            obj_entry = set()
+            self._managed_objects[path] = obj_entry
+        #end if
+        if self._objects_added == None :
+            self._objects_added = {}
+            queue_task = True
+        #end if
+        if path in self._objects_added :
+            added_entry = self._objects_added[path]
+        else :
+            added_entry = {}
+        #end if
+        if self.loop != None :
+            notify_when = self.loop.time() + self.notify_delay
+        else :
+            notify_when = None
+        #end if
+        for interface, props in interfaces_and_props.items() :
+            if props != None :
+                added_props = {}
+                for propname, propvalue in props.items() :
+                    if not isinstance(propvalue, (list, tuple)) or len(propvalue) != 2 :
+                        raise TypeError \
+                          (
+                            "value for property “%s” must be (type, value) pair" % propname
+                          )
+                    #end if
+                    proptype = dbus.parse_single_signature(propvalue[0])
+                    propvalue = proptype.validate(propvalue[1])
+                    proptype = dbus.unparse_signature(proptype)
+                    added_props[propname] = (proptype, propvalue)
+                #end for
             else :
-                obj_entry = set()
-                self._managed_objects[path] = obj_entry
+                added_props, await_props = self._get_all_my_props(None, path, interface)
+                  # propgetters should not expect a message arg
+                for propname, propvalue in await_props :
+                    to_await.append((path, interface, propname, propvalue))
+                #end for
             #end if
-            if self._objects_added == None :
-                self._objects_added = {}
-                queue_task = True
-            #end if
-            if path in self._objects_added :
-                added_entry = self._objects_added[path]
+            added_entry[interface] = \
+                {
+                    "at" : notify_when,
+                    "props" : added_props,
+                }
+            obj_entry.add(interface)
+        #end for
+        if len(to_await) == 0 :
+            self._objects_added[path] = added_entry # all prop values complete
+        #end if
+        if self.loop != None :
+            if len(to_await) != 0 :
+                self.loop.create_task(await_propvalues())
             else :
-                added_entry = {}
+                queue_notify(False)
             #end if
-            if self.loop != None :
-                notify_when = self.loop.time() + self.notify_delay
-            else :
-                notify_when = None
-            #end if
-            for interface, props in interfaces_and_props.items() :
-                if props != None :
-                    added_props = {}
-                    for propname, propvalue in props.items() :
-                        if not isinstance(propvalue, (list, tuple)) or len(propvalue) != 2 :
-                            raise TypeError \
-                              (
-                                "value for property “%s” must be (type, value) pair" % propname
-                              )
-                        #end if
-                        proptype = dbus.parse_single_signature(propvalue[0])
-                        propvalue = proptype.validate(propvalue[1])
-                        proptype = dbus.unparse_signature(proptype)
-                        added_props[propname] = (proptype, propvalue)
-                    #end for
-                else :
-                    added_props, await_props = self._get_all_my_props(None, path, interface)
-                      # propgetters should not expect a message arg
-                    for propname, propvalue in await_props :
-                        to_await.append((path, interface, propname, propvalue))
-                    #end for
-                #end if
-                added_entry[interface] = \
-                    {
-                        "at" : notify_when,
-                        "props" : added_props,
-                    }
-                obj_entry.add(interface)
-            #end for
-            if len(to_await) == 0 :
-                self._objects_added[path] = added_entry # all prop values complete
-            #end if
-            if self.loop != None :
-                if len(to_await) != 0 :
-                    self.loop.create_task(await_propvalues())
-                else :
-                    queue_notify(False)
-                #end if
-            else :
-                # cannot queue, notify immediately
-                self._notify_objects_added()
-            #end if
+        else :
+            # cannot queue, notify immediately
+            self._notify_objects_added()
         #end if
     #end object_added
 
-    def object_removed(self, path, interfaces) :
+    def object_removed(self, path, interfaces = None) :
         "Call this to send an ObjectManager notification about the removal of the" \
-        " specified set/sequence of interfaces from the specified object path."
+        " specified set/sequence of interfaces from the specified object path. The" \
+        " ObjectManager interface must already have been registered on this Connection," \
+        " by calling «conn».register_additional_standard(managed_objects = True)."
         path = dbus.unsplit_path(path)
         if self._managed_objects == None :
             raise RuntimeError("ObjectManager interface not registered on this Connection")
@@ -1140,6 +1203,15 @@ class Connection :
             when = self.loop.time() + self.notify_delay
         else :
             when = None
+        #end if
+        if interfaces == None :
+            intfs = self.find_interfaces_for_object(path)
+            interfaces = set \
+              (
+                iface_name
+                for iface_name in intfs
+                if len(intfs[iface_name]._interface_props) != 0
+              )
         #end if
         for interface in interfaces :
             if added_entry != None and interface in added_entry :
@@ -1507,57 +1579,74 @@ class Connection :
 
 #end Connection
 
-def session_bus() :
+def session_bus(**kwargs) :
     "returns a Connection object for the current D-Bus session bus."
     return \
-        Connection(dbus.Connection.bus_get(DBUS.BUS_SESSION, private = False))
+        Connection(dbus.Connection.bus_get(DBUS.BUS_SESSION, private = False)) \
+        .register_additional_standard(**kwargs)
 #end session_bus
 
-def system_bus() :
+def system_bus(**kwargs) :
     "returns a Connection object for the D-Bus system bus."
     return \
-        Connection(dbus.Connection.bus_get(DBUS.BUS_SYSTEM, private = False))
+        Connection(dbus.Connection.bus_get(DBUS.BUS_SYSTEM, private = False)) \
+        .register_additional_standard(**kwargs)
 #end system_bus
 
-def starter_bus() :
+def starter_bus(**kwargs) :
     "returns a Connection object for the D-Bus starter bus."
     return \
-        Connection(dbus.Connection.bus_get(DBUS.BUS_STARTER, private = False))
+        Connection(dbus.Connection.bus_get(DBUS.BUS_STARTER, private = False)) \
+        .register_additional_standard(**kwargs)
 #end starter_bus
 
-async def session_bus_async(loop = None) :
+async def session_bus_async(loop = None, **kwargs) :
     "returns a Connection object for the current D-Bus session bus."
     return \
-        Connection(await dbus.Connection.bus_get_async(DBUS.BUS_SESSION, private = False, loop = loop))
+        Connection \
+          (
+            await dbus.Connection.bus_get_async(DBUS.BUS_SESSION, private = False, loop = loop)
+          ) \
+        .register_additional_standard(**kwargs)
 #end session_bus_async
 
-async def system_bus_async(loop = None) :
+async def system_bus_async(loop = None, **kwargs) :
     "returns a Connection object for the D-Bus system bus."
     return \
-        Connection(await dbus.Connection.bus_get_async(DBUS.BUS_SYSTEM, private = False, loop = loop))
+        Connection \
+          (
+            await dbus.Connection.bus_get_async(DBUS.BUS_SYSTEM, private = False, loop = loop)
+          ) \
+        .register_additional_standard(**kwargs)
 #end system_bus_async
 
-async def starter_bus_async(loop = None) :
+async def starter_bus_async(loop = None, **kwargs) :
     "returns a Connection object for the D-Bus starter bus."
     return \
-        Connection(await dbus.Connection.bus_get_async(DBUS.BUS_STARTER, private = False, loop = loop))
+        Connection \
+          (
+            await dbus.Connection.bus_get_async(DBUS.BUS_STARTER, private = False, loop = loop)
+          ) \
+        .register_additional_standard(**kwargs)
 #end starter_bus_async
 
-def connect_server(address) :
+def connect_server(address, **kwargs) :
     "opens a connection to a server at the specified network address and" \
     " returns a Connection object for the connection."
     return \
-        Connection(dbus.Connection.open(address, private = False))
+        Connection(dbus.Connection.open(address, private = False)) \
+        .register_additional_standard(**kwargs)
 #end connect_server
 
-async def connect_server_async(address, loop = None) :
+async def connect_server_async(address, loop = None, **kwargs) :
     "opens a connection to a server at the specified network address and" \
     " returns a Connection object for the connection."
     return \
         Connection \
           (
             await dbus.Connection.open_async(address, private = False, loop = loop)
-          )
+          ) \
+        .register_additional_standard(**kwargs)
 #end connect_server_async
 
 class Server :

@@ -6,7 +6,7 @@ This Python binding supports hooking into event loops via Python’s standard
 asyncio module.
 """
 #+
-# Copyright 2017 Lawrence D'Oliveiro <ldo@geek-central.gen.nz>.
+# Copyright 2017-2018 Lawrence D'Oliveiro <ldo@geek-central.gen.nz>.
 # Licensed under the GNU Lesser General Public License v2.1 or later.
 #-
 
@@ -1874,6 +1874,9 @@ class Connection :
         "_dbobj",
         "_filters",
         "_match_actions",
+        "_receive_queue",
+        "_receive_queue_enabled",
+        "_awaiting_receive",
         "loop",
         "_user_data",
         # need to keep references to ctypes-wrapped functions
@@ -1906,6 +1909,9 @@ class Connection :
             self._user_data = {}
             self._filters = {}
             self._match_actions = {}
+            self._receive_queue = None
+            self._receive_queue_enabled = set()
+            self._awaiting_receive = []
             self.loop = None
             self._object_paths = {}
             celf._instances[_dbobj] = self
@@ -2533,6 +2539,150 @@ class Connection :
         return \
             result
     #end list_registered
+
+    @staticmethod
+    def _queue_received_message(self, message, _) :
+        # message filter which queues messages as appropriate for receive_message_async.
+        # Must be static so same function object can be passed to all add_filter/remove_filter
+        # calls.
+        queueit = message.type in self._receive_queue_enabled
+        if queueit :
+            self._receive_queue.append(message)
+            while len(self._awaiting_receive) != 0 :
+                waiting = self._awaiting_receive.pop(0)
+                waiting.set_result(True) # result actually ignored
+            #end while
+        #end if
+        return \
+            (DBUS.HANDLER_RESULT_NOT_YET_HANDLED, DBUS.HANDLER_RESULT_HANDLED)[queueit]
+    #end _queue_received_message
+
+    def enable_receive_message(self, queue_types) :
+        "enables/disables message types for reception via receive_message_async." \
+        " queue_types is a set or sequence of DBUS.MESSAGE_TYPE_XXX values for" \
+        " the types of messages to be put into the receive queue, or None to" \
+        " disable all message types; this replaces queue_types passed to" \
+        " any prior enable_receive_message_async call on this Connection."
+        assert self.loop != None, "no event loop to attach coroutines to"
+        enable = queue_types != None and len(queue_types) != 0
+        if (
+                enable
+            and
+                not all
+                  (
+                        m
+                    in
+                        (
+                            DBUS.MESSAGE_TYPE_METHOD_CALL,
+                            DBUS.MESSAGE_TYPE_METHOD_RETURN,
+                            DBUS.MESSAGE_TYPE_ERROR,
+                            DBUS.MESSAGE_TYPE_SIGNAL,
+                        )
+                    for m in queue_types
+                  )
+        ) :
+            raise TypeError("invalid message type in queue_types: %s" % repr(queue_types))
+        #end if
+        if enable :
+            if self._receive_queue == None :
+                self.add_filter(self._queue_received_message, self)
+                self._receive_queue = []
+            #end if
+            self._receive_queue_enabled.clear()
+            self._receive_queue_enabled.update(queue_types)
+        else :
+            if self._receive_queue != None :
+                if len(self._receive_queue) != 0 :
+                    raise asyncio.InvalidStateError("pending unreceived messages on queue")
+                #end if
+                while len(self._awaiting_receive) != 0 :
+                    waiting = self._awaiting_receive.pop(0)
+                    waiting.set_exception(BrokenPipeError("async receives have been disabled"))
+                #end while
+                self.remove_filter(self._queue_received_message, self)
+                self._receive_queue = None
+            #end if
+        #end if
+    #end enable_receive_message
+
+    async def receive_message_async(self, want_types = None, timeout = DBUS.TIMEOUT_INFINITE) :
+        "receives the first available queued message of an appropriate type, blocking" \
+        " if none is available and timeout is nonzero. Returns None if the timeout" \
+        " elapses without a suitable message becoming available. want_types can be" \
+        " None to receive any of the previously-enabled message types, or a set or" \
+        " sequence of DBUS.MESSAGE_TYPE_XXX values to look only for messages of those" \
+        " types.\n" \
+        "\n" \
+        "You must have previously made a call to enable_receive_message to enable" \
+        " queueing of one or more message types on this Connection."
+        assert self._receive_queue != None, "receive_message_async not enabled"
+        # should I check if want_types contains anything not in self._receive_queue_enabled?
+        if timeout == DBUS.TIMEOUT_USE_DEFAULT :
+            timeout = DBUSX.DEFAULT_TIMEOUT
+        #end if
+        if timeout != DBUS.TIMEOUT_INFINITE :
+            finish_time = self.loop.time() + timeout
+        else :
+            finish_time = None
+        #end if
+        result = ... # indicates “watch this space”
+        while True :
+            # keep rescanning queue until got something or timeout
+            index = 0 # start next queue scan
+            while True :
+                if index == len(self._receive_queue) :
+                    # nothing currently suitable on queue
+                    if (
+                            timeout == 0
+                        or
+                                finish_time != None
+                            and
+                                self.loop.time() > finish_time
+                    ) :
+                        # waited too long, give up
+                        result = None
+                        break
+                    #end if
+                    # wait and see if something turns up
+                    awaiting = self.loop.create_future()
+                    self._awaiting_receive.append(awaiting)
+                    if finish_time != None :
+                        wait_timeout = finish_time - self.loop.time()
+                    else :
+                        wait_timeout = None
+                    #end if
+                    await asyncio.wait \
+                      (
+                        (awaiting,),
+                        loop = self.loop,
+                        timeout = wait_timeout
+                      )
+                        # ignore done & pending results because they
+                        # don’t match up with future I’m waiting for
+                    try :
+                        self._awaiting_receive.remove(awaiting)
+                    except ValueError :
+                        pass
+                    #end try
+                    break # start new queue scan
+                #end if
+                # check next queue item
+                msg = self._receive_queue[index]
+                if want_types == None or msg.type in want_types :
+                    # caller wants this one
+                    result = msg
+                    self._receive_queue.pop(index) # remove msg from queue
+                    break
+                #end if
+                index += 1
+            #end while
+            if result != ... :
+                # either got something or given up
+                break
+        #end while
+        return \
+            result
+    #end receive_message_async
 
     # TODO: allocate/free data slot -- staticmethods
     # TODO: get/set data

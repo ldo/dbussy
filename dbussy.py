@@ -2585,7 +2585,7 @@ class Connection :
         #end if
         if enable :
             if self._receive_queue == None :
-                self.add_filter(self._queue_received_message, self)
+                self.add_filter(self._queue_received_message, None)
                 self._receive_queue = []
             #end if
             self._receive_queue_enabled.clear()
@@ -2599,7 +2599,7 @@ class Connection :
                     waiting = self._awaiting_receive.pop(0)
                     waiting.set_exception(BrokenPipeError("async receives have been disabled"))
                 #end while
-                self.remove_filter(self._queue_received_message, self)
+                self.remove_filter(self._queue_received_message, None)
                 self._receive_queue = None
             #end if
         #end if

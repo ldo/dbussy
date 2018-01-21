@@ -2549,6 +2549,8 @@ class Connection :
         if queueit :
             self._receive_queue.append(message)
             while len(self._awaiting_receive) != 0 :
+                # wake them all up, because I don’t know what message types
+                # each might be waiting for
                 waiting = self._awaiting_receive.pop(0)
                 waiting.set_result(True) # result actually ignored
             #end while

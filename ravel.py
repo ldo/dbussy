@@ -2289,6 +2289,7 @@ def _message_interface_dispatch(connection, message, bus) :
                             #end if
                         #end if
                         if is_method :
+                            # additional ways of returning method result
                             if call_info["result_keyword"] != None :
                                 # construct a mutable result object that handler will update in place
                                 to_return_result = [None] * len(call_info["out_signature"])
@@ -2318,8 +2319,8 @@ def _message_interface_dispatch(connection, message, bus) :
                         result = err.as_error()
                     #end try
                     if result == None :
-                        if to_return_result != None :
-                            # method handler used set_result mechanism
+                        if to_return_result != None or is_method :
+                            # method handler possibly used set_result mechanism
                             return_result_common(call_info, to_return_result)
                         #end if
                         result = DBUS.HANDLER_RESULT_HANDLED

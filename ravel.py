@@ -2210,6 +2210,9 @@ def _message_interface_dispatch(connection, message, bus) :
                     isinstance(result, call_info["result_constructor"])
             ) :
                 result = list(result)
+            elif len(sig) == 0 and result == None :
+                # might as well allow method call to not bother returning an empty result
+                result = []
             elif not isinstance(result, (tuple, list)) :
                 raise ValueError("invalid handler result %s" % repr(result))
             #end if

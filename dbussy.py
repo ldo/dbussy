@@ -2686,6 +2686,21 @@ class Connection :
             result
     #end receive_message_async
 
+    def iter_messages_async(self, want_types = None, timeout = DBUS.TIMEOUT_INFINITE) :
+        "wrapper around Connection.receive_message_async() to allow use with an" \
+        " async-for statement. Lets you write\n" \
+        "\n" \
+        "    async for message in «conn».receive_message_async(«want_types», «timeout») :" \
+        "        «process message»\n" \
+        "    #end for\n" \
+        "\n" \
+        "to receive and process messages in a loop. Note that the loop will terminate" \
+        " (StopAsyncIteration will be raised) on a timeout."
+        assert self._receive_queue != None, "receive_message_async not enabled"
+        return \
+            _MsgAiter(self, want_types, timeout)
+    #end iter_messages_async
+
     # TODO: allocate/free data slot -- staticmethods
     # TODO: get/set data
 
@@ -3233,6 +3248,32 @@ class Connection :
     #end attach_asyncio
 
 #end Connection
+
+class _MsgAiter :
+    # internal class for use by Connection.iter_messages_async (above).
+
+    def __init__(self, conn, want_types, timeout) :
+        self.conn = conn
+        self.want_types = want_types
+        self.timeout = timeout
+    #end __init__
+
+    def __aiter__(self) :
+        # I’m my own iterator.
+        return \
+            self
+    #end __aiter__
+
+    async def __anext__(self) :
+        result = await self.conn.receive_message_async(self.want_types, self.timeout)
+        if result == None :
+            raise StopAsyncIteration("Connection.receive_message_async timeout")
+        #end if
+        return \
+            result
+    #end __anext__
+
+#end _MsgAiter
 
 class Server :
     "wrapper around a DBusServer object. Do not instantiate directly; use" \

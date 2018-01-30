@@ -2011,7 +2011,17 @@ class Connection :
             result
     #end open_async
 
+    def _flush_awaiting_receive(self) :
+        if self._receive_queue != None :
+            while len(self._awaiting_receive) != 0 :
+                waiting = self._awaiting_receive.pop(0)
+                waiting.set_exception(BrokenPipeError("async receives have been disabled"))
+            #end while
+        #end if
+    #end _flush_awaiting_receive
+
     def close(self) :
+        self._flush_awaiting_receive()
         dbus.dbus_connection_close(self._dbobj)
     #end close
 
@@ -2624,13 +2634,7 @@ class Connection :
             self._receive_queue_enabled.update(queue_types)
         else :
             if self._receive_queue != None :
-                if len(self._receive_queue) != 0 :
-                    raise asyncio.InvalidStateError("pending unreceived messages on queue")
-                #end if
-                while len(self._awaiting_receive) != 0 :
-                    waiting = self._awaiting_receive.pop(0)
-                    waiting.set_exception(BrokenPipeError("async receives have been disabled"))
-                #end while
+                self._flush_awaiting_receive()
                 self.remove_filter(self._queue_received_message, None)
                 self._receive_queue = None
             #end if
@@ -2674,6 +2678,9 @@ class Connection :
                         # waited too long, give up
                         result = None
                         break
+                    #end if
+                    if not self.is_connected :
+                        raise asyncio.InvalidStateError("Connection has been disconnected")
                     #end if
                     # wait and see if something turns up
                     awaiting = self.loop.create_future()

@@ -6016,7 +6016,15 @@ class Introspection(_TagCommon) :
                     0
               )
             out.write(" " * indent + "<" + tag_name)
-            if indent + len(tag_name) + sum((len(s) + 1) for s in attrs) + 2 + int(has_elts) > max_linelen :
+            if (
+                    max_linelen != None
+                and
+                            indent
+                        +
+                            len(tag_name) + sum((len(s) + 1) for s in attrs) + 2 + int(has_elts)
+                    >
+                        max_linelen
+            ) :
                 out.write("\n")
                 for attr in attrs :
                     out.write(" " * (indent + indent_step))

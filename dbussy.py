@@ -6021,7 +6021,13 @@ class Introspection(_TagCommon) :
                 and
                             indent
                         +
-                            len(tag_name) + sum((len(s) + 1) for s in attrs) + 2 + int(has_elts)
+                            len(tag_name)
+                        +
+                            sum((len(s) + 1) for s in attrs)
+                        +
+                            2
+                        +
+                            int(has_elts)
                     >
                         max_linelen
             ) :

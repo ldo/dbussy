@@ -1643,13 +1643,13 @@ def connect_server(address, **kwargs) :
         .register_additional_standard(**kwargs)
 #end connect_server
 
-async def connect_server_async(address, loop = None, **kwargs) :
+async def connect_server_async(address, loop = None, timeout = DBUS.TIMEOUT_INFINITE, **kwargs) :
     "opens a connection to a server at the specified network address and" \
     " returns a Connection object for the connection."
     return \
         Connection \
           (
-            await dbus.Connection.open_async(address, private = False, loop = loop)
+            await dbus.Connection.open_async(address, private = False, loop = loop, timeout = timeout)
           ) \
         .register_additional_standard(**kwargs)
 #end connect_server_async

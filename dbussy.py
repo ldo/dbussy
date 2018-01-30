@@ -1945,7 +1945,7 @@ class Connection :
     #end open
 
     @classmethod
-    async def open_async(celf, address, private, error = None, loop = None) :
+    async def open_async(celf, address, private, error = None, loop = None, timeout = DBUS.TIMEOUT_INFINITE) :
         "opens a Connection to a specified address, separate from the" \
         " system or session buses."
         # There is no nonblocking version of dbus_connection_open/dbus_connection_open_private,
@@ -1955,11 +1955,33 @@ class Connection :
             loop = asyncio.get_event_loop()
         #end if
         error, my_error = _get_error(error)
+        if timeout == DBUS.TIMEOUT_USE_DEFAULT :
+            timeout = DBUSX.DEFAULT_TIMEOUT
+        #end if
         awaiting = loop.create_future()
+        timeout_task = None
 
         async def do_open_done(result) :
-            awaiting.set_result(result)
+            if not awaiting.done() :
+                awaiting.set_result(result)
+                if timeout_task != None :
+                    timeout_task.cancel()
+                #end if
+            else :
+                # abandon the connection
+                dbus.dbus_connection_unref(result)
+            #end if
         #end def do_open_done
+
+        def do_open_timedout() :
+            if not awaiting.done() :
+                awaiting.set_exception(DBusError(DBUS.ERROR_TIMEOUT, "connection did not open in time"))
+                # Python doesn’t give me any (easy) way to cancel the thread running the
+                # do_open() call, so just let it run to completion, whereupon do_open_done()
+                # will get rid of the result. Even if I could delete the thread, can I be sure
+                # that would clean up memory and the socket connection properly?
+            #end if
+        #end do_open_timedout
 
         def do_open() :
             result = (dbus.dbus_connection_open, dbus.dbus_connection_open_private)[private](address.encode(), error._dbobj)
@@ -1971,7 +1993,15 @@ class Connection :
     #begin open_async
         subthread = threading.Thread(target = do_open)
         subthread.start()
-        result = await awaiting
+        if timeout != DBUS.TIMEOUT_INFINITE :
+            timeout_task = loop.call_later(timeout, do_open_timedout)
+        #end if
+        try :
+            result = await awaiting
+        except DBusError as failed :
+            result = None
+            error.set(failed.name, failed.message)
+        #end try
         my_error.raise_if_set()
         if result != None :
             result = celf(result)
@@ -2811,7 +2841,7 @@ class Connection :
                 addr = (DBUSX.SESSION_BUS_ADDRESS, DBUSX.SYSTEM_BUS_ADDRESS)[is_system_bus]
             #end if
             try :
-                result = await celf.open_async(addr, private, error, loop)
+                result = await celf.open_async(addr, private, error, loop, timeout)
                 if error != None and error.is_set :
                     raise _Abort
                 #end if

@@ -27,7 +27,7 @@ import asyncio
 from xml.etree import \
     ElementTree as XMLElementTree
 from xml.sax.saxutils import \
-    escape as xml_escape
+    quoteattr as quote_xml_attr
 
 dbus = ct.cdll.LoadLibrary("libdbus-1.so.3")
 
@@ -5998,7 +5998,7 @@ class Introspection(_TagCommon) :
                     elif not isinstance(attr, str) :
                         raise TypeError("unexpected attribute type %s for %s" % (type(attr).__name__, repr(attr)))
                     #end if
-                    attrs.append("%s=\"%s\"" % (attrname, xml_escape(attr)))
+                    attrs.append("%s=%s" % (attrname, quote_xml_attr(attr)))
                 #end if
             #end for
             has_elts = \
@@ -6048,7 +6048,7 @@ class Introspection(_TagCommon) :
         out.write(DBUS.INTROSPECT_1_0_XML_DOCTYPE_DECL_NODE)
         out.write("<node")
         if self.name != None :
-            out.write(" name=\"%s\"" % xml_escape(self.name))
+            out.write(" name=%s" % quote_xml_attr(self.name))
         #end if
         out.write(">\n")
         for elt in self.interfaces :

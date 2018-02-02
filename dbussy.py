@@ -1864,7 +1864,7 @@ class _MatchActionEntry :
 #end _MatchActionEntry
 
 @enum.unique
-class TERMINATE_ON(enum.Enum) :
+class STOP_ON(enum.Enum) :
     "set of conditions on which to raise StopAsyncIteration:\n" \
     "\n" \
     "    TIMEOUT     - timeout has elapsed\n" \
@@ -1874,7 +1874,7 @@ class TERMINATE_ON(enum.Enum) :
     " exception will be raised when the connection is closed."
     TIMEOUT = 1
     CONN_CLOSED = 2
-#end TERMINATE_ON
+#end STOP_ON
 
 class Connection :
     "wrapper around a DBusConnection object. Do not instantiate directly; use the open" \
@@ -2738,7 +2738,7 @@ class Connection :
             result
     #end receive_message_async
 
-    def iter_messages_async(self, want_types = None, terminate_on = None, timeout = DBUS.TIMEOUT_INFINITE) :
+    def iter_messages_async(self, want_types = None, stop_on = None, timeout = DBUS.TIMEOUT_INFINITE) :
         "wrapper around Connection.receive_message_async() to allow use with an" \
         " async-for statement. Lets you write\n" \
         "\n" \
@@ -2746,21 +2746,21 @@ class Connection :
         "        «process message»\n" \
         "    #end for\n" \
         "\n" \
-        "to receive and process messages in a loop. terminate_on is an optional set of" \
-        " TERMINATE_ON.xxx values indicating the conditions under which the iterator will" \
+        "to receive and process messages in a loop. stop_on is an optional set of" \
+        " STOP_ON.xxx values indicating the conditions under which the iterator will" \
         " raise StopAsyncIteration to terminate the loop."
-        if terminate_on == None :
-            terminate_on = frozenset()
+        if stop_on == None :
+            stop_on = frozenset()
         elif (
-                not isinstance(terminate_on, (set, frozenset))
+                not isinstance(stop_on, (set, frozenset))
             or
-                not all(isinstance(elt, TERMINATE_ON) for elt in terminate_on)
+                not all(isinstance(elt, STOP_ON) for elt in stop_on)
         ) :
-            raise TypeError("terminate_on must be None or set of TERMINATE_ON")
+            raise TypeError("stop_on must be None or set of STOP_ON")
         #end if
         assert self._receive_queue != None, "receive_message_async not enabled"
         return \
-            _MsgAiter(self, want_types, terminate_on, timeout)
+            _MsgAiter(self, want_types, stop_on, timeout)
     #end iter_messages_async
 
     # TODO: allocate/free data slot -- staticmethods
@@ -3314,10 +3314,10 @@ class Connection :
 class _MsgAiter :
     # internal class for use by Connection.iter_messages_async (above).
 
-    def __init__(self, conn, want_types, terminate_on, timeout) :
+    def __init__(self, conn, want_types, stop_on, timeout) :
         self.conn = conn
         self.want_types = want_types
-        self.terminate_on = terminate_on
+        self.stop_on = stop_on
         self.timeout = timeout
     #end __init__
 
@@ -3331,11 +3331,11 @@ class _MsgAiter :
         stop_iter = False
         try :
             result = await self.conn.receive_message_async(self.want_types, self.timeout)
-            if result == None and TERMINATE_ON.TIMEOUT in self.terminate_on :
+            if result == None and STOP_ON.TIMEOUT in self.stop_on :
                 stop_iter = True
             #end if
         except BrokenPipeError :
-            if TERMINATE_ON.CONN_CLOSED not in self.terminate_on :
+            if STOP_ON.CONN_CLOSED not in self.stop_on :
                 raise
             #end if
             stop_iter = True

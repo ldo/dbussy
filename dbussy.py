@@ -1867,13 +1867,13 @@ class _MatchActionEntry :
 class STOP_ON(enum.Enum) :
     "set of conditions on which to raise StopAsyncIteration:\n" \
     "\n" \
-    "    TIMEOUT     - timeout has elapsed\n" \
-    "    CONN_CLOSED - connection has closed.\n" \
+    "    TIMEOUT - timeout has elapsed\n" \
+    "    CLOSED  - server/connection has closed.\n" \
     "\n" \
     "Otherwise None will be returned on timeout, and the usual BrokenPipeError" \
     " exception will be raised when the connection is closed."
     TIMEOUT = 1
-    CONN_CLOSED = 2
+    CLOSED = 2
 #end STOP_ON
 
 class Connection :
@@ -2739,8 +2739,8 @@ class Connection :
     #end receive_message_async
 
     def iter_messages_async(self, want_types = None, stop_on = None, timeout = DBUS.TIMEOUT_INFINITE) :
-        "wrapper around Connection.receive_message_async() to allow use with an" \
-        " async-for statement. Lets you write\n" \
+        "wrapper around receive_message_async() to allow use with an async-for statement." \
+        " Lets you write\n" \
         "\n" \
         "    async for message in «conn».receive_message_async(«want_types», «timeout») :" \
         "        «process message»\n" \
@@ -3335,7 +3335,7 @@ class _MsgAiter :
                 stop_iter = True
             #end if
         except BrokenPipeError :
-            if STOP_ON.CONN_CLOSED not in self.stop_on :
+            if STOP_ON.CLOSED not in self.stop_on :
                 raise
             #end if
             stop_iter = True
@@ -3432,7 +3432,17 @@ class Server :
             result
     #end listen
 
+    def _flush_awaiting_connect(self) :
+        if self._await_new_connections != None :
+            while len(self._await_new_connections) != 0 :
+                waiting = self._await_new_connections(0)
+                waiting.set_exception(BrokenPipeError("async listens have been disabled"))
+            #end while
+        #end if
+    #end _flush_awaiting_connect
+
     def disconnect(self) :
+        self._flush_awaiting_connect()
         dbus.dbus_server_disconnect(self._dbobj)
     #end disconnect
 
@@ -3631,34 +3641,40 @@ class Server :
         " suspends the current coroutine for up to the specified timeout duration" \
         " while waiting for one to appear. Returns None if there is no new connection" \
         " within that time."
+        assert self.loop != None, "no event loop to attach coroutine to"
         if len(self._new_connections) != 0 :
             result = self._new_connections.pop(0)
-        elif timeout == 0 :
-            # might as well short-circuit the whole waiting process
-            result = None
         else :
-            awaiting = self.loop.create_future()
-            self._await_new_connections.append(awaiting)
-            if timeout == DBUS.TIMEOUT_INFINITE :
-                timeout = None
-            else :
-                if timeout == DBUS.TIMEOUT_USE_DEFAULT :
-                    timeout = DBUSX.DEFAULT_TIMEOUT
-                #end if
+            if not self.is_connected :
+                raise BrokenPipeError("Server has been disconnected")
             #end if
-            await asyncio.wait \
-              (
-                (awaiting,),
-                loop = self.loop,
-                timeout = timeout
-              )
-                # ignore done & pending results because they
-                # don’t match up with future I’m waiting for
-            if awaiting.done() :
-                result = awaiting.result()
-            else :
-                self._await_new_connections.pop(self._await_new_connections.index(awaiting))
+            if timeout == 0 :
+                # might as well short-circuit the whole waiting process
                 result = None
+            else :
+                awaiting = self.loop.create_future()
+                self._await_new_connections.append(awaiting)
+                if timeout == DBUS.TIMEOUT_INFINITE :
+                    timeout = None
+                else :
+                    if timeout == DBUS.TIMEOUT_USE_DEFAULT :
+                        timeout = DBUSX.DEFAULT_TIMEOUT
+                    #end if
+                #end if
+                await asyncio.wait \
+                  (
+                    (awaiting,),
+                    loop = self.loop,
+                    timeout = timeout
+                  )
+                    # ignore done & pending results because they
+                    # don’t match up with future I’m waiting for
+                if awaiting.done() :
+                    result = awaiting.result()
+                else :
+                    self._await_new_connections.pop(self._await_new_connections.index(awaiting))
+                    result = None
+                #end if
             #end if
         #end if
         if result != None and self.autoattach_new_connections :
@@ -3668,7 +3684,69 @@ class Server :
             result
     #end await_new_connection
 
+    def iter_connections_async(self, stop_on = None, timeout = DBUS.TIMEOUT_INFINITE) :
+        "wrapper around await_new_connection() to allow use with an async-for" \
+        " statement. Lets you write\n" \
+        "\n" \
+        "    async for conn in «server».iter_connections_async(«timeout») :" \
+        "        «accept conn»\n" \
+        "    #end for\n" \
+        "\n" \
+        "to receive and process incoming connections in a loop. stop_on is an optional set of" \
+        " STOP_ON.xxx values indicating the conditions under which the iterator will" \
+        " raise StopAsyncIteration to terminate the loop."
+        assert self.loop != None, "no event loop to attach coroutine to"
+        if stop_on == None :
+            stop_on = frozenset()
+        elif (
+                not isinstance(stop_on, (set, frozenset))
+            or
+                not all(isinstance(elt, STOP_ON) for elt in stop_on)
+        ) :
+            raise TypeError("stop_on must be None or set of STOP_ON")
+        #end if
+        return \
+            _SrvAiter(self, stop_on, timeout)
+    #end iter_connections_async
+
 #end Server
+
+class _SrvAiter :
+    # internal class for use by Server.iter_connections_async (above).
+
+    def __init__(self, srv, stop_on, timeout) :
+        self.srv = srv
+        self.stop_on = stop_on
+        self.timeout = timeout
+    #end __init__
+
+    def __aiter__(self) :
+        # I’m my own iterator.
+        return \
+            self
+    #end __aiter__
+
+    async def __anext__(self) :
+        stop_iter = False
+        try :
+            result = await self.srv.await_new_connection(self.timeout)
+            if result == None and STOP_ON.TIMEOUT in self.stop_on :
+                stop_iter = True
+            #end if
+        except BrokenPipeError :
+            if STOP_ON.CLOSED not in self.stop_on :
+                raise
+            #end if
+            stop_iter = True
+        #end try
+        if stop_iter :
+            raise StopAsyncIteration("Server.iter_connections_async terminating")
+        #end if
+        return \
+            result
+    #end __anext__
+
+#end _SrvAiter
 
 class PreallocatedSend :
     "wrapper around a DBusPreallocatedSend object. Do not instantiate directly;" \

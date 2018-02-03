@@ -2774,6 +2774,36 @@ def signal \
         decorate
 #end signal
 
+def def_signal_stub(**kwargs) :
+    "convenience routine for defining a signal stub function. Instead of\n" \
+    "\n" \
+    "    @signal(«args»)\n" \
+    "    def stubfunc() : pass\n" \
+    "\n" \
+    "you can do\n" \
+    "\n" \
+    "    stubfunc = def_signal_stub(«args»)\n" \
+    "\n" \
+    "passing the same «args» as you would to the @signal() decorator. But note" \
+    " that the name arg is no longer optional."
+
+    def stub() :
+        "This is just a stub, standing in for a signal definition in a" \
+        " proxy interface class. It is not meant to be called."
+        # Lack of formal args should also stymie attempts to invoke as a method.
+        raise \
+            NotImplementedError("attempted call on signal stub")
+    #end stub
+
+#begin def_signal_stub
+    if "name" not in kwargs :
+        raise KeyError("name arg is mandatory")
+    #end if
+    stub.__name__ = kwargs["name"]
+    return \
+        signal(**kwargs)(stub)
+#end def_signal_stub
+
 def propgetter \
   (*,
     name,

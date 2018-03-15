@@ -209,13 +209,13 @@ Multithreading Caveats
 ======================
 
 While libdbus was supposed to be usable with multithreaded code, in
-practice this has turned out to be
-[problematic](https://lists.freedesktop.org/archives/dbus/2018-March/017428.html).
+practice this has turned out to be problematic
+<https://lists.freedesktop.org/archives/dbus/2018-March/017428.html>.
 The whole point of Python’s asyncio framework is to avoid
 multithreading anyway.
 
-The `dbussy` module does use multithreading in a very limited way,
-in just one place: the `Connection.open_async()` call. It does this
+The dbussy module does use multithreading in a very limited way,
+in just one place: the Connection.open_async() call. It does this
 to give the effect of a nonblocking equivalent to a call for which
 libdbus only offers a blocking version.
 

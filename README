@@ -205,6 +205,21 @@ the first element is the signature of the actual type being passed,
 and the second is the value of that type.
 
 
+Multithreading Caveats
+======================
+
+While libdbus was supposed to be usable with multithreaded code, in
+practice this has turned out to be
+[problematic](https://lists.freedesktop.org/archives/dbus/2018-March/017428.html).
+The whole point of Python’s asyncio framework is to avoid
+multithreading anyway.
+
+The `dbussy` module does use multithreading in a very limited way,
+in just one place: the `Connection.open_async()` call. It does this
+to give the effect of a nonblocking equivalent to a call for which
+libdbus only offers a blocking version.
+
+
 Ravel: The Higher-Level Interface
 =================================
 
@@ -689,4 +704,4 @@ it.
 
 
 Lawrence D'Oliveiro <ldo@geek-central.gen.nz>
-2018 January 10
+2018 March 15

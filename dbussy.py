@@ -523,6 +523,77 @@ class DBUSX:
 #end DBUSX
 
 #+
+# Useful stuff
+#-
+
+def call_async(func, funcargs = (), timeout = None, abort = None, loop = None) :
+    "invokes func on a separate temporary thread and returns a Future that" \
+    " can be used to wait for its completion and obtain its result. If timeout" \
+    " is not None, then waiters on the Future will get a TimeoutError exception" \
+    " if the function has not completed execution after that number of seconds." \
+    " This allows easy invocation of blocking I/O functions in an asyncio-" \
+    "compatible fashion. But note that the operation cannot be cancelled" \
+    " if the timeout elapses; instead, you can specify an abort callback" \
+    " which will be invoked with whatever result is eventually returned from" \
+    " func."
+
+    if loop == None :
+        loop = asyncio.get_event_loop()
+    #end if
+
+    timeout_task = None
+
+    def func_done(ref_awaiting, result) :
+        awaiting = ref_awaiting()
+        if awaiting != None :
+            if not awaiting.done() :
+                awaiting.set_result(result)
+                if timeout_task != None :
+                    timeout_task.cancel()
+                #end if
+            else :
+                if abort != None :
+                    abort(result)
+                #end if
+            #end if
+        #end if
+    #end func_done
+
+    def do_func_timedout(ref_awaiting) :
+        awaiting = ref_awaiting()
+        if awaiting != None :
+            if not awaiting.done() :
+                awaiting.set_exception(TimeoutError())
+                # Python doesn’t give me any (easy) way to cancel the thread running the
+                # do_func() call, so just let it run to completion, whereupon func_done()
+                # will get rid of the result. Even if I could delete the thread, can I be sure
+                # that would clean up memory and OS/library resources properly?
+            #end if
+        #end if
+    #end do_func_timedout
+
+    def do_func(ref_awaiting) :
+        # makes the blocking call on a separate thread.
+        result = func(*funcargs)
+        # A Future is not itself threadsafe, but I can thread-safely
+        # run a callback on the main thread to set it.
+        loop.call_soon_threadsafe(func_done, ref_awaiting, result)
+    #end do_func
+
+#begin call_async
+    awaiting = loop.create_future()
+    ref_awaiting = weak_ref(awaiting)
+      # weak ref to avoid circular refs with loop
+    subthread = threading.Thread(target = do_func, args = (ref_awaiting,))
+    subthread.start()
+    if timeout != None :
+        timeout_task = loop.call_later(timeout, do_func_timedout, ref_awaiting)
+    #end if
+    return \
+        awaiting
+#end call_async
+
+#+
 # Higher-level interface to type system
 #-
 
@@ -1970,50 +2041,22 @@ class Connection :
         error, my_error = _get_error(error)
         if timeout == DBUS.TIMEOUT_USE_DEFAULT :
             timeout = DBUSX.DEFAULT_TIMEOUT
-        #end if
-        awaiting = loop.create_future()
-        timeout_task = None
-
-        async def do_open_done(result) :
-            if not awaiting.done() :
-                awaiting.set_result(result)
-                if timeout_task != None :
-                    timeout_task.cancel()
-                #end if
-            else :
-                # abandon the connection
-                dbus.dbus_connection_unref(result)
-            #end if
-        #end def do_open_done
-
-        def do_open_timedout() :
-            if not awaiting.done() :
-                awaiting.set_exception(DBusError(DBUS.ERROR_TIMEOUT, "connection did not open in time"))
-                # Python doesn’t give me any (easy) way to cancel the thread running the
-                # do_open() call, so just let it run to completion, whereupon do_open_done()
-                # will get rid of the result. Even if I could delete the thread, can I be sure
-                # that would clean up memory and the socket connection properly?
-            #end if
-        #end do_open_timedout
-
-        def do_open() :
-            result = (dbus.dbus_connection_open, dbus.dbus_connection_open_private)[private](address.encode(), error._dbobj)
-            # A Future is not itself threadsafe, but I can thread-safely
-            # create a coroutine on the main thread to set it.
-            asyncio.run_coroutine_threadsafe(do_open_done(result), loop)
-        #end do_open
-
-    #begin open_async
-        subthread = threading.Thread(target = do_open)
-        subthread.start()
-        if timeout != DBUS.TIMEOUT_INFINITE :
-            timeout_task = loop.call_later(timeout, do_open_timedout)
+        elif timeout == DBUS.TIMEOUT_INFINITE :
+            timeout = None
         #end if
         try :
-            result = await awaiting
-        except DBusError as failed :
+            result = await call_async \
+              (
+                func = (dbus.dbus_connection_open, dbus.dbus_connection_open_private)[private],
+                funcargs = (address.encode(), error._dbobj),
+                timeout = timeout,
+                abort = dbus.dbus_connection_unref,
+                loop = loop
+              )
+
+        except TimeoutError :
             result = None
-            error.set(failed.name, failed.message)
+            error.set(DBUS.ERROR_TIMEOUT, "connection did not open in time")
         #end try
         my_error.raise_if_set()
         if result != None :

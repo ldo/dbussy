@@ -971,7 +971,7 @@ dbus.dbus_connection_set_route_peer_messages.argtypes = (ct.c_void_p, DBUS.bool_
 dbus.dbus_connection_add_filter.restype = DBUS.bool_t
 dbus.dbus_connection_add_filter.argtypes = (ct.c_void_p, ct.c_void_p, ct.c_void_p, ct.c_void_p)
 dbus.dbus_connection_remove_filter.restype = None
-dbus.dbus_connection_add_filter.argtypes = (ct.c_void_p, ct.c_void_p, ct.c_void_p)
+dbus.dbus_connection_remove_filter.argtypes = (ct.c_void_p, ct.c_void_p, ct.c_void_p)
 
 dbus.dbus_connection_allocate_data_slot.restype = DBUS.bool_t
 dbus.dbus_connection_allocate_data_slot.argtypes = (ct.POINTER(ct.c_uint),)

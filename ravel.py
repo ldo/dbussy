@@ -273,7 +273,7 @@ class Connection :
             self.bus_names_acquired.add(bus_name)
             if self._bus_name_acquired_action != None :
                 result = self._bus_name_acquired_action(self, bus_name, self._bus_name_acquired_action_arg)
-                if isinstance(result, types.CoroutineType) :
+                if asyncio.iscoroutine(result) :
                     assert self.loop != None, "no event loop to attach coroutine to"
                     self.loop.create_task(result)
                 #end if
@@ -291,7 +291,7 @@ class Connection :
             self.bus_names_acquired.remove(bus_name)
             if self._bus_name_lost_action != None :
                 result = self._bus_name_lost_action(self, bus_name, self._bus_name_lost_action_arg)
-                if isinstance(result, types.CoroutineType) :
+                if asyncio.iscoroutine(result) :
                     assert self.loop != None, "no event loop to attach coroutine to"
                     self.loop.create_task(result)
                 #end if
@@ -842,7 +842,7 @@ class Connection :
                 #end for
                 propvalue = getter(**kwargs)
                   # could raise ErrorReturn
-                if isinstance(propvalue, types.CoroutineType) :
+                if asyncio.iscoroutine(propvalue) :
                     if self.loop == None :
                         raise TypeError \
                           (
@@ -2168,7 +2168,7 @@ def _message_interface_dispatch(connection, message, bus) :
                             #end if
                         #end if
                         result = func(*args, **kwargs)
-                        if isinstance(result, types.CoroutineType) :
+                        if asyncio.iscoroutine(result) :
                             async def await_result(coro) :
                                 # just to gobble any ErrorReturn
                                 try :
@@ -2327,7 +2327,7 @@ def _message_interface_dispatch(connection, message, bus) :
                             return_result_common(call_info, to_return_result)
                         #end if
                         result = DBUS.HANDLER_RESULT_HANDLED
-                    elif isinstance(result, types.CoroutineType) :
+                    elif asyncio.iscoroutine(result) :
                         assert bus.loop != None, "no event loop to attach coroutine to"
                         if is_method :
                             # wait for result
@@ -3618,7 +3618,7 @@ class PropertyHandler :
                 except ErrorReturn as err :
                     propvalue = err.as_error()
                 #end try
-                if isinstance(propvalue, types.CoroutineType) :
+                if asyncio.iscoroutine(propvalue) :
                     assert bus.loop != None, "no event loop to attach coroutine to"
                     async def await_return_value(task) :
                         propvalue = await task
@@ -3729,7 +3729,7 @@ class PropertyHandler :
                 except ErrorReturn as err :
                     setresult = err.as_error()
                 #end try
-                if isinstance(setresult, types.CoroutineType) :
+                if asyncio.iscoroutine(setresult) :
                     assert bus.loop != None, "no event loop to attach coroutine to"
                     async def wait_set_done() :
                         await setresult

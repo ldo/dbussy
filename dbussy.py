@@ -14,7 +14,6 @@ import os
 import builtins
 import operator
 import array
-import types
 import enum
 import ctypes as ct
 from weakref import \
@@ -1662,7 +1661,7 @@ class ObjectPathVTable :
             msg = Message(dbus.dbus_message_ref(c_message))
             user_data = conn._user_data.get(c_user_data)
             result = message(conn, msg, user_data)
-            if isinstance(result, types.CoroutineType) :
+            if asyncio.iscoroutine(result) :
                 assert self.loop != None, "no event loop to attach coroutine to"
                 self.loop.create_task(result)
                 result = DBUS.HANDLER_RESULT_HANDLED
@@ -2505,7 +2504,7 @@ class Connection :
 
         def wrap_function(c_conn, message, _data) :
             result = function(self, Message(dbus.dbus_message_ref(message)), user_data)
-            if isinstance(result, types.CoroutineType) :
+            if asyncio.iscoroutine(result) :
                 assert self.loop != None, "no event loop to attach coroutine to"
                 self.loop.create_task(result)
                 result = DBUS.HANDLER_RESULT_HANDLED
@@ -3235,7 +3234,7 @@ class Connection :
             if matches_rule(message, entry.rule) :
                 for action in entry.actions :
                     result = action.func(self, message, action.user_data)
-                    if isinstance(result, types.CoroutineType) :
+                    if asyncio.iscoroutine(result) :
                         assert self.loop != None, "no event loop to attach coroutine to"
                         self.loop.create_task(result)
                     #end if

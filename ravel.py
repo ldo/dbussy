@@ -592,10 +592,10 @@ class Connection :
         " specified path, interface and name."
         entry = self._get_dispatch_node(path, False)
         if entry != None :
-            listeners = entry.signal_listeners
+            signal_listeners = entry.signal_listeners
             rulekey = _signal_key(fallback, interface, name)
-            if rulekey in listeners :
-                listeners = listeners[rulekey]
+            if rulekey in signal_listeners :
+                listeners = signal_listeners[rulekey]
                 try :
                     listeners.pop(listeners.index(func))
                 except ValueError :
@@ -608,7 +608,7 @@ class Connection :
                         _signal_rule(path, fallback, interface, name),
                         ignore
                       )
-                    del listeners[rulekey]
+                    del signal_listeners[rulekey]
                       # as a note to myself that I will need to call bus_add_match
                       # if a new listener is added
                 #end if
@@ -2113,14 +2113,14 @@ def _message_interface_dispatch(connection, message, bus) :
             # not that it’s important
             dispatch_signal(level.children[path[0]], path[1:])
         #end if
-        listeners = level.signal_listeners
+        signal_listeners = level.signal_listeners
         name = message.member
         for fallback in (False, True) :
             # again, call more-specific (fallback = False) handlers first,
             # not that it’s important
             rulekey = _signal_key(fallback, interface_name, name)
-            if rulekey in listeners and (len(path) == 0 or fallback) :
-                funcs = listeners[rulekey]
+            if rulekey in signal_listeners and (len(path) == 0 or fallback) :
+                funcs = signal_listeners[rulekey]
                 for func in funcs :
                     try :
                         call_info = func._signal_info

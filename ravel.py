@@ -10,7 +10,6 @@ asyncio event loop.
 # Licensed under the GNU Lesser General Public License v2.1 or later.
 #-
 
-import types
 import enum
 from weakref import \
     ref as weak_ref, \
@@ -2662,8 +2661,8 @@ def method \
     #end if
 
     def decorate(func) :
-        if not isinstance(func, types.FunctionType) :
-            raise TypeError("only apply decorator to functions.")
+        if not callable(func) :
+            raise TypeError("only apply decorator to callables.")
         #end if
         if name != None :
             func_name = name
@@ -2741,8 +2740,8 @@ def signal \
     #end if
 
     def decorate(func) :
-        if not isinstance(func, types.FunctionType) :
-            raise TypeError("only apply decorator to functions.")
+        if not callable(func) :
+            raise TypeError("only apply decorator to callables.")
         #end if
         if name != None :
             func_name = name
@@ -2819,8 +2818,8 @@ def propgetter \
     " class that is to be the getter of the named property."
 
     def decorate(func) :
-        if not isinstance(func, types.FunctionType) :
-            raise TypeError("only apply decorator to functions.")
+        if not callable(func) :
+            raise TypeError("only apply decorator to callables.")
         #end if
         assert isinstance(name, str), "property name is mandatory"
         if (
@@ -2870,8 +2869,8 @@ def propsetter \
     " class that is to be the setter of the named property."
 
     def decorate(func) :
-        if not isinstance(func, types.FunctionType) :
-            raise TypeError("only apply decorator to functions.")
+        if not callable(func) :
+            raise TypeError("only apply decorator to callables.")
         #end if
         assert isinstance(name, str), "property name is mandatory"
         func._propsetter_info = \

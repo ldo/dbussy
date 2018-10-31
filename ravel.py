@@ -2605,7 +2605,6 @@ def method \
     " altogether, unless you want to receive signals from the server; instead, use" \
     " Connection.get_proxy_object() to send method calls to the server."
 
-    dbus.validate_member(name)
     in_signature = dbus.parse_signature(in_signature)
     out_signature = dbus.parse_signature(out_signature)
     for cond, msg in \
@@ -2669,6 +2668,7 @@ def method \
         else :
             func_name = func.__name__
         #end if
+        dbus.validate_member(func_name)
         func._method_info = \
             {
                 "name" : func_name,
@@ -2724,7 +2724,6 @@ def signal \
     "On the server side, the actual function need only be a dummy, since it is just" \
     " a placeholder for storing the information used by Connection.send_signal()."
 
-    dbus.validate_member(name)
     in_signature = dbus.parse_signature(in_signature)
     if arg_attrs != None and args_keyword == None :
         raise ValueError("need args_keyword with arg_attrs")
@@ -2748,6 +2747,7 @@ def signal \
         else :
             func_name = func.__name__
         #end if
+        dbus.validate_member(func_name)
         func._signal_info = \
             {
                 "name" : func_name,

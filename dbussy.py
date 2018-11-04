@@ -4761,7 +4761,8 @@ class PendingCall :
 
     def set_notify(self, function, user_data, free_user_data = None) :
         "sets the callback for libdbus to notify you that the pending message" \
-        " has become available."
+        " has become available. Note: it appears to be possible for your notifier" \
+        " to be called spuriously before the message is actually available."
 
         def _wrap_notify(c_pending, c_user_data) :
             function(self, user_data)
@@ -4806,8 +4807,8 @@ class PendingCall :
     #end completed
 
     def steal_reply(self) :
-        "retrieves the Message if it has become available, or None if it is" \
-        " still pending."
+        "retrieves the Message, assuming it is actually available." \
+        " You should check PendingCall.completed returns True first."
         result = dbus.dbus_pending_call_steal_reply(self._dbobj)
         if result != None :
             result = Message(result)
@@ -4829,7 +4830,9 @@ class PendingCall :
         self._awaiting = done
 
         def pending_done(pending, _) :
-            done.set_result(self.steal_reply())
+            if self.completed : # seems to be possible for this to be triggered spuriously
+                done.set_result(self.steal_reply())
+            #end if
         #end pending_done
 
         self.set_notify(pending_done, None)

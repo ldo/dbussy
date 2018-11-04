@@ -551,8 +551,8 @@ class Connection :
                         interfaces = set(level.interfaces.keys())
                     #end if
                     for iface_name in interfaces :
-                        self._remove_matches(level.interface[iface_name])
-                        del level.interface[iface_name]
+                        self._remove_matches(level.interfaces[iface_name])
+                        del level.interfaces[iface_name]
                     #end for
                     break
                 #end if

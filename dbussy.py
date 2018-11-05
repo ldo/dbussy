@@ -1419,6 +1419,47 @@ class _Abort(Exception) :
     pass
 #end _Abort
 
+class TaskKeeper :
+    "Base class for classes that need to call EventLoop.create_task() to" \
+    " schedule caller-created coroutines for execution. asyncio only keeps" \
+    " weak references to Task objects when they are not being scheduled," \
+    " so to keep them from disappearing unexpectedly, I maintain a list of" \
+    " strong references here, and periodically clean them out as they end" \
+    " execution."
+
+    __slots__ = ("loop", "_cur_tasks")
+
+    def _init(self) :
+        # avoid __init__ so I don't get passed spurious args
+        self.loop = None
+        self._cur_tasks = []
+    #end _init
+
+    def create_task(self, coro) :
+        assert self.loop != None, "no event loop to attach coroutine to"
+        task = self.loop.create_task(coro)
+        if len(self._cur_tasks) == 0 :
+            self.loop.call_soon(self._reaper)
+        #end if
+        self._cur_tasks.append(task)
+    #end create_task
+
+    def _reaper(self) :
+        old_tasks = self._cur_tasks[:]
+        new_tasks = self._cur_tasks
+        new_tasks[:] = []
+        for task in old_tasks :
+            if not task.done() :
+                new_tasks.append(task)
+            #end if
+        #end for
+        if len(new_tasks) != 0 :
+            self.loop.call_soon(self._reaper)
+        #end if
+    #end _reaper
+
+#end TaskKeeper
+
 # Misc: <https://dbus.freedesktop.org/doc/api/html/group__DBusMisc.html>
 
 def get_local_machine_id() :
@@ -1592,7 +1633,7 @@ class Timeout :
 
 #end Timeout
 
-class ObjectPathVTable :
+class ObjectPathVTable(TaskKeeper) :
     "wrapper around an ObjectPathVTable struct. You can instantiate directly, or call" \
     " the init method. An additional feature beyond the underlying libdbus capabilities" \
     " is the option to specify an asyncio event loop. If the message handler returns" \
@@ -1604,7 +1645,6 @@ class ObjectPathVTable :
     __slots__ = \
       (
         "_dbobj",
-        "loop",
         # need to keep references to ctypes-wrapped functions
         # so they don't disappear prematurely:
         "_wrap_unregister_func",
@@ -1612,6 +1652,8 @@ class ObjectPathVTable :
       ) # to forestall typos
 
     def __init__(self, *, loop = None, unregister = None, message = None) :
+        super().__init__()
+        super()._init(self)
         self._dbobj = DBUS.ObjectPathVTable()
         self.loop = loop
         self._wrap_unregister_func = None
@@ -1662,8 +1704,7 @@ class ObjectPathVTable :
             user_data = conn._user_data.get(c_user_data)
             result = message(conn, msg, user_data)
             if asyncio.iscoroutine(result) :
-                assert self.loop != None, "no event loop to attach coroutine to"
-                self.loop.create_task(result)
+                self.create_task(result)
                 result = DBUS.HANDLER_RESULT_HANDLED
             #end if
             return \
@@ -1946,7 +1987,7 @@ class STOP_ON(enum.Enum) :
     CLOSED = 2
 #end STOP_ON
 
-class Connection :
+class Connection(TaskKeeper) :
     "wrapper around a DBusConnection object. Do not instantiate directly; use the open" \
     " or bus_get methods."
     # <https://dbus.freedesktop.org/doc/api/html/group__DBusConnection.html>
@@ -1960,7 +2001,6 @@ class Connection :
         "_receive_queue",
         "_receive_queue_enabled",
         "_awaiting_receive",
-        "loop",
         "_user_data",
         # need to keep references to ctypes-wrapped functions
         # so they don't disappear prematurely:
@@ -1988,6 +2028,7 @@ class Connection :
         self = celf._instances.get(_dbobj)
         if self == None :
             self = super().__new__(celf)
+            super()._init(self)
             self._dbobj = _dbobj
             self._user_data = {}
             self._filters = {}
@@ -2008,6 +2049,9 @@ class Connection :
 
     def __del__(self) :
         if self._dbobj != None :
+            # Any entries still in super(TaskKeeper, self)._cur_tasks will be lost
+            # at this point. I leave it to asyncio to report them as destroyed
+            # while still pending, and the caller to notice this as a program bug.
             dbus.dbus_connection_unref(self._dbobj)
             self._dbobj = None
         #end if
@@ -2505,8 +2549,7 @@ class Connection :
         def wrap_function(c_conn, message, _data) :
             result = function(self, Message(dbus.dbus_message_ref(message)), user_data)
             if asyncio.iscoroutine(result) :
-                assert self.loop != None, "no event loop to attach coroutine to"
-                self.loop.create_task(result)
+                self.create_task(result)
                 result = DBUS.HANDLER_RESULT_HANDLED
             #end if
             return \
@@ -3235,8 +3278,7 @@ class Connection :
                 for action in entry.actions :
                     result = action.func(self, message, action.user_data)
                     if asyncio.iscoroutine(result) :
-                        assert self.loop != None, "no event loop to attach coroutine to"
-                        self.loop.create_task(result)
+                        self.create_task(result)
                     #end if
                 #end for
                 handled = True # passed to at least one handler

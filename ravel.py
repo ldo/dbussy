@@ -144,7 +144,7 @@ class _UserData :
 
 #end _UserData
 
-class Connection :
+class Connection(dbus.TaskKeeper) :
     "higher-level wrapper around dbussy.Connection. Do not instantiate directly: use" \
     " the session_bus() and system_bus() calls in this module, or obtain from accepting" \
     " connections on a Server().\n" \
@@ -158,7 +158,6 @@ class Connection :
         (
             "__weakref__",
             "connection",
-            "loop",
             "notify_delay",
             "user_data",
             "bus_names_acquired",
@@ -185,6 +184,7 @@ class Connection :
         self = celf._instances.get(connection)
         if self == None :
             self = super().__new__(celf)
+            super()._init(self)
             self.connection = connection
             self.loop = connection.loop
             self.notify_delay = 0
@@ -273,8 +273,7 @@ class Connection :
             if self._bus_name_acquired_action != None :
                 result = self._bus_name_acquired_action(self, bus_name, self._bus_name_acquired_action_arg)
                 if asyncio.iscoroutine(result) :
-                    assert self.loop != None, "no event loop to attach coroutine to"
-                    self.loop.create_task(result)
+                    self.create_task(result)
                 #end if
             #end if
         #end if
@@ -291,8 +290,7 @@ class Connection :
             if self._bus_name_lost_action != None :
                 result = self._bus_name_lost_action(self, bus_name, self._bus_name_lost_action_arg)
                 if asyncio.iscoroutine(result) :
-                    assert self.loop != None, "no event loop to attach coroutine to"
-                    self.loop.create_task(result)
+                    self.create_task(result)
                 #end if
             #end if
         #end if
@@ -1167,7 +1165,7 @@ class Connection :
         #end if
         if self.loop != None :
             if len(to_await) != 0 :
-                self.loop.create_task(await_propvalues())
+                self.create_task(await_propvalues())
             else :
                 queue_notify(False)
             #end if
@@ -2176,7 +2174,7 @@ def _message_interface_dispatch(connection, message, bus) :
                                     pass
                                 #end try
                             #end await_result
-                            bus.loop.create_task(await_result(result))
+                            bus.create_task(await_result(result))
                         elif result != None :
                             raise ValueError \
                               (
@@ -2342,9 +2340,9 @@ def _message_interface_dispatch(connection, message, bus) :
                                 #end if
                                 return_result_common(call_info, result)
                             #end await_result
-                            bus.loop.create_task(await_result(result))
+                            bus.create_task(await_result(result))
                         else :
-                            bus.loop.create_task(result)
+                            bus.create_task(result)
                         #end if
                         result = DBUS.HANDLER_RESULT_HANDLED
                     elif isinstance(result, bool) :
@@ -3306,7 +3304,7 @@ def def_proxy_interface(kind, *, name, introspected, is_async) :
                     #end if
                 #end sendit
 
-                self._conn.loop.create_task(sendit())
+                self._conn.create_task(sendit())
             #end set_prop
 
         else :
@@ -3629,7 +3627,7 @@ class PropertyHandler :
                             args = [(propentry["type"], propvalue)]
                           )
                     #end await_return_value
-                    bus.loop.create_task(await_return_value(propvalue))
+                    bus.create_task(await_return_value(propvalue))
                     reply = None
                 elif isinstance(propvalue, dbus.Error) :
                     assert propvalue.is_set, "unset Error object returned from propgetter"
@@ -3736,7 +3734,7 @@ class PropertyHandler :
                         bus.connection.send(reply)
                         notify_changed()
                     #end wait_set_done
-                    bus.loop.create_task(wait_set_done())
+                    bus.create_task(wait_set_done())
                     reply = None # for now
                 elif isinstance(setresult, dbus.Error) :
                     assert setresult.is_set, "unset Error object returned"
@@ -3815,7 +3813,7 @@ class PropertyHandler :
             properror = err.as_error()
         #end try
         if len(to_await) != 0 :
-            bus.loop.create_task(await_propvalues())
+            bus.create_task(await_propvalues())
         else :
             return_result()
         #end if

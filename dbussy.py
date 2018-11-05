@@ -1439,12 +1439,14 @@ class TaskKeeper :
         assert self.loop != None, "no event loop to attach coroutine to"
         task = self.loop.create_task(coro)
         if len(self._cur_tasks) == 0 :
-            self.loop.call_soon(self._reaper)
+            self.loop.call_soon(self._reaper, weak_ref(self))
         #end if
         self._cur_tasks.append(task)
     #end create_task
 
+    @staticmethod
     def _reaper(self) :
+        self = self() # avoid reference circularity
         old_tasks = self._cur_tasks[:]
         new_tasks = self._cur_tasks
         new_tasks[:] = []
@@ -1454,7 +1456,7 @@ class TaskKeeper :
             #end if
         #end for
         if len(new_tasks) != 0 :
-            self.loop.call_soon(self._reaper)
+            self.loop.call_soon(self._reaper, weak_ref(self))
         #end if
     #end _reaper
 

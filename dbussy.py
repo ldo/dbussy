@@ -1655,7 +1655,7 @@ class ObjectPathVTable(TaskKeeper) :
 
     def __init__(self, *, loop = None, unregister = None, message = None) :
         super().__init__()
-        super()._init(self)
+        super()._init()
         self._dbobj = DBUS.ObjectPathVTable()
         self.loop = loop
         self._wrap_unregister_func = None

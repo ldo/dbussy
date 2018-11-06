@@ -1427,7 +1427,7 @@ class TaskKeeper :
     " strong references here, and periodically clean them out as they end" \
     " execution."
 
-    __slots__ = ("loop", "_cur_tasks")
+    __slots__ = ("__weakref__", "loop", "_cur_tasks")
 
     def _init(self) :
         # avoid __init__ so I don't get passed spurious args
@@ -1996,7 +1996,6 @@ class Connection(TaskKeeper) :
 
     __slots__ = \
       (
-        "__weakref__",
         "_dbobj",
         "_filters",
         "_match_actions",

@@ -156,7 +156,6 @@ class Connection(dbus.TaskKeeper) :
 
     __slots__ = \
         (
-            "__weakref__",
             "connection",
             "notify_delay",
             "user_data",

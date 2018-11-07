@@ -3433,7 +3433,7 @@ class _MsgAiter :
 
 #end _MsgAiter
 
-class Server :
+class Server(TaskKeeper) :
     "wrapper around a DBusServer object. Do not instantiate directly; use" \
     " the listen method.\n" \
     "\n" \
@@ -3443,11 +3443,12 @@ class Server :
     " use Connection.open() to connect to you on that address."
     # <https://dbus.freedesktop.org/doc/api/html/group__DBusServer.html>
 
+    # Doesn’t really need services of TaskKeeper for now, but might be
+    # useful in future
+
     __slots__ = \
       (
-        "__weakref__",
         "_dbobj",
-        "loop",
         "_new_connections",
         "_await_new_connections",
         "max_new_connections",
@@ -3472,8 +3473,8 @@ class Server :
         self = celf._instances.get(_dbobj)
         if self == None :
             self = super().__new__(celf)
+            super()._init(self)
             self._dbobj = _dbobj
-            self.loop = None
             self._new_connections = None
             self._await_new_connections = None
             self.max_new_connections = None

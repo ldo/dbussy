@@ -2037,7 +2037,6 @@ class Connection(TaskKeeper) :
             self._receive_queue = None
             self._receive_queue_enabled = set()
             self._awaiting_receive = []
-            self.loop = None
             self._object_paths = {}
             celf._instances[_dbobj] = self
         else :

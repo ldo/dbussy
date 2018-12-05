@@ -3228,7 +3228,7 @@ class Connection(TaskKeeper) :
             iface = DBUS.INTERFACE_DBUS,
             method = "AddMatch"
           )
-        message.append_objects("s", rule)
+        message.append_objects("s", format_rule(rule))
         reply = await self.send_await_reply(message, timeout = timeout)
         if error != None and reply.type == DBUS.MESSAGE_TYPE_ERROR :
             reply.set_error(error)
@@ -3255,7 +3255,7 @@ class Connection(TaskKeeper) :
             iface = DBUS.INTERFACE_DBUS,
             method = "RemoveMatch"
           )
-        message.append_objects("s", rule)
+        message.append_objects("s", format_rule(rule))
         reply = await self.send_await_reply(message, timeout = timeout)
         if error != None and reply.type == DBUS.MESSAGE_TYPE_ERROR :
             reply.set_error(error)

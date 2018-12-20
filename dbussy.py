@@ -4874,7 +4874,8 @@ class PendingCall :
 
         def pending_done(pending, wself) :
             self = wself()
-            if self != None and self.completed : # seems to be possible for this to be triggered spuriously
+            # Note it seems to be possible for callback to be triggered spuriously
+            if self != None and self.completed :
                 done.set_result(self.steal_reply())
             #end if
         #end pending_done

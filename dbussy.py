@@ -4872,13 +4872,15 @@ class PendingCall :
         done = self._conn.loop.create_future()
         self._awaiting = done
 
-        def pending_done(pending, _) :
-            if self.completed : # seems to be possible for this to be triggered spuriously
+        def pending_done(pending, wself) :
+            self = wself()
+            if self != None and self.completed : # seems to be possible for this to be triggered spuriously
                 done.set_result(self.steal_reply())
             #end if
         #end pending_done
 
-        self.set_notify(pending_done, None)
+        self.set_notify(pending_done, weak_ref(self))
+          # avoid reference circularity self → pending_done → self
         reply = await done
         return \
             reply

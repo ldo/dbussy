@@ -4873,10 +4873,12 @@ class PendingCall :
         self._awaiting = done
 
         def pending_done(pending, wself) :
-            self = wself()
-            # Note it seems to be possible for callback to be triggered spuriously
-            if self != None and self.completed :
-                done.set_result(self.steal_reply())
+            if not done.done() : # just in case of self.cancel() being called
+                self = wself()
+                # Note it seems to be possible for callback to be triggered spuriously
+                if self != None and self.completed :
+                    done.set_result(self.steal_reply())
+                #end if
             #end if
         #end pending_done
 

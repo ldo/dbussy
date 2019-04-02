@@ -4844,7 +4844,7 @@ class PendingCall :
 
     @property
     def completed(self) :
-        "checks where the pending message is available."
+        "checks whether the pending message is available."
         return \
             dbus.dbus_pending_call_get_completed(self._dbobj) != 0
     #end completed

@@ -2368,6 +2368,7 @@ def _message_interface_dispatch(connection, message, bus) :
             #end if
         #end if
     #end if
+    del message # circularity somewhere!?
     return \
          result
 #end _message_interface_dispatch

@@ -2254,20 +2254,18 @@ def _message_interface_dispatch(connection, message, bus) :
                               )
                         #end try
                         kwargs = {}
-                        argtable = \
+                        for keyword_keyword, value in \
                             (
                                 ("connection_keyword", lambda : connection),
                                 ("message_keyword", lambda : message),
                                 ("path_keyword", lambda : message.path),
                                 ("bus_keyword", lambda : bus),
-                            )
-                            # assign to a variable I can delete (below) to avoid circular refs
-                        for keyword_keyword, value in argtable :
+                            ) \
+                        :
                             if call_info[keyword_keyword] != None :
                                 kwargs[call_info[keyword_keyword]] = value()
                             #end if
                         #end for
-                        del argtable
                         if call_info["args_keyword"] != None :
                             if call_info["arg_keys"] != None :
                                 args = dict \
@@ -2316,8 +2314,6 @@ def _message_interface_dispatch(connection, message, bus) :
                             #end if
                         #end if
                         result = method(iface, *args, **kwargs)
-                        del args, kwargs
-                          # avoid circular refs
                     except ErrorReturn as err :
                         result = err.as_error()
                     #end try

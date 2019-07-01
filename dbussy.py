@@ -2557,7 +2557,7 @@ class Connection(TaskKeeper) :
         #end wrap_function
 
         def wrap_free_data(_data) :
-            free_data(data)
+            free_data(user_data)
         #end wrap_free_data
 
     #begin add_filter

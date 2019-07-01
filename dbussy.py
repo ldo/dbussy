@@ -1465,7 +1465,7 @@ class TaskKeeper :
 # Misc: <https://dbus.freedesktop.org/doc/api/html/group__DBusMisc.html>
 
 def get_local_machine_id() :
-    "Returns a systemwide unique ID that is supposed to remain constant at least" \
+    "returns a systemwide unique ID that is supposed to remain constant at least" \
     " until the next reboot. Two processes seeing the same value for this can assume" \
     " they are on the same machine."
     c_result = dbus.dbus_get_local_machine_id()
@@ -3520,7 +3520,7 @@ class Server(TaskKeeper) :
     def _flush_awaiting_connect(self) :
         if self._await_new_connections != None :
             while len(self._await_new_connections) != 0 :
-                waiting = self._await_new_connections(0)
+                waiting = self._await_new_connections.pop(0)
                 waiting.set_exception(BrokenPipeError("async listens have been disabled"))
             #end while
         #end if

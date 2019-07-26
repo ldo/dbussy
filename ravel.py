@@ -130,11 +130,19 @@ class _DispatchNode :
 
 class _UserData :
 
-    __slots__ = ("conn",)
+    __slots__ = ("_w_conn",)
 
     def __init__(self, conn) :
-        self.conn = conn
+        self._w_conn = weak_ref(conn)
     #end __init__
+
+    @property
+    def conn(self) :
+        result = self._w_conn()
+        assert result != None
+        return \
+            result
+    #end conn
 
     def __getitem__(self, path) :
         node = self.conn._get_dispatch_node(path, True)
@@ -262,9 +270,11 @@ class Connection(dbus.TaskKeeper) :
     #end attach_asyncio
 
     @staticmethod
-    def _bus_name_acquired(conn, msg, self) :
+    def _bus_name_acquired(conn, msg, w_self) :
         # internal callback which keeps track of bus names and dispatches
         # to user-specified action.
+        self = w_self()
+        assert self != None
         bus_name = msg.expect_objects("s")[0]
         self.bus_names_pending.discard(bus_name)
         if bus_name not in self.bus_names_acquired :
@@ -279,9 +289,11 @@ class Connection(dbus.TaskKeeper) :
     #end _bus_name_acquired
 
     @staticmethod
-    def _bus_name_lost(conn, msg, self) :
+    def _bus_name_lost(conn, msg, w_self) :
         # internal callback which keeps track of bus names and dispatches
         # to user-specified action.
+        self = w_self()
+        assert self != None
         bus_name = msg.expect_objects("s")[0]
         self.bus_names_pending.discard(bus_name)
         if bus_name in self.bus_names_acquired :
@@ -324,13 +336,13 @@ class Connection(dbus.TaskKeeper) :
               (
                 rule = "type=signal,interface=org.freedesktop.DBus,member=NameAcquired",
                 func = self._bus_name_acquired,
-                user_data = self
+                user_data = weak_ref(self)
               )
             self.connection.bus_add_match_action \
               (
                 rule = "type=signal,interface=org.freedesktop.DBus,member=NameLost",
                 func = self._bus_name_lost,
-                user_data = self
+                user_data = weak_ref(self)
               )
             self._registered_bus_names_listeners = True
         #end if
@@ -347,13 +359,13 @@ class Connection(dbus.TaskKeeper) :
               (
                 rule = "type=signal,interface=org.freedesktop.DBus,member=NameAcquired",
                 func = self._bus_name_acquired,
-                user_data = self
+                user_data = weak_ref(self)
               )
             await self.connection.bus_add_match_action_async \
               (
                 rule = "type=signal,interface=org.freedesktop.DBus,member=NameLost",
                 func = self._bus_name_lost,
-                user_data = self
+                user_data = weak_ref(self)
               )
         #end if
         is_acquired = bus_name in self.bus_names_acquired

@@ -2546,8 +2546,13 @@ class Connection(TaskKeeper) :
         " before they get to the dispatch system. The same function can be added" \
         " multiple times as long as the user_data is different."
 
-        def wrap_function(c_conn, message, _data) :
-            result = function(self, Message(dbus.dbus_message_ref(message)), user_data)
+        w_self = weak_ref(self)
+
+        def wrap_function(c_conn, c_message, _data) :
+            self = w_self()
+            assert self != None, "connection has gone away"
+            message = Message(dbus.dbus_message_ref(c_message))
+            result = function(self, message, user_data)
             if asyncio.iscoroutine(result) :
                 self.create_task(result)
                 result = DBUS.HANDLER_RESULT_HANDLED

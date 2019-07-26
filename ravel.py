@@ -493,7 +493,7 @@ class Connection(dbus.TaskKeeper) :
         #end if
         if self._dispatch == None :
             self._dispatch = _DispatchNode(self)
-            self.connection.add_filter(_message_interface_dispatch, self)
+            self.connection.add_filter(_message_interface_dispatch, weak_ref(self))
         #end if
         level = self._dispatch
         for component in dbus.split_path(path) :
@@ -2097,9 +2097,12 @@ def _send_method_return(connection, message, sig, args) :
     connection.send(reply)
 #end _send_method_return
 
-def _message_interface_dispatch(connection, message, bus) :
+def _message_interface_dispatch(connection, message, w_bus) :
     # installed as message filter on a connection to handle dispatch
     # to registered @interface() classes.
+
+    bus = w_bus()
+    assert bus != None, "parent Connection has gone"
 
     def dispatch_signal(level, path) :
         # Note I ignore handled/not handled status and pass the signal

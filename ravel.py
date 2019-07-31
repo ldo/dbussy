@@ -2116,16 +2116,13 @@ def _message_interface_dispatch(connection, message, w_bus) :
     bus = w_bus()
     assert bus != None, "parent Connection has gone"
 
-    def dispatch_signal(bus, connection, message, level, path) :
-        # Note I have to pass bus, connection and message as explicit args,
-        # rather than implicit uplevel references, to avoid reference
-        # circularities (even if this function is not called!)
-        # Further note I ignore handled/not handled status and pass the signal
+    def dispatch_signal(level, path) :
+        # Note I ignore handled/not handled status and pass the signal
         # to all registered handlers.
         if len(path) != 0 and path[0] in level.children :
             # call lower-level (more-specific) signal handlers first,
             # not that it’s important
-            dispatch_signal(bus, connection, message, level.children[path[0]], path[1:])
+            dispatch_signal(level.children[path[0]], path[1:])
         #end if
         signal_listeners = level.signal_listeners
         name = message.member
@@ -2246,7 +2243,7 @@ def _message_interface_dispatch(connection, message, w_bus) :
         is_method = message.type == DBUS.MESSAGE_TYPE_METHOD_CALL
         interface_name = message.interface
         if not is_method :
-            dispatch_signal(bus, connection, message, bus._dispatch, dbus.split_path(message.path))
+            dispatch_signal(bus._dispatch, dbus.split_path(message.path))
         #end if
         iface = bus.get_dispatch_interface(message.path, interface_name)
         if iface != None :
@@ -2386,6 +2383,7 @@ def _message_interface_dispatch(connection, message, w_bus) :
             #end if
         #end if
     #end if
+    dispatch_signal = None # remove reference circularity
     return \
          result
 #end _message_interface_dispatch

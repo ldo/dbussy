@@ -236,7 +236,7 @@ class Connection(dbus.TaskKeeper) :
             for node, child in level.children.items() :
                 remove_listeners(child, path + [node])
             #end for
-            for interface in level.interfaces :
+            for interface in level.interfaces.values() :
                 for rulestr in interface.listening :
                     ignore = dbus.Error.init()
                     self.connection.bus_remove_match(rulestr, ignore)

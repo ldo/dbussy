@@ -2096,7 +2096,6 @@ class Connection(TaskKeeper) :
                 abort = dbus.dbus_connection_unref,
                 loop = loop
               )
-
         except TimeoutError :
             result = None
             error.set(DBUS.ERROR_TIMEOUT, "connection did not open in time")
@@ -3394,8 +3393,20 @@ class Connection(TaskKeeper) :
         "attaches this Connection object to an asyncio event loop. If none is" \
         " specified, the default event loop (as returned from asyncio.get_event_loop()" \
         " is used."
+
+        w_self = weak_ref(self)
+          # to avoid a reference cycle
+
+        def dispatch() :
+            self = w_self()
+            assert self != None, "connection has gone away"
+            return \
+                self.dispatch()
+        #end dispatch
+
+    #begin attach_asyncio
         assert self.loop == None, "already attached to an event loop"
-        _loop_attach(self, loop, self.dispatch)
+        _loop_attach(self, loop, dispatch)
     #end attach_asyncio
 
 #end Connection
@@ -3843,7 +3854,7 @@ class PreallocatedSend :
     " get from Connection.preallocate_send method."
     # <https://dbus.freedesktop.org/doc/api/html/group__DBusConnection.html>
 
-    __slots__ = ("__weakref__", "_dbobj", "_parent", "_sent") # to forestall typos
+    __slots__ = ("__weakref__", "_dbobj", "_w_parent", "_sent") # to forestall typos
 
     _instances = WeakValueDictionary()
 
@@ -3852,11 +3863,11 @@ class PreallocatedSend :
         if self == None :
             self = super().__new__(celf)
             self._dbobj = _dbobj
-            self._parent = _parent
+            self._w_parent = weak_ref(_parent)
             self._sent = False
             celf._instances[_dbobj] = self
         else :
-            assert self._parent == _parent
+            assert self._w_parent() == _parent
         #end if
         return \
             self
@@ -3864,8 +3875,9 @@ class PreallocatedSend :
 
     def __del__(self) :
         if self._dbobj != None :
-            if not self._sent :
-                dbus.dbus_connection_free_preallocated_send(self._parent._dbobj, self._dbobj)
+            parent = self._w_parent()
+            if parent != None and not self._sent :
+                dbus.dbus_connection_free_preallocated_send(parent._dbobj, self._dbobj)
             #end if
             self._dbobj = None
         #end if
@@ -3877,8 +3889,10 @@ class PreallocatedSend :
             raise TypeError("message must be a Message")
         #end if
         assert not self._sent, "preallocated has already been sent"
+        parent = self._w_parent()
+        assert parent != None, "parent Connection has gone away"
         serial = ct.c_uint()
-        dbus.dbus_connection_send_preallocated(self._parent._dbobj, self._dbobj, message._dbobj, ct.byref(serial))
+        dbus.dbus_connection_send_preallocated(parent._dbobj, self._dbobj, message._dbobj, ct.byref(serial))
         self._sent = True
         return \
             serial.value
@@ -4774,7 +4788,7 @@ class PendingCall :
       (
         "__weakref__",
         "_dbobj",
-        "_conn",
+        "_w_conn",
         "_wrap_notify",
         "_wrap_free",
         "_awaiting",
@@ -4787,7 +4801,7 @@ class PendingCall :
         if self == None :
             self = super().__new__(celf)
             self._dbobj = _dbobj
-            self._conn = _conn
+            self._w_conn = weak_ref(_conn)
             self._wrap_notify = None
             self._wrap_free = None
             self._awaiting = None
@@ -4870,11 +4884,13 @@ class PendingCall :
         " coroutine (letting the event loop do other things) until it becomes" \
         " available. On a timeout, libdbus will construct and return an error" \
         " return message."
-        assert self._conn.loop != None, "no event loop on parent Connection to attach coroutine to"
+        conn = self._w_conn()
+        assert conn != None, "parent Connection has gone away"
+        assert conn.loop != None, "no event loop on parent Connection to attach coroutine to"
         if self._wrap_notify != None or self._awaiting != None :
             raise asyncio.InvalidStateError("there is already a notify set on this PendingCall")
         #end if
-        done = self._conn.loop.create_future()
+        done = conn.loop.create_future()
         self._awaiting = done
 
         def pending_done(pending, wself) :

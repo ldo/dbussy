@@ -1941,6 +1941,35 @@ def _loop_attach(self, loop, dispatch) :
     self = None # avoid circularity
 #end _loop_attach
 
+def _loop_detach(self) :
+    # detaches a Server or Connection object from any event loop
+    # that was attached by _loop_attach.
+    if self.loop != None :
+        if False :
+            # trying to call these at __del__ time leads to segfaults
+            self.set_watch_functions \
+              (
+                add_function = None,
+                remove_function = None,
+                toggled_function = None,
+                data = None
+              )
+            self.set_timeout_functions \
+              (
+                add_function = None,
+                remove_function = None,
+                toggled_function = None,
+                data = None
+              )
+        else :
+            # remove via direct low-level libdbus calls
+            dbus.dbus_connection_set_watch_functions(self._dbobj, None, None, None, None, None)
+            dbus.dbus_connection_set_timeout_functions(self._dbobj, None, None, None, None, None)
+        #end if
+        self.loop = None
+    #end if
+#end _loop_detach
+
 class _MatchActionEntry :
     __slots__ = ("rule", "actions")
 
@@ -2049,6 +2078,7 @@ class Connection(TaskKeeper) :
 
     def __del__(self) :
         if self._dbobj != None :
+            _loop_detach(self)
             # Any entries still in super(TaskKeeper, self)._cur_tasks will be lost
             # at this point. I leave it to asyncio to report them as destroyed
             # while still pending, and the caller to notice this as a program bug.
@@ -2345,8 +2375,16 @@ class Connection(TaskKeeper) :
         #end wrap_free_data
 
     #begin set_watch_functions
-        self._add_watch_function = DBUS.AddWatchFunction(wrap_add_function)
-        self._remove_watch_function = DBUS.RemoveWatchFunction(wrap_remove_function)
+        if add_function != None :
+            self._add_watch_function = DBUS.AddWatchFunction(wrap_add_function)
+        else :
+            self._add_watch_function = None
+        #end if
+        if remove_function != None :
+            self._remove_watch_function = DBUS.RemoveWatchFunction(wrap_remove_function)
+        else :
+            self._remove_watch_function = None
+        #end if
         if toggled_function != None :
             self._toggled_watch_function = DBUS.WatchToggledFunction(wrap_toggled_function)
         else :
@@ -2386,8 +2424,16 @@ class Connection(TaskKeeper) :
         #end wrap_free_data
 
     #begin set_timeout_functions
-        self._add_timeout_function = DBUS.AddTimeoutFunction(wrap_add_function)
-        self._remove_timeout_function = DBUS.RemoveTimeoutFunction(wrap_remove_function)
+        if add_function != None :
+            self._add_timeout_function = DBUS.AddTimeoutFunction(wrap_add_function)
+        else :
+            self._add_timeout_function = None
+        #end if
+        if remove_function != None :
+            self._remove_timeout_function = DBUS.RemoveTimeoutFunction(wrap_remove_function)
+        else :
+            self._remove_timeout_function = None
+        #end if
         if toggled_function != None :
             self._toggled_timeout_function = DBUS.TimeoutToggledFunction(wrap_toggled_function)
         else :
@@ -3516,6 +3562,7 @@ class Server(TaskKeeper) :
 
     def __del__(self) :
         if self._dbobj != None :
+            _loop_detach(self)
             dbus.dbus_server_unref(self._dbobj)
             self._dbobj = None
         #end if

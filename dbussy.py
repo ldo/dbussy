@@ -1945,27 +1945,9 @@ def _loop_detach(self) :
     # detaches a Server or Connection object from any event loop
     # that was attached by _loop_attach.
     if self.loop != None :
-        if False :
-            # trying to call these at __del__ time leads to segfaults
-            self.set_watch_functions \
-              (
-                add_function = None,
-                remove_function = None,
-                toggled_function = None,
-                data = None
-              )
-            self.set_timeout_functions \
-              (
-                add_function = None,
-                remove_function = None,
-                toggled_function = None,
-                data = None
-              )
-        else :
-            # remove via direct low-level libdbus calls
-            dbus.dbus_connection_set_watch_functions(self._dbobj, None, None, None, None, None)
-            dbus.dbus_connection_set_timeout_functions(self._dbobj, None, None, None, None, None)
-        #end if
+        # remove via direct low-level libdbus calls
+        dbus.dbus_connection_set_watch_functions(self._dbobj, None, None, None, None, None)
+        dbus.dbus_connection_set_timeout_functions(self._dbobj, None, None, None, None, None)
         self.loop = None
     #end if
 #end _loop_detach
@@ -2375,16 +2357,8 @@ class Connection(TaskKeeper) :
         #end wrap_free_data
 
     #begin set_watch_functions
-        if add_function != None :
-            self._add_watch_function = DBUS.AddWatchFunction(wrap_add_function)
-        else :
-            self._add_watch_function = None
-        #end if
-        if remove_function != None :
-            self._remove_watch_function = DBUS.RemoveWatchFunction(wrap_remove_function)
-        else :
-            self._remove_watch_function = None
-        #end if
+        self._add_watch_function = DBUS.AddWatchFunction(wrap_add_function)
+        self._remove_watch_function = DBUS.RemoveWatchFunction(wrap_remove_function)
         if toggled_function != None :
             self._toggled_watch_function = DBUS.WatchToggledFunction(wrap_toggled_function)
         else :
@@ -2424,16 +2398,8 @@ class Connection(TaskKeeper) :
         #end wrap_free_data
 
     #begin set_timeout_functions
-        if add_function != None :
-            self._add_timeout_function = DBUS.AddTimeoutFunction(wrap_add_function)
-        else :
-            self._add_timeout_function = None
-        #end if
-        if remove_function != None :
-            self._remove_timeout_function = DBUS.RemoveTimeoutFunction(wrap_remove_function)
-        else :
-            self._remove_timeout_function = None
-        #end if
+        self._add_timeout_function = DBUS.AddTimeoutFunction(wrap_add_function)
+        self._remove_timeout_function = DBUS.RemoveTimeoutFunction(wrap_remove_function)
         if toggled_function != None :
             self._toggled_timeout_function = DBUS.TimeoutToggledFunction(wrap_toggled_function)
         else :

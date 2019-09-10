@@ -1941,17 +1941,6 @@ def _loop_attach(self, loop, dispatch) :
     self = None # avoid circularity
 #end _loop_attach
 
-def _loop_detach(self) :
-    # detaches a Server or Connection object from any event loop
-    # that was attached by _loop_attach.
-    if self.loop != None :
-        # remove via direct low-level libdbus calls
-        dbus.dbus_connection_set_watch_functions(self._dbobj, None, None, None, None, None)
-        dbus.dbus_connection_set_timeout_functions(self._dbobj, None, None, None, None, None)
-        self.loop = None
-    #end if
-#end _loop_detach
-
 class _MatchActionEntry :
     __slots__ = ("rule", "actions")
 
@@ -2060,7 +2049,12 @@ class Connection(TaskKeeper) :
 
     def __del__(self) :
         if self._dbobj != None :
-            _loop_detach(self)
+            if self.loop != None :
+                # remove via direct low-level libdbus calls
+                dbus.dbus_connection_set_watch_functions(self._dbobj, None, None, None, None, None)
+                dbus.dbus_connection_set_timeout_functions(self._dbobj, None, None, None, None, None)
+                self.loop = None
+            #end if
             # Any entries still in super(TaskKeeper, self)._cur_tasks will be lost
             # at this point. I leave it to asyncio to report them as destroyed
             # while still pending, and the caller to notice this as a program bug.
@@ -3528,7 +3522,12 @@ class Server(TaskKeeper) :
 
     def __del__(self) :
         if self._dbobj != None :
-            _loop_detach(self)
+            if self.loop != None :
+                # remove via direct low-level libdbus calls
+                dbus.dbus_server_set_watch_functions(self._dbobj, None, None, None, None, None)
+                dbus.dbus_server_set_timeout_functions(self._dbobj, None, None, None, None, None)
+                self.loop = None
+            #end if
             dbus.dbus_server_unref(self._dbobj)
             self._dbobj = None
         #end if

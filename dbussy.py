@@ -4918,6 +4918,7 @@ class PendingCall :
         self.set_notify(pending_done, weak_ref(self))
           # avoid reference circularity self → pending_done → self
         reply = await done
+        self.set_notify(None, None)
         return \
             reply
     #end await_reply

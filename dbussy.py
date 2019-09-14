@@ -1700,7 +1700,11 @@ class ObjectPathVTable(TaskKeeper) :
 
     def set_message(self, message) :
 
+        w_self = weak_ref(self)
+
         def wrap_message(c_conn, c_message, c_user_data) :
+            self = w_self()
+            assert self != None, "vtable has gone away"
             conn = Connection(dbus.dbus_connection_ref(c_conn))
             msg = Message(dbus.dbus_message_ref(c_message))
             user_data = conn._user_data.get(c_user_data)
@@ -2439,7 +2443,11 @@ class Connection(TaskKeeper) :
         "sets the callback to use for libdbus to notify you of a change in the" \
         " dispatch status of the Connection."
 
+        w_self = weak_ref(self)
+
         def wrap_dispatch_status(_conn, status, _data) :
+            self = w_self()
+            assert self != None, "connection has gone away"
             function(self, status, data)
         #end wrap_dispatch_status
 
@@ -2515,7 +2523,11 @@ class Connection(TaskKeeper) :
 
     def set_unix_user_function(self, allow_unix_user, data, free_data = None) :
 
+        w_self = weak_ref(self)
+
         def wrap_allow_unix_user(c_conn, uid, c_data) :
+            self = w_self()
+            assert self != None, "connection has gone away"
             return \
                 allow_unix_user(self, uid, data)
         #end wrap_allow_unix_user
@@ -3594,7 +3606,11 @@ class Server(TaskKeeper) :
         " It is up to you to save the Connection object for later processing of" \
         " messages, or close it to reject the connection attempt."
 
+        w_self = weak_ref(self)
+
         def wrap_function(c_self, c_conn, _data) :
+            self = w_self()
+            assert self != None, "server has gone away"
             function(self, Connection(dbus.dbus_connection_ref(c_conn)), data)
               # even though this is a new connection, I still have to reference it
         #end wrap_function
@@ -4838,7 +4854,11 @@ class PendingCall :
         " has become available. Note: it appears to be possible for your notifier" \
         " to be called spuriously before the message is actually available."
 
+        w_self = weak_ref(self)
+
         def wrap_notify(c_pending, c_user_data) :
+            self = w_self()
+            assert self != None, "pending call has gone away"
             function(self, user_data)
         #end _wrap_notify
 

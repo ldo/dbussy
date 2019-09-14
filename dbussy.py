@@ -4838,22 +4838,22 @@ class PendingCall :
         " has become available. Note: it appears to be possible for your notifier" \
         " to be called spuriously before the message is actually available."
 
-        def _wrap_notify(c_pending, c_user_data) :
+        def wrap_notify(c_pending, c_user_data) :
             function(self, user_data)
         #end _wrap_notify
 
-        def _wrap_free(c_user_data) :
+        def wrap_free(c_user_data) :
             free_user_data(user_data)
         #end _wrap_free
 
     #begin set_notify
         if function != None :
-            self._wrap_notify = DBUS.PendingCallNotifyFunction(_wrap_notify)
+            self._wrap_notify = DBUS.PendingCallNotifyFunction(wrap_notify)
         else :
             self._wrap_notify = None
         #end if
         if free_user_data != None :
-            self._wrap_free = DBUS.FreeFunction(_wrap_free)
+            self._wrap_free = DBUS.FreeFunction(wrap_free)
         else :
             self._wrap_free = None
         #end if

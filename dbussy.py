@@ -6,7 +6,7 @@ This Python binding supports hooking into event loops via Python’s standard
 asyncio module.
 """
 #+
-# Copyright 2017-2018 Lawrence D'Oliveiro <ldo@geek-central.gen.nz>.
+# Copyright 2017-2019 Lawrence D'Oliveiro <ldo@geek-central.gen.nz>.
 # Licensed under the GNU Lesser General Public License v2.1 or later.
 #-
 
@@ -524,6 +524,13 @@ class DBUSX:
 #+
 # Useful stuff
 #-
+
+def _wderef(w_self, parent) :
+    self = w_self()
+    assert self != None, "%s has gone away" % parent
+    return \
+        self
+#end _wderef
 
 def call_async(func, funcargs = (), timeout = None, abort = None, loop = None) :
     "invokes func on a separate temporary thread and returns a Future that" \
@@ -1703,8 +1710,7 @@ class ObjectPathVTable(TaskKeeper) :
         w_self = weak_ref(self)
 
         def wrap_message(c_conn, c_message, c_user_data) :
-            self = w_self()
-            assert self != None, "vtable has gone away"
+            self = _wderef(w_self, "vtable")
             conn = Connection(dbus.dbus_connection_ref(c_conn))
             msg = Message(dbus.dbus_message_ref(c_message))
             user_data = conn._user_data.get(c_user_data)
@@ -2446,9 +2452,7 @@ class Connection(TaskKeeper) :
         w_self = weak_ref(self)
 
         def wrap_dispatch_status(_conn, status, _data) :
-            self = w_self()
-            assert self != None, "connection has gone away"
-            function(self, status, data)
+            function(_wderef(w_self, "connection"), status, data)
         #end wrap_dispatch_status
 
         def wrap_free_data(_data) :
@@ -2526,10 +2530,8 @@ class Connection(TaskKeeper) :
         w_self = weak_ref(self)
 
         def wrap_allow_unix_user(c_conn, uid, c_data) :
-            self = w_self()
-            assert self != None, "connection has gone away"
             return \
-                allow_unix_user(self, uid, data)
+                allow_unix_user(_wderef(w_self, "connection"), uid, data)
         #end wrap_allow_unix_user
 
         def wrap_free_data(_data) :
@@ -2566,8 +2568,7 @@ class Connection(TaskKeeper) :
         w_self = weak_ref(self)
 
         def wrap_function(c_conn, c_message, _data) :
-            self = w_self()
-            assert self != None, "connection has gone away"
+            self = _wderef(w_self, "connection")
             message = Message(dbus.dbus_message_ref(c_message))
             result = function(self, message, user_data)
             if asyncio.iscoroutine(result) :
@@ -3416,10 +3417,8 @@ class Connection(TaskKeeper) :
           # to avoid a reference cycle
 
         def dispatch() :
-            self = w_self()
-            assert self != None, "connection has gone away"
             return \
-                self.dispatch()
+                _wderef(w_self, "connection").dispatch()
         #end dispatch
 
     #begin attach_asyncio
@@ -3609,9 +3608,7 @@ class Server(TaskKeeper) :
         w_self = weak_ref(self)
 
         def wrap_function(c_self, c_conn, _data) :
-            self = w_self()
-            assert self != None, "server has gone away"
-            function(self, Connection(dbus.dbus_connection_ref(c_conn)), data)
+            function(_wderef(w_self, "server"), Connection(dbus.dbus_connection_ref(c_conn)), data)
               # even though this is a new connection, I still have to reference it
         #end wrap_function
 
@@ -4857,9 +4854,7 @@ class PendingCall :
         w_self = weak_ref(self)
 
         def wrap_notify(c_pending, c_user_data) :
-            self = w_self()
-            assert self != None, "pending call has gone away"
-            function(self, user_data)
+            function(_wderef(w_self, "pending call"), user_data)
         #end _wrap_notify
 
         def wrap_free(c_user_data) :

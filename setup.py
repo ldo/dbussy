@@ -41,7 +41,7 @@ distutils.core.setup \
     long_description = "language bindings for libdbus, for Python 3.5 or later",
     author = "Lawrence D'Oliveiro",
     author_email = "ldo@geek-central.gen.nz",
-    url = "http://github.com/ldo/dbussy",
+    url = "https://github.com/ldo/dbussy",
     license = "LGPL v2.1+",
     py_modules = ["dbussy", "ravel"],
     cmdclass =

@@ -2850,7 +2850,7 @@ class Connection(TaskKeeper) :
         "wrapper around receive_message_async() to allow use with an async-for statement." \
         " Lets you write\n" \
         "\n" \
-        "    async for message in «conn».iter_messages_async(«want_types», «timeout») :" \
+        "    async for message in «conn».iter_messages_async(«want_types», «stop_on», «timeout») :" \
         "        «process message»\n" \
         "    #end for\n" \
         "\n" \

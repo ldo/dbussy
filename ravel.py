@@ -1478,7 +1478,7 @@ class Connection(dbus.TaskKeeper) :
           )
         reply = self.connection.send_with_reply_and_block(message, timeout)
         return \
-            dbus.Introspection.parse(reply.expect_return_objects("s")[0])
+            Introspection.parse(reply.expect_return_objects("s")[0])
     #end introspect
 
     async def introspect_async(self, destination, path, timeout = DBUS.TIMEOUT_USE_DEFAULT) :
@@ -1494,7 +1494,7 @@ class Connection(dbus.TaskKeeper) :
           )
         reply = await self.connection.send_await_reply(message, timeout)
         return \
-            dbus.Introspection.parse(reply.expect_return_objects("s")[0])
+            Introspection.parse(reply.expect_return_objects("s")[0])
     #end introspect_async
 
     def __getitem__(self, bus_name) :
@@ -1518,7 +1518,7 @@ class Connection(dbus.TaskKeeper) :
         "sends an Introspect request to the specified bus name and object path" \
         " (if interface is not an Interface object or the name of one of the standard" \
         " interfaces), and generates a client-side proxy interface for that interface."
-        if isinstance(interface, dbus.Introspection.Interface) :
+        if isinstance(interface, Introspection.Interface) :
             definition = interface
             interface = definition.name
         elif isinstance(interface, str) :
@@ -1557,7 +1557,7 @@ class Connection(dbus.TaskKeeper) :
         " (if interface is not an Interface object or the name of one of the standard" \
         " interfaces), and generates a client-side proxy interface for that interface."
         assert self.loop != None, "no event loop to attach coroutine to"
-        if isinstance(interface, dbus.Introspection.Interface) :
+        if isinstance(interface, Introspection.Interface) :
             definition = interface
             interface = definition.name
         elif isinstance(interface, str) :

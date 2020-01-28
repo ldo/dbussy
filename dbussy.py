@@ -701,7 +701,7 @@ class BasicType(Type) :
                 raise TypeError("expecting a string, not %s: %s" % (type(val).__name__, repr(val)))
             #end if
         else :
-            raise RuntimError("unknown basic type %s" % repr(self.code))
+            raise RuntimeError("unknown basic type %s" % repr(self.code))
         #end if
         return \
             val

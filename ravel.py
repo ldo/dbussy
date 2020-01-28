@@ -1110,7 +1110,7 @@ class Connection(dbus.TaskKeeper) :
     #begin object_added
         path = dbus.unsplit_path(path)
         if self._managed_objects == None :
-            raise RuntimError("ObjectManager interface needs to be registered on this Connection")
+            raise RuntimeError("ObjectManager interface needs to be registered on this Connection")
         #end if
         if interfaces_and_props == None :
             # get all applicable interface names, props will be retrieved below

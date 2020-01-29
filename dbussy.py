@@ -4209,14 +4209,13 @@ class Message :
             c_element_type = DBUS.basic_to_ctypes[self.element_type]
             c_result = ct.POINTER(c_element_type)()
             c_nr_elts = ct.c_int()
-            dbus.dbus_message_iter_get_fixed_array(self._dbobj, ct.byref(c_result), ct.byref(c_nr_elts))
+            subiter = self.recurse()
+            dbus.dbus_message_iter_get_fixed_array(subiter._dbobj, ct.byref(c_result), ct.byref(c_nr_elts))
             result = []
             for i in range(c_nr_elts.value) :
                 elt = c_result[i]
                 if c_element_type == ct.c_char_p :
                     elt = elt.value.decode()
-                else :
-                    elt = elt.value
                 #end if
                 result.append(elt)
             #end for

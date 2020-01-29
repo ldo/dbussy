@@ -6,7 +6,7 @@ This Python binding supports hooking into event loops via Python’s standard
 asyncio module.
 """
 #+
-# Copyright 2017-2019 Lawrence D'Oliveiro <ldo@geek-central.gen.nz>.
+# Copyright 2017-2020 Lawrence D'Oliveiro <ldo@geek-central.gen.nz>.
 # Licensed under the GNU Lesser General Public License v2.1 or later.
 #-
 
@@ -4167,6 +4167,8 @@ class Message :
                         key, value = tuple(x.object for x in entry.recurse())
                         result[key] = value
                     #end while
+                elif type_is_fixed_array_elttype(self.element_type) :
+                    result = self.fixed_array
                 else :
                     result = list(x.object for x in self.recurse())
                     if len(result) != 0 and result[-1] == None :
@@ -4409,14 +4411,21 @@ class Message :
                     subiter.close()
                 elif isinstance(elttype, ArrayType) :
                     # append 0 or more elements matching elttype.elttype
-                    subiter = appenditer.open_container(DBUS.TYPE_ARRAY, elttype.elttype.signature)
-                    if not isinstance(elt, (tuple, list)) :
-                        raise TypeError("expecting sequence of values for array")
+                    arrelttype = elttype.elttype
+                    if type_is_fixed_array_elttype(arrelttype.code.value) :
+                        subiter = appenditer.open_container(DBUS.TYPE_ARRAY, arrelttype.signature)
+                        subiter.append_fixed_array(arrelttype.code.value, elt)
+                        subiter.close()
+                    else :
+                        subiter = appenditer.open_container(DBUS.TYPE_ARRAY, arrelttype.signature)
+                        if not isinstance(elt, (tuple, list)) :
+                            raise TypeError("expecting sequence of values for array")
+                        #end if
+                        for subval in elt :
+                            append_sub([arrelttype], [subval], subiter)
+                        #end for
+                        subiter.close()
                     #end if
-                    for subval in elt :
-                        append_sub([elttype.elttype], [subval], subiter)
-                    #end for
-                    subiter.close()
                 elif isinstance(elttype, StructType) :
                     if not isinstance(elt, (tuple, list)) :
                         raise TypeError("expecting sequence of values for struct")
@@ -5700,6 +5709,12 @@ def type_is_fixed(typecode) :
     return \
         dbus.dbus_type_is_fixed(typecode) != 0
 #end type_is_fixed
+
+def type_is_fixed_array_elttype(typecode) :
+    "is typecode suitable as the element type of a fixed_array."
+    return \
+        type_is_fixed(typecode) and typecode != DBUS.TYPE_UNIX_FD
+#end type_is_fixed_array_elttype
 
 # syntax validation <https://dbus.freedesktop.org/doc/api/html/group__DBusSyntax.html>
 

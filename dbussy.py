@@ -4161,7 +4161,9 @@ class Message :
                         if entry == None or entry.arg_type == DBUS.TYPE_INVALID :
                           # TYPE_INVALID can be returned for an empty dict
                             break
-                        assert entry.arg_type == DBUS.TYPE_DICT_ENTRY, "invalid dict entry type %d" % entry.arg_type
+                        if entry.arg_type != DBUS.TYPE_DICT_ENTRY :
+                            raise RuntimeError("invalid dict entry type %d" % entry.arg_type)
+                        #end if
                         key, value = tuple(x.object for x in entry.recurse())
                         result[key] = value
                     #end while

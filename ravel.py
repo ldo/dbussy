@@ -3480,8 +3480,9 @@ class ManagedObjectsHandler :
         set_result_keyword = "set_result",
         bus_keyword = "bus",
         message_keyword = "message",
+        path_keyword = "base_path",
       )
-    def get_managed_objects(self, bus, message, set_result) :
+    def get_managed_objects(self, bus, message, base_path, set_result) :
 
         result = {}
         to_await = []
@@ -3501,14 +3502,17 @@ class ManagedObjectsHandler :
         "returns supported interfaces and current property values for all" \
         " currently-existent managed objects."
         for path, interfaces in bus._managed_objects.items() :
-            obj_entry = {}
-            for interface_name in interfaces :
-                obj_entry[interface_name], await_props = bus._get_all_my_props(message, path, interface_name)
-                for propname, propvalue in await_props :
-                    to_await.append((path, interface_name, propname, propvalue))
+            if base_path == "/" and path != "/" or path.startswith(base_path + "/") :
+                obj_entry = {}
+                for interface_name in interfaces :
+                    obj_entry[interface_name], await_props = \
+                        bus._get_all_my_props(message, path, interface_name)
+                    for propname, propvalue in await_props :
+                        to_await.append((path, interface_name, propname, propvalue))
+                    #end for
                 #end for
-            #end for
-            result[path] = obj_entry
+                result[path] = obj_entry
+            #end if
         #end for
         if len(to_await) != 0 :
             return_result = await_propvalues() # result will be available when this is done

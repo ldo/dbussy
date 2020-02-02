@@ -682,8 +682,15 @@ The ravel.ManagedObjectsHandler class defines the standard
 ObjectManager interface. It handles sending out of notifications as
 you call the object_added() and object_removed() methods on a
 Connection. It is not automatically registered on a Connection object;
-you have to trigger its registration by an initial call to
-Connection.object_added() with “/” as the object path.
+you have to add it manually. If you already have a ravel.Connection
+object «conn», then you can do so with
+
+    «conn».register_additional_standard(managed_objects = True)
+
+Alternatively, you can request this registration at the time of
+creating the Connection object in one step, for example with
+
+    bus = ravel.session_bus(managed_objects = True)
 
 
 DBussy Examples
@@ -704,4 +711,4 @@ it.
 
 
 Lawrence D'Oliveiro <ldo@geek-central.gen.nz>
-2018 March 15
+2020 February 2

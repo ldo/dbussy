@@ -6,7 +6,7 @@ client using proxy objects, all with the option of running via an
 asyncio event loop.
 """
 #+
-# Copyright 2017-2019 Lawrence D'Oliveiro <ldo@geek-central.gen.nz>.
+# Copyright 2017-2020 Lawrence D'Oliveiro <ldo@geek-central.gen.nz>.
 # Licensed under the GNU Lesser General Public License v2.1 or later.
 #-
 

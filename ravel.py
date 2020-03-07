@@ -52,8 +52,7 @@ def _signal_key(fallback, interface, name) :
 #end _signal_key
 
 def _signal_rule(path, fallback, interface, name) :
-    # constructs a D-Bus match rule from the given args. extra, if present,
-    # is a dict of additional keys and values for the match rule.
+    # constructs a D-Bus match rule from the given args.
     return \
         dbus.format_rule \
           (

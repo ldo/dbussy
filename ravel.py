@@ -1966,10 +1966,8 @@ def _message_interface_dispatch(connection, message, w_bus) :
                         result = err.as_error()
                     #end try
                     if result == None :
-                        if to_return_result != None :
-                            # method handler possibly used set_result mechanism
-                            return_result_common(call_info, to_return_result)
-                        #end if
+                        # method handler possibly used set_result mechanism
+                        return_result_common(call_info, to_return_result)
                         result = DBUS.HANDLER_RESULT_HANDLED
                     elif asyncio.iscoroutine(result) :
                         assert bus.loop != None, "no event loop to attach coroutine to"

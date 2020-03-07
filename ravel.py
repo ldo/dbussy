@@ -194,7 +194,7 @@ class Connection(dbus.TaskKeeper) :
             self.connection = connection
             self.loop = connection.loop
             self.notify_delay = 0
-            self._dispatch = None # only used server-side
+            self._dispatch = None
             self._managed_objects = None
             unique_name = connection.bus_unique_name
             assert unique_name != None, "connection not yet registered"

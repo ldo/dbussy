@@ -67,27 +67,22 @@ def _signal_rule(path, fallback, interface, name) :
 
 class _DispatchNode :
 
-    __slots__ = ("children",)
+    __slots__ = ("children", "signal_listeners")
+
+    class _Interface :
+
+        __slots__ = ("interface", "fallback", "listening")
+
+        def __init__(self, interface, fallback) :
+            self.interface = interface
+            self.fallback = fallback
+            self.listening = set() # of match rule strings
+        #end __init
+
+    #end _Interface
 
     def __init__(self) :
         self.children = {} # dict of path component => _DispatchNode
-    #end __init__
-
-    @property
-    def is_empty(self) :
-        return \
-            len(self.children) == 0
-    #end _is_empty
-
-#end _DispatchNode
-
-class _ClientDispatchNode(_DispatchNode) :
-
-    __slots__ = ("signal_listeners",)
-
-    def __init__(self, bus) :
-        # bus arg ignored, only accepted for compatibility with _ServerDispatchNode
-        super().__init__()
         self.signal_listeners = {} # dict of _signal_key() => list of functions
     #end __init__
 
@@ -95,28 +90,28 @@ class _ClientDispatchNode(_DispatchNode) :
     def is_empty(self) :
         return \
             (
-                    super().is_empty
-                and
-                    len(self.signal_listeners) == 0
+                len(self.children) == 0
+            and
+                len(self.signal_listeners) == 0
             )
-    #end is_empty
+    #end _is_empty
+
+#end _DispatchNode
+
+class _ClientDispatchNode(_DispatchNode) :
+
+    __slots__ = ()
+
+    def __init__(self, bus) :
+        # bus arg ignored, only accepted for compatibility with _ServerDispatchNode
+        super().__init__()
+    #end __init__
 
 #end _ClientDispatchNode
 
 class _ServerDispatchNode(_DispatchNode) :
 
     __slots__ = ("interfaces", "user_data")
-
-    class _Interface :
-
-        __slots__ = ("interface", "fallback")
-
-        def __init__(self, interface, fallback) :
-            self.interface = interface
-            self.fallback = fallback
-        #end __init
-
-    #end _Interface
 
     class _UserDataDict(dict) :
         # for holding user data, does automatic cleaning up of object
@@ -269,6 +264,12 @@ class Connection(dbus.TaskKeeper) :
         def remove_listeners(level, path) :
             for node, child in level.children.items() :
                 remove_listeners(child, path + [node])
+            #end for
+            for interface in level.interfaces.values() :
+                for rulestr in interface.listening :
+                    ignore = dbus.Error.init()
+                    self.connection.bus_remove_match(rulestr, ignore)
+                #end for
             #end for
             for rulekey in level.signal_listeners :
                 fallback, interface, name = rulekey
@@ -490,6 +491,13 @@ class Connection(dbus.TaskKeeper) :
             level
     #end _get_dispatch_node
 
+    def _remove_matches(self, dispatch) :
+        for rulestr in dispatch.listening :
+            ignore = dbus.Error.init()
+            self.connection.bus_remove_match(rulestr, ignore)
+        #end for
+    #end _remove_matches
+
     def register_additional_standard(self, **kwargs) :
         "registers additional standard interfaces that are not automatically" \
         " installed at Connection creation time. Currently the only one is" \
@@ -547,7 +555,8 @@ class Connection(dbus.TaskKeeper) :
         #end for
         interface_name = iface_type._interface_name
         if interface_name in level.interfaces :
-            existing_kind = type(level.interfaces[interface_name].interface)._interface_kind
+            entry = level.interfaces[interface_name]
+            existing_kind = type(entry.interface)._interface_kind
             if not replace or existing_kind != iface_type._interface_kind :
                 raise KeyError \
                   (
@@ -556,8 +565,20 @@ class Connection(dbus.TaskKeeper) :
                         (interface_name, existing_kind)
                   )
             #end if
+            self._remove_matches(entry)
         #end if
-        level.interfaces[interface_name] = _ServerDispatchNode._Interface(interface, fallback)
+        entry = _ServerDispatchNode._Interface(interface, fallback)
+        if iface_type._interface_kind != INTERFACE.SERVER :
+            signals = iface_type._interface_signals
+            for name in signals :
+                if not iface_type._interface_signals[name]._signal_info["stub"] :
+                    rulestr = _signal_rule(path, fallback, interface_name, name)
+                    self.connection.bus_add_match(rulestr)
+                    entry.listening.add(rulestr)
+                #end if
+            #end for
+        #end for
+        level.interfaces[interface_name] = entry
     #end register
 
     def unregister(self, path, interface = None) :
@@ -578,6 +599,7 @@ class Connection(dbus.TaskKeeper) :
                         interfaces = set(level.interfaces.keys())
                     #end if
                     for iface_name in interfaces :
+                        self._remove_matches(level.interfaces[iface_name])
                         del level.interfaces[iface_name]
                     #end for
                     break
@@ -1880,18 +1902,22 @@ def _message_interface_dispatch(connection, message, w_bus) :
 #begin _message_interface_dispatch
     result = DBUS.HANDLER_RESULT_NOT_YET_HANDLED # to begin with
     if message.type in (DBUS.MESSAGE_TYPE_METHOD_CALL, DBUS.MESSAGE_TYPE_SIGNAL) :
-        if message.type == DBUS.MESSAGE_TYPE_METHOD_CALL :
-            iface = bus.get_dispatch_interface(message.path, message.interface)
-            if iface != None :
-                method_name = message.member
-                methods = iface._interface_methods
-                if (
-                        iface._interface_kind != INTERFACE.CLIENT
-                    and
-                        method_name in methods
-                ) :
-                    method = methods[method_name]
-                    call_info = method._method_info
+        is_method = message.type == DBUS.MESSAGE_TYPE_METHOD_CALL
+        if not is_method and bus._client_dispatch != None :
+            dispatch_signal(bus._client_dispatch, dbus.split_path(message.path))
+        #end if
+        iface = bus.get_dispatch_interface(message.path, message.interface)
+        if iface != None :
+            method_name = message.member
+            methods = (iface._interface_signals, iface._interface_methods)[is_method]
+            if (
+                    iface._interface_kind != (INTERFACE.SERVER, INTERFACE.CLIENT)[is_method]
+                and
+                    method_name in methods
+            ) :
+                method = methods[method_name]
+                call_info = getattr(method, ("_signal_info", "_method_info")[is_method])
+                if is_method or not call_info["stub"] :
                     to_return_result = None
                     try :
                         try :
@@ -1937,54 +1963,62 @@ def _message_interface_dispatch(connection, message, w_bus) :
                                 args = ()
                             #end if
                         #end if
-                        # additional ways of returning method result
-                        if call_info["result_keyword"] != None :
-                            # construct a mutable result object that handler will update in place
-                            to_return_result = [None] * len(call_info["out_signature"])
-                            if call_info["result_keys"] != None :
-                                to_return_result = dict \
-                                  (
-                                    (key, val)
-                                    for key, val in zip(call_info["result_keys"], to_return_result)
-                                  )
-                                if "result_constructor" in call_info :
-                                    to_return_result = call_info["result_constructor"](**to_return_result)
+                        if is_method :
+                            # additional ways of returning method result
+                            if call_info["result_keyword"] != None :
+                                # construct a mutable result object that handler will update in place
+                                to_return_result = [None] * len(call_info["out_signature"])
+                                if call_info["result_keys"] != None :
+                                    to_return_result = dict \
+                                      (
+                                        (key, val)
+                                        for key, val in zip(call_info["result_keys"], to_return_result)
+                                      )
+                                    if "result_constructor" in call_info :
+                                        to_return_result = call_info["result_constructor"](**to_return_result)
+                                    #end if
                                 #end if
+                                kwargs[call_info["result_keyword"]] = to_return_result
+                            elif call_info["set_result_keyword"] != None :
+                                # caller wants to return result via callback
+                                def set_result(the_result) :
+                                    "Call this to set the args for the reply message."
+                                    nonlocal to_return_result
+                                    to_return_result = the_result
+                                #end set_result
+                                kwargs[call_info["set_result_keyword"]] = set_result
                             #end if
-                            kwargs[call_info["result_keyword"]] = to_return_result
-                        elif call_info["set_result_keyword"] != None :
-                            # caller wants to return result via callback
-                            def set_result(the_result) :
-                                "Call this to set the args for the reply message."
-                                nonlocal to_return_result
-                                to_return_result = the_result
-                            #end set_result
-                            kwargs[call_info["set_result_keyword"]] = set_result
                         #end if
                         result = method(iface, *args, **kwargs)
                     except ErrorReturn as err :
                         result = err.as_error()
                     #end try
                     if result == None :
-                        # method handler possibly used set_result mechanism
-                        return_result_common(call_info, to_return_result)
+                        if to_return_result != None or is_method :
+                            # method handler possibly used set_result mechanism
+                            return_result_common(call_info, to_return_result)
+                        #end if
                         result = DBUS.HANDLER_RESULT_HANDLED
                     elif asyncio.iscoroutine(result) :
                         assert bus.loop != None, "no event loop to attach coroutine to"
-                        # wait for result
-                        async def await_result(coro) :
-                            try :
-                                result = await coro
-                            except ErrorReturn as err :
-                                result = err.as_error()
-                            #end try
-                            if result == None and to_return_result != None :
-                                # method handler used set_result mechanism
-                                result = to_return_result
-                            #end if
-                            return_result_common(call_info, result)
-                        #end await_result
-                        bus.create_task(await_result(result))
+                        if is_method :
+                            # wait for result
+                            async def await_result(coro) :
+                                try :
+                                    result = await coro
+                                except ErrorReturn as err :
+                                    result = err.as_error()
+                                #end try
+                                if result == None and to_return_result != None :
+                                    # method handler used set_result mechanism
+                                    result = to_return_result
+                                #end if
+                                return_result_common(call_info, result)
+                            #end await_result
+                            bus.create_task(await_result(result))
+                        else :
+                            bus.create_task(result)
+                        #end if
                         result = DBUS.HANDLER_RESULT_HANDLED
                     elif isinstance(result, bool) :
                         # slightly tricky: interpret True as handled, False as not handled,
@@ -2007,10 +2041,6 @@ def _message_interface_dispatch(connection, message, w_bus) :
                         result = DBUS.HANDLER_RESULT_HANDLED
                     #end if
                 #end if
-            #end if
-        elif message.type == DBUS.MESSAGE_TYPE_SIGNAL :
-            if bus._client_dispatch != None :
-                dispatch_signal(bus._client_dispatch, dbus.split_path(message.path))
             #end if
         #end if
     #end if

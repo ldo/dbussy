@@ -637,6 +637,15 @@ class Type :
     "base class for all Types. The “signature” property returns the fully-encoded" \
     " signature string for the entire Type."
 
+    __slots__ = ("code",)
+
+    def __init__(self, code) :
+        if not isinstance(code, TYPE) :
+            raise TypeError("only TYPE.xxx values allowed")
+        #end if
+        self.code = code
+    #end __init__
+
     @property
     def signature(self) :
         raise NotImplementedError("subclass forgot to override signature property")
@@ -662,13 +671,13 @@ class Type :
 class BasicType(Type) :
     "a basic (non-container) type."
 
-    __slots__ = ("code",)
+    __slots__ = ()
 
     def __init__(self, code) :
         if not isinstance(code, TYPE) or not code.is_basic :
             raise TypeError("only basic TYPE.xxx values allowed")
         #end if
-        self.code = code
+        super().__init__(code)
     #end __init__
 
     def __repr__(self) :
@@ -712,6 +721,10 @@ class BasicType(Type) :
 class VariantType(Type) :
     "the variant type--a single element of a type determined at run-time."
 
+    def __init__(self) :
+        super().__init__(TYPE.VARIANT)
+    #end __init__
+
     @property
     def signature(self) :
         return \
@@ -752,6 +765,7 @@ class StructType(Type) :
         if not all(isinstance(t, Type) for t in types) :
             raise TypeError("struct elements must be Types")
         #end if
+        super().__init__(TYPE.STRUCT)
         self.elttypes = tuple(types)
     #end __init__
 
@@ -799,6 +813,7 @@ class ArrayType(Type) :
         if not isinstance(elttype, Type) :
             raise TypeError("invalid array element type")
         #end if
+        super().__init__(TYPE.ARRAY)
         self.elttype = elttype
     #end __init__
 

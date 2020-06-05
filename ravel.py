@@ -594,7 +594,7 @@ class Connection(dbus.TaskKeeper) :
                 component = next(levels, None)
                 if component == None :
                     if interface != None :
-                        interfaces = [level.interfaces[interface._interface_name]]
+                        interfaces = [interface._interface_name]
                     else :
                         interfaces = set(level.interfaces.keys())
                     #end if

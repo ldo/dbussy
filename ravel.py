@@ -584,8 +584,12 @@ class Connection(dbus.TaskKeeper) :
     def unregister(self, path, interface = None) :
         "for server-side use; unregisters the specified interface class (or all" \
         " registered interface classes, if None) from handling method calls on path."
-        if interface != None and not is_interface(interface) :
-            raise TypeError("interface must be None or an @interface() class")
+        if interface != None :
+            if is_interface_instance(interface) :
+                interface = type(interface)
+            elif not is_interface(interface) :
+                raise TypeError("interface must be None or an @interface() class or instance thereof")
+            #end if
         #end if
         if self._server_dispatch != None :
             level = self._server_dispatch
@@ -594,7 +598,7 @@ class Connection(dbus.TaskKeeper) :
                 component = next(levels, None)
                 if component == None :
                     if interface != None :
-                        interfaces = [level.interfaces[interface._interface_name]]
+                        interfaces = {interface._interface_name}
                     else :
                         interfaces = set(level.interfaces.keys())
                     #end if

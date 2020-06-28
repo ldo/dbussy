@@ -31,7 +31,7 @@ from xml.sax.saxutils import \
 
 if sys.platform == "darwin":
     try:
-        dbus = ct.cdll.LoadLibrary("libdbus-1.dyli")
+        dbus = ct.cdll.LoadLibrary("libdbus-1.dylib")
     except OSError:
         print("D-Bus not installed. Install with `brew install dbus`")
         exit(1)

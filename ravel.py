@@ -227,7 +227,6 @@ class Connection(dbus.TaskKeeper) :
             self._server_dispatch = None # for registered classes that field method calls
             self._managed_objects = None
             unique_name = connection.bus_unique_name
-            assert unique_name != None, "connection not yet registered"
             self.bus_names_acquired = {unique_name}
             self.bus_names_pending = set()
             self._registered_bus_names_listeners = False

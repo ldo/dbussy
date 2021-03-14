@@ -630,7 +630,8 @@ class Connection(dbus.TaskKeeper) :
         listeners = entry.signal_listeners
         rulekey = _signal_key(fallback, interface, name)
         if rulekey not in listeners :
-            self.connection.bus_add_match(_signal_rule(path, fallback, interface, name))
+            if self.connection.bus_unique_name is not None:
+                self.connection.bus_add_match(_signal_rule(path, fallback, interface, name))
             listeners[rulekey] = []
         #end if
         listeners[rulekey].append(func)
@@ -653,11 +654,12 @@ class Connection(dbus.TaskKeeper) :
                 #end try
                 if len(listeners) == 0 :
                     ignore = dbus.Error.init()
-                    self.connection.bus_remove_match \
-                      (
-                        _signal_rule(path, fallback, interface, name),
-                        ignore
-                      )
+                    if self.connection.bus_unique_name is not None:
+                        self.connection.bus_remove_match \
+                          (
+                            _signal_rule(path, fallback, interface, name),
+                            ignore
+                          )
                     del signal_listeners[rulekey]
                       # as a note to myself that I will need to call bus_add_match
                       # if a new listener is added

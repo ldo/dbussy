@@ -194,6 +194,7 @@ class Connection(dbus.TaskKeeper) :
             "connection",
             "notify_delay",
             "user_data",
+            "_direct_connect",
             "bus_names_acquired",
             "bus_names_pending",
             "_client_dispatch",
@@ -211,7 +212,7 @@ class Connection(dbus.TaskKeeper) :
 
     _instances = WeakValueDictionary()
 
-    def __new__(celf, connection) :
+    def __new__(celf, connection, direct_connect) :
         # always return the same Connection for the same dbus.Connection.
         if not isinstance(connection, dbus.Connection) :
             raise TypeError("connection must be a Connection")
@@ -226,10 +227,17 @@ class Connection(dbus.TaskKeeper) :
             self._client_dispatch = None # for signal listeners
             self._server_dispatch = None # for registered classes that field method calls
             self._managed_objects = None
+            self._direct_connect = direct_connect
             unique_name = connection.bus_unique_name
-            assert unique_name != None, "connection not yet registered"
-            self.bus_names_acquired = {unique_name}
-            self.bus_names_pending = set()
+            if direct_connect :
+                assert unique_name == None, "connection already registered"
+                self.bus_names_acquired = None
+                self.bus_names_pending = None
+            else :
+                assert unique_name != None, "connection not yet registered"
+                self.bus_names_acquired = {unique_name}
+                self.bus_names_pending = set()
+            #end if
             self._registered_bus_names_listeners = False
             self._props_changed = None
             self._objects_added = None
@@ -254,6 +262,8 @@ class Connection(dbus.TaskKeeper) :
                     fallback = True
                   )
             #end for
+        else :
+            assert self._direct_connect == direct_connect
         #end if
         return \
             self
@@ -304,6 +314,7 @@ class Connection(dbus.TaskKeeper) :
         # to user-specified action.
         self = w_self()
         assert self != None
+        assert not self._direct_connect, "shouldn’t be acquiring bus names on direct server connection"
         bus_name = msg.expect_objects("s")[0]
         self.bus_names_pending.discard(bus_name)
         if bus_name not in self.bus_names_acquired :
@@ -323,6 +334,7 @@ class Connection(dbus.TaskKeeper) :
         # to user-specified action.
         self = w_self()
         assert self != None
+        assert not self._direct_connect, "shouldn’t be losing bus names on direct server connection"
         bus_name = msg.expect_objects("s")[0]
         self.bus_names_pending.discard(bus_name)
         if bus_name in self.bus_names_acquired :
@@ -343,6 +355,7 @@ class Connection(dbus.TaskKeeper) :
         "    action(conn, bus_name, action_arg)\n" \
         "\n" \
         "where conn is the Connection object and bus_name is the name."
+        assert not self._direct_connect, "cannot acquire bus names on direct server connection"
         self._bus_name_acquired_action = action
         self._bus_name_acquired_action_arg = action_arg
     #end set_bus_name_acquired_action
@@ -354,12 +367,14 @@ class Connection(dbus.TaskKeeper) :
         "    action(conn, bus_name, action_arg)\n" \
         "\n" \
         "where conn is the Connection object and bus_name is the name."
+        assert not self._direct_connect, "cannot acquire bus names on direct server connection"
         self._bus_name_lost_action = action
         self._bus_name_lost_action_arg = action_arg
     #end set_bus_name_lost_action
 
     def request_name(self, bus_name, flags) :
         "registers a bus name."
+        assert not self._direct_connect, "cannot register bus names on direct server connection"
         if not self._registered_bus_names_listeners :
             self.connection.bus_add_match_action \
               (
@@ -381,6 +396,7 @@ class Connection(dbus.TaskKeeper) :
 
     async def request_name_async(self, bus_name, flags, error = None, timeout = DBUS.TIMEOUT_USE_DEFAULT) :
         "registers a bus name."
+        assert not self._direct_connect, "cannot register bus names on direct server connection"
         assert self.loop != None, "no event loop to attach coroutine to"
         if not self._registered_bus_names_listeners :
             self._registered_bus_names_listeners = True # do first in case of reentrant call
@@ -416,12 +432,14 @@ class Connection(dbus.TaskKeeper) :
 
     def release_name(self, bus_name) :
         "releases a registered bus name."
+        assert not self._direct_connect, "cannot register bus names on direct server connection"
         return \
             self.connection.bus_release_name(bus_name)
     #end release_name
 
     async def release_name_async(self, bus_name, error = None, timeout = DBUS.TIMEOUT_USE_DEFAULT) :
         "releases a registered bus name."
+        assert not self._direct_connect, "cannot register bus names on direct server connection"
         assert self.loop != None, "no event loop to attach coroutine to"
         return \
             await self.connection.bus_release_name_async(bus_name, error = error, timeout = timeout)
@@ -1459,21 +1477,21 @@ class Connection(dbus.TaskKeeper) :
 def session_bus(**kwargs) :
     "returns a Connection object for the current D-Bus session bus."
     return \
-        Connection(dbus.Connection.bus_get(DBUS.BUS_SESSION, private = False)) \
+        Connection(dbus.Connection.bus_get(DBUS.BUS_SESSION, private = False), False) \
         .register_additional_standard(**kwargs)
 #end session_bus
 
 def system_bus(**kwargs) :
     "returns a Connection object for the D-Bus system bus."
     return \
-        Connection(dbus.Connection.bus_get(DBUS.BUS_SYSTEM, private = False)) \
+        Connection(dbus.Connection.bus_get(DBUS.BUS_SYSTEM, private = False), False) \
         .register_additional_standard(**kwargs)
 #end system_bus
 
 def starter_bus(**kwargs) :
     "returns a Connection object for the D-Bus starter bus."
     return \
-        Connection(dbus.Connection.bus_get(DBUS.BUS_STARTER, private = False)) \
+        Connection(dbus.Connection.bus_get(DBUS.BUS_STARTER, private = False), False) \
         .register_additional_standard(**kwargs)
 #end starter_bus
 
@@ -1482,7 +1500,8 @@ async def session_bus_async(loop = None, **kwargs) :
     return \
         Connection \
           (
-            await dbus.Connection.bus_get_async(DBUS.BUS_SESSION, private = False, loop = loop)
+            await dbus.Connection.bus_get_async(DBUS.BUS_SESSION, private = False, loop = loop),
+            False
           ) \
         .register_additional_standard(**kwargs)
 #end session_bus_async
@@ -1492,7 +1511,8 @@ async def system_bus_async(loop = None, **kwargs) :
     return \
         Connection \
           (
-            await dbus.Connection.bus_get_async(DBUS.BUS_SYSTEM, private = False, loop = loop)
+            await dbus.Connection.bus_get_async(DBUS.BUS_SYSTEM, private = False, loop = loop),
+            False
           ) \
         .register_additional_standard(**kwargs)
 #end system_bus_async
@@ -1502,26 +1522,28 @@ async def starter_bus_async(loop = None, **kwargs) :
     return \
         Connection \
           (
-            await dbus.Connection.bus_get_async(DBUS.BUS_STARTER, private = False, loop = loop)
+            await dbus.Connection.bus_get_async(DBUS.BUS_STARTER, private = False, loop = loop),
+            False
           ) \
         .register_additional_standard(**kwargs)
 #end starter_bus_async
 
-def connect_server(address, **kwargs) :
+def connect_server(address, private, **kwargs) :
     "opens a connection to a server at the specified network address and" \
     " returns a Connection object for the connection."
     return \
-        Connection(dbus.Connection.open(address, private = False)) \
+        Connection(dbus.Connection.open(address, private = private), True) \
         .register_additional_standard(**kwargs)
 #end connect_server
 
-async def connect_server_async(address, loop = None, timeout = DBUS.TIMEOUT_INFINITE, **kwargs) :
+async def connect_server_async(address, private, loop = None, timeout = DBUS.TIMEOUT_INFINITE, **kwargs) :
     "opens a connection to a server at the specified network address and" \
     " returns a Connection object for the connection."
     return \
         Connection \
           (
-            await dbus.Connection.open_async(address, private = False, loop = loop, timeout = timeout)
+            await dbus.Connection.open_async(address, private = private, loop = loop, timeout = timeout),
+            True
           ) \
         .register_additional_standard(**kwargs)
 #end connect_server_async
@@ -1546,7 +1568,7 @@ class Server :
         " If no connection appears within the specified timeout, returns None."
         conn = await self.server.await_new_connection(timeout)
         if conn != None :
-            result = Connection(conn)
+            result = Connection(conn, True)
         else :
             result = None
         #end if

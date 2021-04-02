@@ -275,21 +275,23 @@ class Connection(dbus.TaskKeeper) :
             for node, child in level.children.items() :
                 remove_listeners(child, path + [node])
             #end for
-            for interface in level.interfaces.values() :
-                for rulestr in interface.listening :
-                    ignore = dbus.Error.init()
-                    self.connection.bus_remove_match(rulestr, ignore)
+            if not self._direct_connect :
+                for interface in level.interfaces.values() :
+                    for rulestr in interface.listening :
+                        ignore = dbus.Error.init()
+                        self.connection.bus_remove_match(rulestr, ignore)
+                    #end for
                 #end for
-            #end for
-            for rulekey in level.signal_listeners :
-                fallback, interface, name = rulekey
-                ignore = dbus.Error.init()
-                self.connection.bus_remove_match \
-                  (
-                    _signal_rule(path, fallback, interface, name),
-                    ignore
-                  )
-            #end for
+                for rulekey in level.signal_listeners :
+                    fallback, interface, name = rulekey
+                    ignore = dbus.Error.init()
+                    self.connection.bus_remove_match \
+                      (
+                        _signal_rule(path, fallback, interface, name),
+                        ignore
+                      )
+                #end for
+            #end if
         #end remove_listeners
 
     #begin __del__
@@ -510,10 +512,12 @@ class Connection(dbus.TaskKeeper) :
     #end _get_dispatch_node
 
     def _remove_matches(self, dispatch) :
-        for rulestr in dispatch.listening :
-            ignore = dbus.Error.init()
-            self.connection.bus_remove_match(rulestr, ignore)
-        #end for
+        if not self._direct_connect :
+            for rulestr in dispatch.listening :
+                ignore = dbus.Error.init()
+                self.connection.bus_remove_match(rulestr, ignore)
+            #end for
+        #end if
     #end _remove_matches
 
     def register_additional_standard(self, **kwargs) :
@@ -586,7 +590,7 @@ class Connection(dbus.TaskKeeper) :
             self._remove_matches(entry)
         #end if
         entry = _ServerDispatchNode._Interface(interface, fallback)
-        if iface_type._interface_kind != INTERFACE.SERVER :
+        if iface_type._interface_kind != INTERFACE.SERVER and not self._direct_connect :
             signals = iface_type._interface_signals
             for name in signals :
                 if not iface_type._interface_signals[name]._signal_info["stub"] :
@@ -649,7 +653,9 @@ class Connection(dbus.TaskKeeper) :
         listeners = entry.signal_listeners
         rulekey = _signal_key(fallback, interface, name)
         if rulekey not in listeners :
-            self.connection.bus_add_match(_signal_rule(path, fallback, interface, name))
+            if not self._direct_connect :
+                self.connection.bus_add_match(_signal_rule(path, fallback, interface, name))
+            #end if
             listeners[rulekey] = []
         #end if
         listeners[rulekey].append(func)
@@ -671,12 +677,14 @@ class Connection(dbus.TaskKeeper) :
                     pass
                 #end try
                 if len(listeners) == 0 :
-                    ignore = dbus.Error.init()
-                    self.connection.bus_remove_match \
-                      (
-                        _signal_rule(path, fallback, interface, name),
-                        ignore
-                      )
+                    if not self._direct_connect :
+                        ignore = dbus.Error.init()
+                        self.connection.bus_remove_match \
+                          (
+                            _signal_rule(path, fallback, interface, name),
+                            ignore
+                          )
+                    #end if
                     del signal_listeners[rulekey]
                       # as a note to myself that I will need to call bus_add_match
                       # if a new listener is added

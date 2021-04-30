@@ -6900,7 +6900,6 @@ standard_interfaces = \
                                     Introspection.Interface.Method.Arg
                                       (
                                         type = BasicType(TYPE.UINT32),
-                                          # match rules to add to the connection
                                         direction = Introspection.DIRECTION.IN,
                                       ), # flags (currently unused)
                                 ],

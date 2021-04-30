@@ -1692,7 +1692,7 @@ class BusPeer :
             " (if interface is not one of the standard interfaces), and generates" \
             " a client-side proxy interface for the interface with the specified name."
             return \
-                (await self.conn.get_proxy_interface_async \
+                (await self.conn.get_proxy_interface_async
                   (
                     destination = self.bus_name,
                     path = self.path,
@@ -1767,7 +1767,7 @@ class BusPeer :
         " (if interface is not one of the standard interfaces), and generates" \
         " a client-side proxy interface for the interface with the specified name."
         return \
-            (await self.conn.get_proxy_interface_async \
+            (await self.conn.get_proxy_interface_async
               (
                 destination = self.bus_name,
                 path = path,

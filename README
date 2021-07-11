@@ -338,7 +338,7 @@ is possible to pass them to the method call by keyword:
             body = "DBussy works!",
             actions = [],
             hints = {},
-            timeout = 5000,
+            expire_timeout = 5000,
           )
 
 (But note that the argument names might differ, depending on your

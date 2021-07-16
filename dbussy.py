@@ -23,6 +23,7 @@ import threading
 import io
 import atexit
 import asyncio
+import functools
 from xml.etree import \
     ElementTree as XMLElementTree
 from xml.sax.saxutils import \
@@ -1454,32 +1455,20 @@ class TaskKeeper :
     def _init(self) :
         # avoid __init__ so I don't get passed spurious args
         self.loop = None
-        self._cur_tasks = []
+        self._cur_tasks = set()
     #end _init
 
     def create_task(self, coro) :
         assert self.loop != None, "no event loop to attach coroutine to"
         task = self.loop.create_task(coro)
-        if len(self._cur_tasks) == 0 :
-            self.loop.call_soon(self._reaper, weak_ref(self))
-        #end if
-        self._cur_tasks.append(task)
+        task.add_done_callback(functools.partial(self._reaper, weak_ref(self)))
+        self._cur_tasks.add(task)
     #end create_task
 
     @staticmethod
-    def _reaper(self) :
+    def _reaper(self, task) :
         self = self() # avoid reference circularity
-        old_tasks = self._cur_tasks[:]
-        new_tasks = self._cur_tasks
-        new_tasks[:] = []
-        for task in old_tasks :
-            if not task.done() :
-                new_tasks.append(task)
-            #end if
-        #end for
-        if len(new_tasks) != 0 :
-            self.loop.call_soon(self._reaper, weak_ref(self))
-        #end if
+        self._cur_tasks.remove(task)
     #end _reaper
 
 #end TaskKeeper

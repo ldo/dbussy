@@ -1447,8 +1447,7 @@ class TaskKeeper :
     " schedule caller-created coroutines for execution. asyncio only keeps" \
     " weak references to Task objects when they are not being scheduled," \
     " so to keep them from disappearing unexpectedly, I maintain a list of" \
-    " strong references here, and periodically clean them out as they end" \
-    " execution."
+    " strong references here, and clean them out as they end execution."
 
     __slots__ = ("__weakref__", "loop", "_cur_tasks")
 

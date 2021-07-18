@@ -1601,7 +1601,7 @@ class BusPeer :
     "\n" \
     "    obj = peer[«object_path»]\n" \
     "\n" \
-    "from which you can a proxy interface thus:\n" \
+    "from which you can get a proxy interface thus:\n" \
     "\n" \
     "    iface = obj.get_interface(«iface_name»)\n" \
     "\n" \

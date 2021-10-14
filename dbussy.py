@@ -4415,7 +4415,7 @@ class Message :
                 elif isinstance(elttype, ArrayType) :
                     # append 0 or more elements matching elttype.elttype
                     arrelttype = elttype.elttype
-                    if type_is_fixed_array_elttype(arrelttype.code.value) :
+                    if hasattr(arrelttype, "code") and type_is_fixed_array_elttype(arrelttype.code.value) :
                         subiter = appenditer.open_container(DBUS.TYPE_ARRAY, arrelttype.signature)
                         subiter.append_fixed_array(arrelttype.code.value, elt)
                         subiter.close()

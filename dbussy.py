@@ -853,6 +853,7 @@ class DictType(Type) :
         if not isinstance(keytype, BasicType) or not isinstance(valuetype, Type) :
             raise TypeError("invalid dict key/value type")
         #end if
+        super().__init__(TYPE.ARRAY)
         self.keytype = keytype
         self.valuetype = valuetype
     #end keytype

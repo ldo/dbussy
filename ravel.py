@@ -3112,7 +3112,13 @@ def def_proxy_interface(kind, *, name, introspected, is_async) :
                 raise RuntimeError("not without an event loop")
             #end if
             if len(self._set_prop_pending) != 0 :
-                await asyncio.wait(self._set_prop_pending, loop = self.connection.loop)
+                if "loop" in asyncio.wait.__kwdefaults__ :
+                    await asyncio.wait(self._set_prop_pending, loop = self.connection.loop)
+                      # no default loop in pre-3.7
+                else :
+                    # loop arg removed in 3.10
+                    await asyncio.wait(self._set_prop_pending)
+                #end if
             #end if
         #end set_prop_flush
 

@@ -3000,15 +3000,21 @@ def def_proxy_interface(kind, *, name, introspected, is_async) :
                 pending = self._conn.send_with_reply(message, self._timeout)
                 async def sendit() :
                     reply = await pending.await_reply()
-                    set_prop_pending.set_result(None)
                     self._parent._set_prop_pending.pop \
                       (
                         self._parent._set_prop_pending.index(set_prop_pending)
                       )
                     if reply.type == DBUS.MESSAGE_TYPE_METHOD_RETURN :
-                        pass
+                        set_prop_pending.set_result(reply)
                     elif reply.type == DBUS.MESSAGE_TYPE_ERROR :
-                        raise dbus.DBusError(reply.error_name, reply.expect_objects("s")[0])
+                        failed = dbus.DBusError(reply.error_name, reply.expect_objects("s")[0])
+                        if self._parent._set_prop_failed == None :
+                            set_prop_pending.set_exception(failed)
+                            self._parent._set_prop_failed = set_prop_pending
+                        else :
+                            # don’t let failures pile up
+                            raise failed
+                        #end if
                     else :
                         raise ValueError("unexpected reply type %d" % reply.type)
                     #end if
@@ -3076,7 +3082,7 @@ def def_proxy_interface(kind, *, name, introspected, is_async) :
     class proxy_factory(BusPeer.RootProxy) :
         # class that will be returned.
 
-        __slots__ = ("connection", "dest", "timeout", "_set_prop_pending")
+        __slots__ = ("connection", "dest", "timeout", "_set_prop_pending", "_set_prop_failed")
 
         def __init__(self, *, connection, dest, timeout = DBUS.TIMEOUT_USE_DEFAULT) :
             if is_async :
@@ -3090,6 +3096,7 @@ def def_proxy_interface(kind, *, name, introspected, is_async) :
             else :
                 self._set_prop_pending = None
             #end if
+            self._set_prop_failed = None
         #end __init__
 
         def __getitem__(self, path) :
@@ -3111,13 +3118,30 @@ def def_proxy_interface(kind, *, name, introspected, is_async) :
             if not is_async :
                 raise RuntimeError("not without an event loop")
             #end if
-            if len(self._set_prop_pending) != 0 :
+            if self._set_prop_failed != None :
+                set_prop_pending = [self._set_prop_failed]
+                self._set_prop_failed = None
+            else :
+                set_prop_pending = self._set_prop_pending
+            #end if
+            if len(set_prop_pending) != 0 :
                 if "loop" in asyncio.wait.__kwdefaults__ :
-                    await asyncio.wait(self._set_prop_pending, loop = self.connection.loop)
+                    done = (await asyncio.wait(set_prop_pending, loop = self.connection.loop))[0]
                       # no default loop in pre-3.7
                 else :
                     # loop arg removed in 3.10
-                    await asyncio.wait(self._set_prop_pending)
+                    done = (await asyncio.wait(set_prop_pending))[0]
+                #end if
+                failed = list(e for f in done for e in (f.exception(),) if e != None)
+                if len(failed) > 1 :
+                    raise RuntimeError \
+                      (
+                            "multiple failures to set properties: %s"
+                        %
+                            ", ".join(str(f) for f in failed)
+                      )
+                elif len(failed) == 1 :
+                    raise failed[0]
                 #end if
             #end if
         #end set_prop_flush

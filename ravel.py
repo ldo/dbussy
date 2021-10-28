@@ -3083,6 +3083,9 @@ def def_proxy_interface(kind, *, name, introspected, is_async) :
         # class that will be returned.
 
         __slots__ = ("connection", "dest", "timeout", "_set_prop_pending", "_set_prop_failed")
+        # class variables:
+        #     template -- = proxy class (set up above)
+        #     props    -- dict of introspected.properties by name
 
         def __init__(self, *, connection, dest, timeout = DBUS.TIMEOUT_USE_DEFAULT) :
             if is_async :
@@ -3111,40 +3114,90 @@ def def_proxy_interface(kind, *, name, introspected, is_async) :
                   )
         #end __getitem__
 
-        async def set_prop_flush(self) :
-            "workaround for the fact that prop-setter has to queue a separate" \
-            " asynchronous task; caller can await this coroutine to ensure that" \
-            " all pending set-property calls have completed."
-            if not is_async :
-                raise RuntimeError("not without an event loop")
-            #end if
-            if self._set_prop_failed != None :
-                set_prop_pending = [self._set_prop_failed]
-                self._set_prop_failed = None
-            else :
-                set_prop_pending = self._set_prop_pending
-            #end if
-            if len(set_prop_pending) != 0 :
-                if "loop" in asyncio.wait.__kwdefaults__ :
-                    done = (await asyncio.wait(set_prop_pending, loop = self.connection.loop))[0]
-                      # no default loop in pre-3.7
+        if is_async :
+
+            async def set_prop_flush(self) :
+                "workaround for the fact that prop-setter has to queue a separate" \
+                " asynchronous task; caller can await this coroutine to ensure that" \
+                " all pending set-property calls have completed."
+                if not is_async :
+                    raise RuntimeError("not without an event loop")
+                #end if
+                if self._set_prop_failed != None :
+                    set_prop_pending = [self._set_prop_failed]
+                    self._set_prop_failed = None
                 else :
-                    # loop arg removed in 3.10
-                    done = (await asyncio.wait(set_prop_pending))[0]
+                    set_prop_pending = self._set_prop_pending
                 #end if
-                failed = list(e for f in done for e in (f.exception(),) if e != None)
-                if len(failed) > 1 :
-                    raise RuntimeError \
+                if len(set_prop_pending) != 0 :
+                    if "loop" in asyncio.wait.__kwdefaults__ :
+                        done = (await asyncio.wait(set_prop_pending, loop = self.connection.loop))[0]
+                          # no default loop in pre-3.7
+                    else :
+                        # loop arg removed in 3.10
+                        done = (await asyncio.wait(set_prop_pending))[0]
+                    #end if
+                    failed = list(e for f in done for e in (f.exception(),) if e != None)
+                    if len(failed) > 1 :
+                        raise RuntimeError \
+                          (
+                                "multiple failures to set properties: %s"
+                            %
+                                ", ".join(str(f) for f in failed)
+                          )
+                    elif len(failed) == 1 :
+                        raise failed[0]
+                    #end if
+                #end if
+            #end set_prop_flush
+
+            def set_prop(self, path, propname, newvalue) :
+                "alternative way of asynchronously setting a new property value:" \
+                " returns a Future that can be explicitly awaited."
+                if propname not in self.props :
+                    raise dbus.DBusError \
                       (
-                            "multiple failures to set properties: %s"
-                        %
-                            ", ".join(str(f) for f in failed)
+                        DBUS.ERROR_UNKNOWN_PROPERTY,
+                        message = "no such property “%s”" % propname
                       )
-                elif len(failed) == 1 :
-                    raise failed[0]
                 #end if
-            #end if
-        #end set_prop_flush
+                propdef = self.props[propname]
+                if propdef.access == Introspection.ACCESS.READ :
+                    raise dbus.DBusError \
+                      (
+                        DBUS.ERROR_PROPERTY_READ_ONLY,
+                        message = "property “%s” cannot be written" % propdef.name
+                      )
+                #end if
+                message = dbus.Message.new_method_call \
+                  (
+                    destination = self.dest,
+                    path = dbus.unsplit_path(path),
+                    iface = DBUS.INTERFACE_PROPERTIES,
+                    method = "Set"
+                  )
+                message.append_objects("ssv", self.template._iface_name, propname, (propdef.type, newvalue))
+                set_prop_pending = self.connection.loop.create_future()
+                pending = self.connection.send_with_reply(message, self.timeout)
+                async def sendit() :
+                    reply = await pending.await_reply()
+                    if reply.type == DBUS.MESSAGE_TYPE_METHOD_RETURN :
+                        set_prop_pending.set_result(None)
+                    elif reply.type == DBUS.MESSAGE_TYPE_ERROR :
+                        set_prop_pending.set_exception \
+                          (
+                            dbus.DBusError(reply.error_name, reply.expect_objects("s")[0])
+                          )
+                    else :
+                        raise ValueError("unexpected reply type %d" % reply.type)
+                    #end if
+                #end sendit
+                self.connection.create_task(sendit())
+                return \
+                    set_prop_pending
+            #end set_prop
+
+        #end if
 
     #end proxy_factory
 
@@ -3199,6 +3252,11 @@ def def_proxy_interface(kind, *, name, introspected, is_async) :
                 }
         )
     proxy_factory.template = proxy
+    proxy_factory.props = dict \
+      (
+        (prop.name, prop)
+        for prop in introspected.properties
+      )
     return \
         proxy_factory
 #end def_proxy_interface

@@ -526,6 +526,23 @@ class DBUSX:
 # Useful stuff
 #-
 
+if hasattr(asyncio, "get_running_loop") :
+    # new in Python 3.7
+    get_running_loop = asyncio.get_running_loop
+else :
+    # as long as I want to support pre-3.7...
+    get_running_loop = asyncio.get_event_loop
+#end if
+
+def get_event_loop() :
+    "Python docs indicate that asyncio.get_event_loop() is going away" \
+    " in its current form. But I still need to be able to attach objects" \
+    " to the default event loop from a non-coroutine context. So I" \
+    " reimplement its original semantics here."
+    return \
+        asyncio.get_event_loop_policy().get_event_loop()
+#end get_event_loop
+
 def _wderef(w_self, parent) :
     self = w_self()
     assert self != None, "%s has gone away" % parent
@@ -545,7 +562,7 @@ def call_async(func, funcargs = (), timeout = None, abort = None, loop = None) :
     " func."
 
     if loop == None :
-        loop = asyncio.get_event_loop()
+        loop = get_running_loop()
     #end if
 
     timeout_task = None
@@ -1806,7 +1823,7 @@ def _loop_attach(self, loop, dispatch) :
     # value is also stored as the loop attribute of the object.
 
     if loop == None :
-        loop = asyncio.get_event_loop()
+        loop = get_event_loop()
     #end if
 
     watches = [] # do I need to keep track of Watch objects?
@@ -2099,7 +2116,7 @@ class Connection(TaskKeeper) :
         # so I invoke it in a separate thread.
 
         if loop == None :
-            loop = asyncio.get_event_loop()
+            loop = get_running_loop()
         #end if
         error, my_error = _get_error(error)
         if timeout == DBUS.TIMEOUT_USE_DEFAULT :
@@ -2963,7 +2980,7 @@ class Connection(TaskKeeper) :
     @classmethod
     async def bus_get_async(celf, type, private, error = None, loop = None, timeout = DBUS.TIMEOUT_USE_DEFAULT) :
         if loop == None :
-            loop = asyncio.get_event_loop()
+            loop = get_running_loop()
         #end if
         assert type in (DBUS.BUS_SESSION, DBUS.BUS_SYSTEM, DBUS.BUS_STARTER), \
             "bus type must be BUS_SESSION, BUS_SYSTEM or BUS_STARTER"

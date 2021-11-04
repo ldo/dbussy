@@ -3416,14 +3416,21 @@ class PropertyHandler :
                 if asyncio.iscoroutine(propvalue) :
                     assert bus.loop != None, "no event loop to attach coroutine to"
                     async def await_return_value(task) :
-                        propvalue = await task
-                        _send_method_return \
-                          (
-                            connection = bus.connection,
-                            message = message,
-                            sig = [dbus.VariantType()],
-                            args = [(propentry["type"], propvalue)]
-                          )
+                        try :
+                            propvalue = await task
+                        except ErrorReturn as err :
+                            result = err.as_error()
+                            reply = message.new_error(result.name, result.message)
+                            bus.connection.send(reply)
+                        else :
+                            _send_method_return \
+                              (
+                                connection = bus.connection,
+                                message = message,
+                                sig = [dbus.VariantType()],
+                                args = [(propentry["type"], propvalue)]
+                              )
+                        #end try
                     #end await_return_value
                     bus.create_task(await_return_value(propvalue))
                     reply = None

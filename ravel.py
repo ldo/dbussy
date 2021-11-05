@@ -271,9 +271,12 @@ class Connection(dbus.TaskKeeper) :
 
     def __del__(self) :
 
-        def remove_listeners(level, path) :
+        # Note: if remove_listeners refers directly to outer “self",
+        # then Connection object is not disposed immediately. Passing
+        # reference as explicit arg seems to fix this.
+        def remove_listeners(self, level, path) :
             for node, child in level.children.items() :
-                remove_listeners(child, path + [node])
+                remove_listeners(self, child, path + [node])
             #end for
             if not self._direct_connect :
                 for interface in level.interfaces.values() :
@@ -296,8 +299,9 @@ class Connection(dbus.TaskKeeper) :
 
     #begin __del__
         if self._client_dispatch != None :
-            remove_listeners(self._client_dispatch, [])
+            remove_listeners(self, self._client_dispatch, [])
         #end if
+        connection = None
     #end __del__
 
     def attach_asyncio(self, loop = None) :

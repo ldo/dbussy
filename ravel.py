@@ -274,17 +274,19 @@ class Connection(dbus.TaskKeeper) :
         # Note: if remove_listeners refers directly to outer “self",
         # then Connection object is not disposed immediately. Passing
         # reference as explicit arg seems to fix this.
-        def remove_listeners(self, level, path) :
+        def remove_listeners(self, is_server, level, path) :
             for node, child in level.children.items() :
-                remove_listeners(self, child, path + [node])
+                remove_listeners(self, is_server, child, path + [node])
             #end for
             if not self._direct_connect :
-                for interface in level.interfaces.values() :
-                    for rulestr in interface.listening :
-                        ignore = dbus.Error.init()
-                        self.connection.bus_remove_match(rulestr, ignore)
+                if is_server :
+                    for interface in level.interfaces.values() :
+                        for rulestr in interface.listening :
+                            ignore = dbus.Error.init()
+                            self.connection.bus_remove_match(rulestr, ignore)
+                        #end for
                     #end for
-                #end for
+                #end if
                 for rulekey in level.signal_listeners :
                     fallback, interface, name = rulekey
                     ignore = dbus.Error.init()
@@ -298,8 +300,11 @@ class Connection(dbus.TaskKeeper) :
         #end remove_listeners
 
     #begin __del__
+        if self._server_dispatch != None :
+            remove_listeners(self, True, self._server_dispatch, [])
+        #end if
         if self._client_dispatch != None :
-            remove_listeners(self, self._client_dispatch, [])
+            remove_listeners(self, False, self._client_dispatch, [])
         #end if
         connection = None
     #end __del__

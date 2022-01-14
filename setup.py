@@ -10,28 +10,10 @@
 
 import sys
 import distutils.core
-from distutils.command.build import \
-    build as std_build
 
-class my_build(std_build) :
-    "customization of build to perform additional validation."
-
-    def run(self) :
-        try :
-            exec \
-              (
-                "async def dummy() :\n"
-                "    pass\n"
-                "#end dummy\n"
-              )
-        except SyntaxError :
-            sys.stderr.write("This module requires Python 3.5 or later.\n")
-            sys.exit(-1)
-        #end try
-        super().run()
-    #end run
-
-#end my_build
+if not (sys.version_info.major >= 3 and sys.version_info.minor >= 5):
+    sys.stderr.write("This module requires Python 3.5 or later.\n")
+    sys.exit(-1)
 
 distutils.core.setup \
   (
@@ -43,9 +25,6 @@ distutils.core.setup \
     author_email = "ldo@geek-central.gen.nz",
     url = "https://github.com/ldo/dbussy",
     license = "LGPL v2.1+",
+    python_requires='>=3.5',
     py_modules = ["dbussy", "ravel"],
-    cmdclass =
-        {
-            "build" : my_build,
-        },
   )

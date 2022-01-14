@@ -9,14 +9,13 @@
 #-
 
 import sys
-import distutils.core
+import setuptools
 
 if not (sys.version_info.major >= 3 and sys.version_info.minor >= 5):
     sys.stderr.write("This module requires Python 3.5 or later.\n")
     sys.exit(-1)
 
-distutils.core.setup \
-  (
+setuptools.setup(
     name = "DBussy",
     version = "1.3",
     description = "language bindings for libdbus, for Python 3.5 or later",
@@ -27,4 +26,4 @@ distutils.core.setup \
     license = "LGPL v2.1+",
     python_requires='>=3.5',
     py_modules = ["dbussy", "ravel"],
-  )
+)

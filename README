@@ -67,7 +67,7 @@ or will not process a particular message, it simply ignores it.
 Messages optionally include the following information:
   * a destination “bus name” indicating the process that is to
     receive the message (this is not the name of the bus, but the
-    name of a process on the bus)
+    name of a connection to the bus)
   * an “object path” which looks like a POSIX absolute file name
     (always beginning with a slash and never ending with a slash,
     except for the root object “/”); the meaning of this is up to

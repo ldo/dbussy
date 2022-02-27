@@ -1,5 +1,5 @@
 #+
-# Distutils script to install DBussy. Make sure setuptools
+# Setuptools script to install DBussy. Make sure setuptools
 # <https://setuptools.pypa.io/en/latest/index.html> is installed.
 # Invoke from the command line in this directory as follows:
 #

@@ -300,13 +300,15 @@ class Connection(dbus.TaskKeeper) :
         #end remove_listeners
 
     #begin __del__
-        if self._server_dispatch != None :
-            remove_listeners(self, True, self._server_dispatch, [])
+        if self.connection != None :
+            if self._server_dispatch != None :
+                remove_listeners(self, True, self._server_dispatch, [])
+            #end if
+            if self._client_dispatch != None :
+                remove_listeners(self, False, self._client_dispatch, [])
+            #end if
+            self.connection = None
         #end if
-        if self._client_dispatch != None :
-            remove_listeners(self, False, self._client_dispatch, [])
-        #end if
-        connection = None
     #end __del__
 
     def attach_asyncio(self, loop = None) :

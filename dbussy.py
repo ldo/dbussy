@@ -1839,7 +1839,13 @@ def _loop_attach(self, loop, dispatch) :
     # value is also stored as the loop attribute of the object.
 
     if loop == None :
-        loop = get_event_loop()
+        try :
+            # if running within a task, current loop takes priority
+            loop = get_running_loop()
+        except RuntimeError :
+            # not running within a task, use default loop
+            loop = get_event_loop()
+        #end try
     #end if
 
     watches = [] # do I need to keep track of Watch objects?

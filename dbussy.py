@@ -1488,6 +1488,22 @@ class TaskKeeper :
         self._cur_tasks.remove(task)
     #end _reaper
 
+    if "loop" in asyncio.wait.__kwdefaults__ :
+
+        def wait(self, futures, *, timeout = None, return_when = asyncio.ALL_COMPLETED) :
+            "wrapper around asyncio.wait for compatibility with pre-Python-3.7."
+            return \
+                asyncio.wait(futures, loop = self.loop, timeout = timeout, return_when = return_when)
+                  # No default loop in pre-3.7.
+        #end wait
+
+    else :
+
+        wait = staticmethod(asyncio.wait)
+          # no need to pass loop arg in ≥ 3.7, removed in ≥ 3.10.
+
+    #end if
+
 #end TaskKeeper
 
 # Misc: <https://dbus.freedesktop.org/doc/api/html/group__DBusMisc.html>
@@ -2832,10 +2848,9 @@ class Connection(TaskKeeper) :
                     else :
                         wait_timeout = None
                     #end if
-                    await asyncio.wait \
+                    await self.wait \
                       (
                         (awaiting,),
-                        loop = self.loop,
                         timeout = wait_timeout
                       )
                         # ignore done & pending results because they
@@ -3808,10 +3823,9 @@ class Server(TaskKeeper) :
                         timeout = DBUSX.DEFAULT_TIMEOUT
                     #end if
                 #end if
-                await asyncio.wait \
+                await self.wait \
                   (
                     (awaiting,),
-                    loop = self.loop,
                     timeout = timeout
                   )
                     # ignore done & pending results because they

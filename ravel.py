@@ -3141,13 +3141,7 @@ def def_proxy_interface(kind, *, name, introspected, is_async) :
                     set_prop_pending = self._set_prop_pending
                 #end if
                 if len(set_prop_pending) != 0 :
-                    if "loop" in asyncio.wait.__kwdefaults__ :
-                        done = (await asyncio.wait(set_prop_pending, loop = self.connection.loop))[0]
-                          # no default loop in pre-3.7
-                    else :
-                        # loop arg removed in 3.10
-                        done = (await asyncio.wait(set_prop_pending))[0]
-                    #end if
+                    done = (await self.connection.wait(set_prop_pending))[0]
                     failed = list(e for f in done for e in (f.exception(),) if e != None)
                     if len(failed) > 1 :
                         raise RuntimeError \

@@ -1438,7 +1438,6 @@ class Connection(dbus.TaskKeeper) :
                       )
                 #end if
                 definition = interfaces[interface]
-                interface = definition.name
             #end if
         else :
             raise TypeError("interface must be an Interface or name of one")

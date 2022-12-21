@@ -608,7 +608,7 @@ def call_async(func, funcargs = (), timeout = None, abort = None, loop = None) :
     awaiting = loop.create_future()
     ref_awaiting = weak_ref(awaiting)
       # weak ref to avoid circular refs with loop
-    subthread = threading.Thread(target = do_func, args = (ref_awaiting,))
+    subthread = threading.Thread(target = do_func, args = (ref_awaiting,), daemon = True)
     subthread.start()
     if timeout != None :
         timeout_task = loop.call_later(timeout, do_func_timedout, ref_awaiting)

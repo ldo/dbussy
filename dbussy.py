@@ -10,6 +10,7 @@ asyncio module.
 # Licensed under the GNU Lesser General Public License v2.1 or later.
 #-
 
+import sys
 import os
 import builtins
 import operator
@@ -29,7 +30,14 @@ from xml.etree import \
 from xml.sax.saxutils import \
     quoteattr as quote_xml_attr
 
-dbus = ct.cdll.LoadLibrary("libdbus-1.so.3")
+if sys.platform == "darwin":
+    try:
+        dbus = ct.cdll.LoadLibrary("libdbus-1.dylib")
+    except OSError:
+        print("D-Bus not installed. Install with `brew install dbus`")
+        exit(1)
+else:
+    dbus = ct.cdll.LoadLibrary("libdbus-1.so.3")
 
 class DBUS :
     "useful definitions adapted from the D-Bus includes. You will need to use the" \
